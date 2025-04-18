@@ -217,41 +217,6 @@ def evaluate_contest(contest_id):
             else:
                 return redirect(url_for('contest.list_submissions', contest_id=contest.id))
 
-    # Populate form for GET request or if POST validation failed 
-    # --- REMOVED OLD POPULATION LOGIC --- 
-    # while len(form.submissions) > 0:
-    #     form.submissions.pop_entry()
-    # existing_votes_query = db.session.scalars(
-    #     db.select(Vote).where(Vote.judge_id == current_user.id)
-    #                .join(Vote.submission).where(Submission.contest_id == contest.id)
-    # ).all()
-    # existing_votes = {v.submission_id: v for v in existing_votes_query}
-    # 
-    # for sub in submissions:
-    #     rank_form = SubmissionRankForm()
-    #     rank_form.submission_id = sub.id
-    #     if sub.id in existing_votes:
-    #         vote_data = existing_votes[sub.id]
-    #         rank_form.place.data = vote_data.place or 0 # Also explicitly use .data here for consistency
-    #         rank_form.comment.data = vote_data.comment or '' # Use .data and ensure it's a string (even empty)
-    #     form.submissions.append_entry(rank_form)
-    # --- END REMOVED OLD POPULATION LOGIC --- 
-
-    # --- DEBUGGING --- 
-    print("--- Debugging form data before rendering ---")
-    if hasattr(form, 'submissions'): # Check if form has submissions (it should on GET)
-        for i, sub_form in enumerate(form.submissions):
-            print(f"Submission {i} (ID: {sub_form.submission_id.data}):")
-            print(f"  Comment ID: {sub_form.comment.id}")
-            print(f"  Comment Name: {sub_form.comment.name}")
-            print(f"  Comment Field Object: {repr(sub_form.comment)}")
-            print(f"  Comment Data Type: {type(sub_form.comment.data)}")
-            print(f"  Comment Data Value: {repr(sub_form.comment.data)}") # Use repr to see exact string
-    else:
-        print("Form object does not have 'submissions' attribute (likely POST validation failed)")
-    print("--- End Debugging ---")
-    # --- END DEBUGGING ---
-
     return render_template('contest/evaluate_contest.html', 
                            title=f'Evaluar: {contest.title}', 
                            contest=contest,

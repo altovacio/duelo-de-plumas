@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Duelo de Plumas{% endblock %}
+
+{% block content %}
+    <article class="contest-detail">
+        <h2>{{ contest.title }}</h2>
+        <p class="contest-meta">
+            Estado: {{ contest.status.capitalize() }} | 
+            Tipo: {{ contest.contest_type.capitalize() }} | 
+            {% if not is_closed %}
+                Fecha Límite: {{ contest.end_date.strftime('%d/%m/%Y %H:%M') }} UTC
+            {% else %}
+                Finalizado: {{ contest.end_date.strftime('%d/%m/%Y') }}
+            {% endif %}
+        </p>
+        <div class="contest-description">
+            {{ contest.description | safe }} {# Use safe filter if description contains HTML #}
+        </div>
+
+        <hr>
+
+        {% if is_open %}
+            <h3>Enviar tu Texto</h3>
+            {% if current_user.is_authenticated or true %} {# Placeholder: Decide if login is required #}
+                <div class="form-container">
+                    <form action="{{ url_for('contest.detail', contest_id=contest.id) }}" method="post" novalidate>
+                        {{ form.hidden_tag() }}
+                        <p>
+                            {{ form.author_name.label }}<br>
+                            {{ form.author_name(size=40) }}<br>
+                            {% for error in form.author_name.errors %}
+                                <span style="color: red;">[{{ error }}]</span>
+                            {% endfor %}
+                        </p>
+                        <p>
+                            {{ form.title.label }}<br>
+                            {{ form.title(size=60) }}<br>
+                            {% for error in form.title.errors %}
+                                <span style="color: red;">[{{ error }}]</span>
+                            {% endfor %}
+                        </p>
+                        <p>
+                            {{ form.text_content.label }}<br>
+                            {{ form.text_content(rows=15, cols=80) }}<br>
+                            {% for error in form.text_content.errors %}
+                                <span style="color: red;">[{{ error }}]</span>
+                            {% endfor %}
+                        </p>
+                        <p>{{ form.submit() }}</p>
+                    </form>
+                </div>
+            {% else %}
+                <p>Debes <a href="{{ url_for('auth.login', next=request.url) }}">iniciar sesión</a> para enviar un texto.</p>
+            {% endif %}
+        {% elif is_evaluation %}
+            <h3>Evaluación en Progreso</h3>
+            <p>Las sumisiones para este concurso están cerradas. Los resultados se publicarán pronto.</p>
+            {# Add link for judges/admins to evaluate #}
+            {% if current_user.is_authenticated and (current_user.role == 'judge' or current_user.is_admin()) %}
+                <p><a href="{{ url_for('contest.list_submissions', contest_id=contest.id) }}" class="button">Evaluar Envíos</a></p>
+            {% endif %}
+        {% elif is_closed %}
+            <h3>Resultados Finales</h3>
+            {% if submissions_list %}
+                <div class="results-list">
+                    {% for submission in submissions_list %}
+                        <div class="submission-result-item {% if submission.final_rank %}ranked-submission rank-{{ submission.final_rank }}{% endif %}">
+                            <h4>
+                                {% if submission.final_rank == 1 %}
+                                    <span class="rank-badge">1º Lugar</span>
+                                {% elif submission.final_rank == 2 %}
+                                    <span class="rank-badge">2º Lugar</span>
+                                {% elif submission.final_rank == 3 %}
+                                    <span class="rank-badge">3º Lugar</span>
+                                {% elif submission.final_rank == 4 %}
+                                    <span class="rank-badge">M. Hon.</span>
+                                {% elif submission.final_rank %}
+                                    <span class="rank-badge">{{ submission.final_rank }}º</span>
+                                {% endif %}
+                                "{{ submission.title }}" por {{ submission.author_name }}
+                                <span class="points">({{ submission.total_points }} pts)</span>
+                            </h4>
+                            
+                            {# Submission Text #}
+                            <div class="submission-text-closed">
+                                <pre>{{ submission.text_content }}</pre>
+                            </div>
+
+                            {# Judge Comments #}
+                            {% if submission.id in votes_by_submission %}
+                                <div class="judge-comments">
+                                    <h5>Comentarios de los Jueces:</h5>
+                                    <ul>
+                                        {% for vote in votes_by_submission[submission.id] %}
+                                            {% if vote.comment %}
+                                                <li><strong>{{ vote.judge.username }}:</strong> {{ vote.comment }}</li>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            {% endif %}
+                        </div>
+                        {% if not loop.last %}<hr class="submission-divider">{% endif %}
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p>No hubo envíos para este concurso.</p>
+            {% endif %}
+        {% endif %}
+    </article>
+    {# Add some basic styling for results #}
+    <style>
+        .submission-result-item { margin-bottom: 2em; padding: 1em; border: 1px solid #eee; border-radius: 4px; }
+        .ranked-submission { border-left: 5px solid #ddd; }
+        .rank-1 { border-left-color: gold; }
+        .rank-2 { border-left-color: silver; }
+        .rank-3 { border-left-color: #cd7f32; } /* Bronze */
+        .rank-4 { border-left-color: #aaa; } /* HM */
+        .submission-result-item h4 { margin-bottom: 0.5em; }
+        .rank-badge { background-color: #eee; color: #333; padding: 0.2em 0.5em; border-radius: 3px; font-size: 0.9em; margin-right: 0.5em; }
+        .points { font-weight: normal; color: #555; font-size: 0.9em; }
+        .submission-text-closed { margin-top: 1em; margin-bottom: 1em; max-height: 400px; overflow-y: auto; background-color: #fdfdfd; padding: 10px; border: 1px solid #eee; }
+        .submission-text-closed pre { white-space: pre-wrap; word-wrap: break-word; margin: 0; }
+        .judge-comments { margin-top: 1em; font-size: 0.9em; }
+        .judge-comments h5 { font-size: 1em; margin-bottom: 0.3em; }
+        .judge-comments ul { list-style: none; padding-left: 0; margin-left: 0; }
+        .judge-comments li { background-color: #f5f5f5; border-left: 3px solid #ccc; padding: 0.5em; margin-bottom: 0.5em; }
+        .submission-divider { border: 0; height: 1px; background-color: #eee; margin: 2em 0; }
+    </style>
+{% endblock %} 

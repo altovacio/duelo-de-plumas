@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Duelo de Plumas{% endblock %}
+
+{% block content %}
+    <h2>{{ title }}</h2>
+    <p><a href="{{ url_for('admin.create_contest') }}" class="button">+ Crear Nuevo Concurso</a></p>
+
+    {% if contests %}
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Título</th>
+                    <th>Estado</th>
+                    <th>Tipo</th>
+                    <th>Jueces Asignados</th>
+                    <th>Fecha Límite</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for contest in contests %}
+                    <tr>
+                        <td><a href="{{ url_for('contest.detail', contest_id=contest.id) }}" title="Ver concurso">{{ contest.title }}</a></td>
+                        <td>{{ contest.status.capitalize() }}</td>
+                        <td>{{ contest.contest_type.capitalize() }}</td>
+                        <td>
+                            {% if contest.judges.all() %}
+                                {% for judge in contest.judges %}
+                                    {{ judge.username }}{% if not loop.last %}, {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                <span class="text-muted">Ninguno</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ contest.end_date.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>
+                            <a href="{{ url_for('admin.edit_contest', contest_id=contest.id) }}" class="button-small">Editar/Asignar Jueces</a>
+                            <a href="{{ url_for('admin.list_submissions', contest_id=contest.id) }}" class="button-small">Ver Envíos</a>
+                            <form action="{{ url_for('admin.delete_contest', contest_id=contest.id) }}" method="post" style="display:inline;" onsubmit="return confirm('¿Estás seguro de que quieres eliminar este concurso? Esta acción no se puede deshacer.');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <button type="submit" class="button-small button-danger">Eliminar</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No se han creado concursos todavía.</p>
+    {% endif %}
+{% endblock %} 

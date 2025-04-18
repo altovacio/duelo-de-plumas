@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Duelo de Plumas{% endblock %}
+
+{% block content %}
+    <h2>{{ title }}</h2>
+    <p><a href="{{ url_for('contest.detail', contest_id=contest.id) }}">&laquo; Volver a los detalles del concurso</a></p>
+
+    {# Add button to evaluate all if contest is in evaluation #}
+    {% if contest.status == 'evaluation' %}
+        <p>
+            <a href="{{ url_for('contest.evaluate_contest', contest_id=contest.id) }}" class="button">
+                {% if has_voted %}Editar mi Ranking{% else %}Registrar mi Ranking{% endif %}
+            </a>
+        </p>
+        {% if has_voted %}
+            <p><span class="text-success">✓ Has registrado tu ranking para este concurso.</span></p>
+        {% endif %}
+    {% elif contest.status == 'closed' %}
+        <p>Este concurso ha finalizado y los resultados han sido publicados (o están pendientes).</p> {# TODO: Show results #}
+    {% endif %}
+
+    {% if submissions %}
+        <table class="admin-table submissions-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Título del Texto</th>
+                    <th>Autor</th> {# Consider hiding if contest.anonymous_submissions and status != 'closed' #}
+                    <th>Fecha de Envío</th>
+                    {# Remove old score/action columns for individual eval #}
+                </tr>
+            </thead>
+            <tbody>
+                {% for submission in submissions %}
+                    <tr>
+                        <td>{{ submission.id }}</td>
+                        <td>{{ submission.title }}</td>
+                        <td>{{ submission.author_name }}</td>
+                        <td>{{ submission.submission_date.strftime('%Y-%m-%d %H:%M') }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No hay envíos para evaluar en este concurso.</p>
+    {% endif %}
+{% endblock %} 

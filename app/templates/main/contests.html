@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% macro contest_list(contests, status_title, is_judge_view=False) %}
+    <section class="contest-section">
+        {% if status_title %}<h3>{{ status_title }}</h3>{% endif %}
+        {% if contests %}
+            <ul class="contest-list">
+                {% for contest in contests %}
+                    <li>
+                        {# Link differs for judges viewing their assigned list #}
+                        {% if is_judge_view %}
+                            <h4><a href="{{ url_for('contest.list_submissions', contest_id=contest.id) }}">{{ contest.title }}</a></h4>
+                        {% else %}
+                            <h4><a href="{{ url_for('contest.detail', contest_id=contest.id) }}">{{ contest.title }}</a></h4>
+                        {% endif %}
+                        <p class="contest-meta">
+                            Tipo: {{ contest.contest_type.capitalize() }} |
+                            {% if contest.status == 'open' %}
+                                Fecha Límite: {{ contest.end_date.strftime('%d/%m/%Y %H:%M') }} UTC
+                            {% elif contest.status == 'evaluation' %}
+                                {% if is_judge_view %}
+                                    <strong class="text-warning">Evaluación Requerida</strong> (Finalizó: {{ contest.end_date.strftime('%d/%m/%Y') }})
+                                {% else %}
+                                    Evaluación en progreso (Finalizó: {{ contest.end_date.strftime('%d/%m/%Y') }})
+                                {% endif %}
+                            {% else %}
+                                Finalizado: {{ contest.end_date.strftime('%d/%m/%Y') }}
+                            {% endif %}
+                        </p>
+                        {% if not is_judge_view %}
+                        <p>{{ contest.description|truncate(150) }}</p>
+                        {# Display winner info for closed contests #}
+                        {% if contest.status == 'closed' %}
+                            {% set ranked_submissions = contest.submissions.filter(Submission.final_rank != None).order_by(Submission.final_rank.asc(), Submission.total_points.desc()).all() %}
+                            {% if ranked_submissions %}
+                                <div class="winners-list">
+                                <strong>Resultados:</strong>
+                                {% set current_rank = 0 %}
+                                {% for sub in ranked_submissions %}
+                                    {# Only show top ranks, e.g., 1, 2, 3, 4(HM) #}
+                                    {% if sub.final_rank <= 4 %}
+                                        {% if sub.final_rank != current_rank %}
+                                            {% if current_rank != 0 %}</ul>{% endif %}
+                                            {% set current_rank = sub.final_rank %}
+                                            <strong>
+                                            {% if current_rank == 1 %}1er Lugar:{% elif current_rank == 2 %}2do Lugar:{% elif current_rank == 3 %}3er Lugar:{% elif current_rank == 4 %}Mención Honorífica:{% endif %}
+                                            </strong>
+                                            <ul>
+                                        {% endif %}
+                                        <li>"{{ sub.title }}" por {{ sub.author_name }} ({{ sub.total_points }} pts)</li>
+                                    {% endif %}
+                                {% endfor %}
+                                {% if current_rank != 0 %}</ul>{% endif %} {# Close last ul if needed #}
+                                </div>
+                            {% else %}
+                                <p><em>Resultados no disponibles.</em></p>
+                            {% endif %}
+                        {% endif %}
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>No hay concursos en esta categoría.</p>
+        {% endif %}
+    </section>
+{% endmacro %}
+
+{% block title %}{{ title }} - Duelo de Plumas{% endblock %}
+
+{% block content %}
+    <h2>{{ title }}</h2>
+
+    {# Section for assigned evaluations (Judges only) #}
+    {% if current_user.is_authenticated and current_user.role == 'judge' %}
+        <div class="judge-evaluation-section">
+            <h3>Mis Evaluaciones Pendientes</h3>
+            {{ contest_list(judge_assigned_evaluations, None, is_judge_view=True) }} {# Call macro without title, set judge view flag #}
+        </div>
+        <hr>
+    {% endif %}
+
+    {# Public contest sections #}
+    {{ contest_list(contests_open, 'Concursos Abiertos') }}
+    <hr>
+    {{ contest_list(contests_evaluation, 'Concursos en Evaluación') }}
+    <hr>
+    {{ contest_list(contests_closed, 'Concursos Finalizados') }}
+
+{% endblock %} 

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Duelo de Plumas{% endblock %}
+
+{% block content %}
+    <h2>{{ title }}</h2>
+    <div class="form-container">
+        {# Use form_action variable passed from route #}
+        <form action="{{ form_action }}" method="post" novalidate>
+            {{ form.hidden_tag() }}
+            <p>
+                {{ form.title.label }}<br>
+                {{ form.title(size=60) }}<br>
+                {% for error in form.title.errors %}
+                    <span style="color: red;">[{{ error }}]</span>
+                {% endfor %}
+            </p>
+            <p>
+                {{ form.description.label }}<br>
+                {{ form.description(rows=5, cols=60) }}<br>
+                {% for error in form.description.errors %}
+                    <span style="color: red;">[{{ error }}]</span>
+                {% endfor %}
+            </p>
+            <p>
+                {{ form.end_date.label }}<br>
+                {# Use datetime-local input type. Note: format must match wtforms format #}
+                {{ form.end_date(type="datetime-local", value=form.end_date.data.strftime('%Y-%m-%dT%H:%M') if form.end_date.data else '') }}<br>
+                {% for error in form.end_date.errors %}
+                    <span style="color: red;">[{{ error }}]</span>
+                {% endfor %}
+            </p>
+            <p>
+                {{ form.required_judges.label }}<br>
+                {{ form.required_judges(size=5) }}<br>
+                {% for error in form.required_judges.errors %}
+                    <span style="color: red;">[{{ error }}]</span>
+                {% endfor %}
+            </p>
+            <p>
+                {{ form.contest_type.label }}<br>
+                {{ form.contest_type() }}<br>
+                {% for error in form.contest_type.errors %}
+                    <span style="color: red;">[{{ error }}]</span>
+                {% endfor %}
+            </p>
+            <p>
+                {{ form.contest_password.label }}<br>
+                {{ form.contest_password(size=30) }}<br>
+                {% for error in form.contest_password.errors %}
+                    <span style="color: red;">[{{ error }}]</span>
+                {% endfor %}
+            </p>
+            <p>
+                {{ form.anonymous_submissions() }} {{ form.anonymous_submissions.label }}<br>
+                {% for error in form.anonymous_submissions.errors %}
+                    <span style="color: red;">[{{ error }}]</span>
+                {% endfor %}
+            </p>
+            <p>
+                {{ form.status.label }}<br>
+                {{ form.status() }}<br>
+                {% for error in form.status.errors %}
+                    <span style="color: red;">[{{ error }}]</span>
+                {% endfor %}
+            </p>
+            <p>
+                {{ form.judges.label }}<br>
+                {# Use size attribute for height, multiple for multi-select #}
+                {{ form.judges(size=5, multiple=True) }}<br>
+                <small>Mantén presionada la tecla Ctrl (o Cmd en Mac) para seleccionar múltiples jueces.</small><br>
+                {% for error in form.judges.errors %}
+                    <span style="color: red;">[{{ error }}]</span>
+                {% endfor %}
+                {# Add link to create a new judge - opens in new tab for convenience #}
+                <small><a href="{{ url_for('admin.add_judge') }}" target="_blank">(+ Agregar Nuevo Juez)</a></small>
+            </p>
+            <p>{{ form.submit() }} <a href="{{ url_for('admin.list_contests') }}">Cancelar</a></p>
+        </form>
+    </div>
+{% endblock %} 

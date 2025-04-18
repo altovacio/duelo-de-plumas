@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{# Import the macro from the new contests page template #}
+{% from "main/contests.html" import contest_list with context %}
+
+{% block title %}Inicio - Duelo de Plumas{% endblock %}
+
+{% block content %}
+    <section class="hero">
+        <h1>Bienvenido a Duelo de Plumas</h1>
+        <p>La plataforma para concursos literarios.</p>
+        <!-- Add more introductory content or imagery here -->
+    </section>
+
+    {# Use the macro for active contests #}
+    {{ contest_list(active_contests, 'Concursos Activos') }}
+
+    <hr>
+
+    {# New section for recently closed contests #}
+    <section class="contest-section recent-closed">
+        <h3>Concursos Recién Finalizados</h3>
+        {% if closed_contests %}
+            <ul class="contest-list">
+                {# Loop through closed contests, maybe limit display later #}
+                {% for contest in closed_contests[:3] %} {# Display max 3 for example #}
+                    <li>
+                        <h4><a href="{{ url_for('contest.detail', contest_id=contest.id) }}">{{ contest.title }}</a></h4>
+                        <p class="contest-meta">
+                            Finalizado: {{ contest.end_date.strftime('%d/%m/%Y') }}
+                        </p>
+                        {# Display winner info for closed contests #}
+                        {% set ranked_submissions = contest.submissions.filter(Submission.final_rank != None).order_by(Submission.final_rank.asc(), Submission.total_points.desc()).all() %}
+                        {% if ranked_submissions %}
+                            <div class="winners-list winners-summary">
+                            {% set first_place = ranked_submissions | selectattr('final_rank', 'equalto', 1) | list %}
+                            {% if first_place %}
+                                <p><strong>1er Lugar:</strong>
+                                {% for sub in first_place %}"{% if not loop.first %}, "%}
+                                {% endif %}{{ sub.title }}" por {{ sub.author_name }}{% endfor %}</p>
+                            {% else %}
+                                <p><em>Resultados no disponibles.</em></p>
+                            {% endif %}
+                            </div>
+                        {% else %}
+                            <p><em>Resultados no disponibles.</em></p>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+                 {# Link to the main contests page if there are more #}
+                 {% if closed_contests|length > 3 %}
+                    <p style="text-align: right;"><a href="{{ url_for('main.list_contests') }}">Ver todos los concursos finalizados...</a></p>
+                 {% endif %}
+            </ul>
+        {% else %}
+            <p>Aún no hay concursos finalizados.</p>
+        {% endif %}
+    </section>
+{% endblock %} 

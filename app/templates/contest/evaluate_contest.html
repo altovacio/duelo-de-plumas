@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Duelo de Plumas{% endblock %}
+
+{% block content %}
+    <h2>{{ title }}</h2>
+    <p>Concurso: <a href="{{ url_for('contest.detail', contest_id=contest.id) }}">{{ contest.title }}</a></p>
+    <p>Instrucciones: Asigna 1er, 2do y 3er lugar (y opcionalmente Mención Honorífica) a los envíos de abajo. Las opciones disponibles dependen del número total de envíos. <strong>Debes asignar exactamente un 1er, un 2do y un 3er lugar si hay suficientes envíos.</strong></p>
+
+    <div class="form-container evaluation-form">
+        <form action="{{ url_for('contest.evaluate_contest', contest_id=contest.id) }}" method="post" novalidate>
+            {{ form.hidden_tag() }}
+
+            <table class="evaluation-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Título</th>
+                        <th>Texto</th>
+                        <th>Lugar</th>
+                        <th>Comentario</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sub_form in form.submissions %}
+                        {% set submission = submissions | selectattr('id', 'equalto', sub_form.submission_id.data | int) | first %}
+                        <tr>
+                            <td>
+                                {{ sub_form.submission_id() }}
+                                {{ sub_form.submission_id.data }}
+                            </td>
+                            <td>{{ submission.title if submission else 'Error' }}</td>
+                            <td>
+                                <button type="button" onclick="toggleText('sub-text-{{ loop.index }}')">Mostrar/Ocultar Texto</button>
+                                <div id="sub-text-{{ loop.index }}" class="submission-text-inline" style="display:none; margin-top: 10px; border: 1px solid #eee; padding: 10px; max-height: 300px; overflow-y: auto; background-color: #f9f9f9;">
+                                    <pre>{{ submission.text_content if submission else 'Error' }}</pre>
+                                </div>
+                            </td>
+                            <td>{{ sub_form.place() }}</td>
+                            <td>
+                                {{ sub_form.comment(rows=2, class='evaluation-comment') }}
+                                {% for error in sub_form.comment.errors %}
+                                    <span style="color: red;">[{{ error }}]</span>
+                                {% endfor %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <p>
+                {{ form.submit() }}
+                <a href="{{ url_for('contest.list_submissions', contest_id=contest.id) }}">Cancelar</a>
+            </p>
+        </form>
+    </div>
+
+    <script>
+        function toggleText(elementId) {
+            var element = document.getElementById(elementId);
+            if (element.style.display === "none") {
+                element.style.display = "block";
+            } else {
+                element.style.display = "none";
+            }
+        }
+    </script>
+
+{% endblock %} 

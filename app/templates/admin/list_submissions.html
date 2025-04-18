@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Duelo de Plumas{% endblock %}
+
+{% block content %}
+    <h2>{{ title }}</h2>
+    <p><a href="{{ url_for('admin.list_contests') }}">&laquo; Volver a la lista de concursos</a></p>
+
+    {% if submissions %}
+        <table class="admin-table submissions-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Título del Texto</th>
+                    <th>Autor</th>
+                    <th>Fecha de Envío</th>
+                    {# Add columns for scores/votes later #}
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for submission in submissions %}
+                    <tr>
+                        <td>{{ submission.id }}</td>
+                        <td>{{ submission.title }}</td>
+                        <td>{{ submission.author_name }}</td>
+                        <td>{{ submission.submission_date.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>
+                            <a href="#" class="button-small">Ver Texto</a> {# TODO: Link to view submission text #}
+                            {# Add evaluation links/info later #}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>Todavía no hay envíos para este concurso.</p>
+    {% endif %}
+{% endblock %} 

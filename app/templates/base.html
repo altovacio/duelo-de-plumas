@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>{% block title %}Duelo de Plumas{% endblock %}</title>
+    <!-- Link to CSS file (we'll create this later) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block head_extra %}{% endblock %}
+</head>
+<body>
+    <header>
+        <nav>
+            <h1><a href="{{ url_for('main.index') }}">Duelo de Plumas</a></h1>
+            <ul>
+                <li><a href="{{ url_for('main.index') }}">Inicio</a></li>
+                <li><a href="{{ url_for('main.list_contests') }}">Concursos</a></li>
+                {% if current_user.is_authenticated %}
+                    {% if current_user.is_admin() %}
+                        <li><a href="{{ url_for('admin.index') }}">Admin</a></li>
+                    {% endif %}
+                    <li><a href="{{ url_for('auth.logout') }}">Cerrar Sesión</a></li>
+                {% else %}
+                    <li><a href="{{ url_for('auth.login') }}">Iniciar Sesión</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}
+        <!-- Content of specific pages will go here -->
+        {% endblock %}
+    </main>
+
+    <footer>
+        <p>&copy; {{ now().year }} Duelo de Plumas. Todos los derechos reservados.</p>
+        <!-- Add footer links if needed -->
+    </footer>
+
+    <!-- Optional JavaScript -->
+    {% block scripts %}
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    {% endblock %}
+</body>
+</html> 

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Duelo de Plumas{% endblock %}
+
+{% block content %}
+    <h2>{{ title }}</h2>
+    <p>Bienvenido al panel de administración.</p>
+    <ul>
+        <li><a href="{{ url_for('admin.list_contests') }}">Gestionar Concursos</a></li>
+        {# Add links to user management, etc. later #}
+    </ul>
+{% endblock %} 

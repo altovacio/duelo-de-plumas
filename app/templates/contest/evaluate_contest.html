@@ -38,7 +38,7 @@
                             </td>
                             <td>{{ sub_form.place() }}</td>
                             <td>
-                                {{ sub_form.comment(rows=2, class='evaluation-comment') }}
+                                <textarea id="{{ sub_form.comment.id }}" name="{{ sub_form.comment.name }}" rows="2" class="evaluation-comment">{{ sub_form.comment.data or '' }}</textarea>
                                 {% for error in sub_form.comment.errors %}
                                     <span style="color: red;">[{{ error }}]</span>
                                 {% endfor %}

@@ -25,10 +25,21 @@ def index():
         .order_by(Contest.end_date.desc())
     ).all()
 
+    # Fetch pending evaluations for the current judge
+    judge_assigned_evaluations = []
+    if current_user.is_authenticated and current_user.role == 'judge':
+        judge_assigned_evaluations = db.session.scalars(
+            db.select(Contest)
+            .where(Contest.status == 'evaluation')
+            .where(Contest.judges.any(User.id == current_user.id))
+            .order_by(Contest.end_date.asc())
+        ).all()
+
     return render_template('main/index.html', 
                            title='Inicio', 
                            active_contests=active_contests,
                            closed_contests=closed_contests,
+                           judge_assigned_evaluations=judge_assigned_evaluations,
                            Submission=Submission) # Pass Submission model
 
 # New Route for listing all contests by status

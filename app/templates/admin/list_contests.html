@@ -22,7 +22,18 @@
                 {% for contest in contests %}
                     <tr>
                         <td><a href="{{ url_for('contest.detail', contest_id=contest.id) }}" title="Ver concurso">{{ contest.title }}</a></td>
-                        <td>{{ contest.status.capitalize() }}</td>
+                        <td>
+                            {# Form to change status #}
+                            <form action="{{ url_for('admin.set_contest_status', contest_id=contest.id) }}" method="post" class="inline-form">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <select name="new_status" class="small-select">
+                                    <option value="open" {% if contest.status == 'open' %}selected{% endif %}>Open</option>
+                                    <option value="evaluation" {% if contest.status == 'evaluation' %}selected{% endif %}>Evaluation</option>
+                                    <option value="closed" {% if contest.status == 'closed' %}selected{% endif %}>Closed</option>
+                                </select>
+                                <button type="submit" class="button-small">Cambiar</button>
+                            </form>
+                        </td>
                         <td>{{ contest.contest_type.capitalize() }}</td>
                         <td>
                             {% if contest.judges.all() %}

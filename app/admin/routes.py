@@ -106,6 +106,32 @@ def delete_contest(contest_id):
     flash('Concurso eliminado exitosamente.', 'success')
     return redirect(url_for('admin.list_contests'))
 
+@bp.route('/contests/<int:contest_id>/set_status', methods=['POST'])
+@login_required
+@admin_required
+def set_contest_status(contest_id):
+    contest = db.session.get(Contest, contest_id)
+    if not contest:
+        flash('Concurso no encontrado.', 'danger')
+        return redirect(url_for('admin.list_contests'))
+
+    new_status = request.form.get('new_status')
+    allowed_statuses = ['open', 'evaluation', 'closed']
+
+    if new_status and new_status in allowed_statuses:
+        try:
+            contest.status = new_status
+            # Add logic here if certain transitions need checks (e.g., can't reopen a closed contest?)
+            db.session.commit()
+            flash(f'Estado del concurso "{contest.title}" cambiado a {new_status.capitalize()}.', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error al cambiar el estado: {e}', 'danger')
+    else:
+        flash('Estado inválido especificado.', 'danger')
+
+    return redirect(url_for('admin.list_contests'))
+
 @bp.route('/contests/<int:contest_id>/submissions')
 @login_required
 @admin_required

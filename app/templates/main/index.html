@@ -11,6 +11,26 @@
         <!-- Add more introductory content or imagery here -->
     </section>
 
+    {# Judge's Pending Evaluations Section #}
+    {% if current_user.is_authenticated and current_user.role == 'judge' and judge_assigned_evaluations %}
+        <section class="contest-section judge-pending">
+            <h3>Mis Evaluaciones Pendientes</h3>
+            <ul class="contest-list">
+                {% for contest in judge_assigned_evaluations %}
+                    <li>
+                        <h4><a href="{{ url_for('contest.list_submissions', contest_id=contest.id) }}">{{ contest.title }}</a></h4>
+                        <p class="contest-meta">
+                            Estado: {{ contest.status }} | Fin (referencial): {{ contest.end_date.strftime('%d/%m/%Y') }}
+                        </p>
+                        {# Add link to evaluation page #}
+                        <a href="{{ url_for('contest.evaluate_contest', contest_id=contest.id) }}" class="button button-small">Evaluar Ahora</a>
+                    </li>
+                {% endfor %}
+            </ul>
+        </section>
+        <hr>
+    {% endif %}
+
     {# Use the macro for active contests #}
     {{ contest_list(active_contests, 'Concursos Activos') }}
 

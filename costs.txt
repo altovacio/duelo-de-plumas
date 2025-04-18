@@ -1,0 +1,34 @@
+OpenAI	GPT-4.1	1M	$0.002	$0.008	$0.0100	$1.00
+OpenAI	GPT-4.1 mini	1M	$0.0004	$0.0016	$0.0020	$0.20
+OpenAI	GPT-4.1 nano	1M	$0.0001	$0.0004	$0.0005	$0.05
+xAI	Grok 3	1M	$0.003	$0.015	$0.0180	$1.80
+xAI	Grok 2	200k	$0.002	$0.01	$0.0120	$1.20
+Meta	Llama 4 Maverick	1M	$0.00019	$0.00049	$0.0007	$0.07
+Meta	Llama 4 Scout	10M	$0.00017	$0.00017	$0.0003	$0.03
+Meta	Llama 3.2 90b	128k	$0.00204	$0.00204	$0.0041	$0.41
+Meta	Llama 3.3 70b	200k	$0.00071	$0.00071	$0.0014	$0.14
+Google	Gemini 2.5 Pro	200k	$0.00125	$0.01	$0.0112	$1.13
+Google	Gemini 2.0 Flash	200k	$0.0001	$0.0007	$0.0008	$0.08
+Anthropic	Claude 3.7 Sonnet	200k	$0.003	$0.015	$0.0180	$1.80
+Anthropic   Claude 3.5 Haiku    200k    $0.0008 $0.004  $0.0048 $0.48
+OpenAI	o3-mini	128k	$0.001	$0.004	$0.0050	$0.50
+OpenAI	o1-preview	128k	$0.015	$0.06	$0.0750	$7.50
+OpenAI	o1	200k	$0.015	$0.06	$0.0750	$7.50
+OpenAI	o1-mini	128k	$0.001	$0.004	$0.0050	$0.50
+OpenAI	GPT-4	8k	$0.03	$0.06	$0.0900	$9.00
+OpenAI	GPT-4	32k	$0.06	$0.12	$0.1800	$18.00
+OpenAI	GPT-4 Turbo	128k	$0.01	$0.03	$0.0400	$4.00
+OpenAI	GPT-4o (omni)	128k	$0.005	$0.015	$0.0200	$2.00
+OpenAI	GPT-4o mini	128k	$0.00015	$0.0006	$0.0007	$0.07
+OpenAI	GPT-4o Realtime	128k	$0.002	$0.01	$0.0120	$1.20
+OpenAI	GPT-4o mini Realtime	128k	$0.0006	$0.0024	$0.0030	$0.30
+Anthropic	Claude 3.5 Haiku	200k	$0.0008	$0.004	$0.0048	$0.48
+DeepSeek	DeepSeek V3	128k	$0		$0.0000	$0.00
+OpenAI	GPT-3.5 Turbo	16k	$0.0015	$0.002	$0.0035	$0.35
+OpenAI	GPT-3.5 Turbo	4k	$0.0015	$0.002	$0.0035	$0.35
+Anthropic	Claude 3 Haiku	200k	$0.00025	$0.00125	$0.0015	$0.15
+Anthropic	Claude 3 Sonnet	200k	$0.003	$0.015	$0.0180	$1.80
+Cohere	Command-R	128k	$0.0005	$0.0015	$0.0020	$0.20
+DeepSeek	DeepSeek-R1	64k	$0.00055	$0.00219	$0.0027	$0.27
+Google	Gemini 2.0 Flash	1M	$0		$0.0000	$0.00
+Google	Gemini 1.5 Pro	2M	$0.0012	$0.005	$0.0062	$0.62

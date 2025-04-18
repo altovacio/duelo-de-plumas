@@ -14,7 +14,12 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(64), index=True, unique=True, nullable=False)
     email = db.Column(db.String(120), index=True, unique=True, nullable=False)
     password_hash = db.Column(db.String(256))
-    role = db.Column(db.String(10), index=True, default='judge') # 'admin', 'judge', 'user' (submitter)
+    role = db.Column(db.String(10), index=True, default='judge') # 'admin', 'judge', 'user'
+    # New fields for AI Judges
+    judge_type = db.Column(db.String(10), server_default='human', nullable=False) # 'human' or 'ai'
+    ai_model_id = db.Column(db.String(80), nullable=True) # ID referencing ai_model_costs.json
+    ai_personality_prompt = db.Column(db.Text, nullable=True) # Custom prompt for this AI judge
+
     votes = db.relationship('Vote', backref='judge', lazy='dynamic')
     # Relationship for contests a user is judging
     judged_contests = db.relationship('Contest', secondary=contest_judges,
@@ -28,6 +33,9 @@ class User(UserMixin, db.Model):
 
     def is_admin(self):
         return self.role == 'admin'
+
+    def is_ai_judge(self):
+        return self.judge_type == 'ai'
 
     def __repr__(self):
         return f'<User {self.username} ({self.role})>'
@@ -51,6 +59,8 @@ class Contest(db.Model):
     # Relationship for judges assigned to this contest
     judges = db.relationship('User', secondary=contest_judges,
                              back_populates='judged_contests', lazy='dynamic')
+    # Relationship to AI evaluation runs for this contest
+    # ai_evaluation_runs backref defined in AIEvaluationRun
 
     def set_password(self, password):
         if self.contest_type == 'private':
@@ -83,23 +93,44 @@ class Submission(db.Model):
 
 class Vote(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    # score = db.Column(db.Integer, nullable=False) # Removed score
-    place = db.Column(db.Integer, nullable=True) # 1, 2, 3, 4 (HM). Null if no place assigned by this judge.
-    comment = db.Column(db.Text, nullable=True) # Overall comment for the contest by the judge? Or per-submission? Let's keep it per vote for now.
+    place = db.Column(db.Integer, nullable=True) # 1, 2, 3, 4 (HM).
+    comment = db.Column(db.Text, nullable=True)
     timestamp = db.Column(db.DateTime, index=True, default=lambda: datetime.now(timezone.utc))
     judge_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     submission_id = db.Column(db.Integer, db.ForeignKey('submission.id'), nullable=False)
+    contest_id = db.Column(db.Integer, db.ForeignKey('contest.id'), nullable=False)
 
-    # A judge assigns places *per contest*. This constraint is now handled in the evaluation form logic.
-    # We still need a constraint that a judge can only have one vote *per place* per contest, or simply one set of rankings per contest.
-    # Let's rethink: Maybe Vote should store judge_id, contest_id, submission_id, place?
-    # This seems better. A Vote record represents ONE judge assigning ONE place to ONE submission in ONE contest.
-    # No, the original idea was one vote *per submission* per judge, storing the assigned place.
-    # Let's stick with the current Vote structure (judge, submission, place, comment).
-    # The logic that a judge only submits *one set* of rankings per contest is handled in the form processing.
+    # Relationships (optional but good practice)
+    # submission = db.relationship('Submission', backref=db.backref('all_votes', lazy='dynamic')) # Renamed backref
+    # judge = db.relationship('User', backref=db.backref('all_votes', lazy='dynamic')) # Renamed backref
+    # contest = db.relationship('Contest', backref=db.backref('all_votes', lazy='dynamic')) # Renamed backref
 
-    # Old unique constraint - needs updating or removal? Let's remove for now, form logic handles uniqueness.
-    # __table_args__ = (db.UniqueConstraint('judge_id', 'submission_id', name='_judge_submission_uc'),)
+    # Unique constraint: one vote (place/comment) per judge per submission
+    __table_args__ = (db.UniqueConstraint('judge_id', 'submission_id', name='_judge_submission_uc'),)
 
     def __repr__(self):
-        return f'<Vote by Judge {self.judge_id} on Submission {self.submission_id} -> Place: {self.place}>' 
+        return f'<Vote Judge:{self.judge_id} Sub:{self.submission_id} Contest:{self.contest_id} -> Place:{self.place}>'
+
+# New Model for AI Evaluation Runs
+class AIEvaluationRun(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    contest_id = db.Column(db.Integer, db.ForeignKey('contest.id'), nullable=False)
+    judge_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False) # The AI User running this
+    ai_model_used = db.Column(db.String(80), nullable=False) # ID of the model used
+    prompt_tokens = db.Column(db.Integer, nullable=True) # Input tokens for the run
+    completion_tokens = db.Column(db.Integer, nullable=True) # Output tokens for the run
+    total_cost = db.Column(db.Float, nullable=True) # Calculated cost for the run
+    full_prompt_sent = db.Column(db.Text, nullable=True) # For debugging/auditing
+    raw_ai_response = db.Column(db.Text, nullable=True) # For debugging/auditing
+    run_timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc)) # Use timezone-aware UTC
+    status = db.Column(db.String(20), default='pending', nullable=False) # 'pending', 'running', 'completed', 'failed'
+
+    # Relationships
+    contest = db.relationship('Contest', backref=db.backref('ai_evaluation_runs', lazy='dynamic'))
+    judge = db.relationship('User', backref=db.backref('ai_evaluation_runs', lazy='dynamic'))
+
+    # Ensure one AI judge only runs evaluation once per contest (can be relaxed later if needed)
+    __table_args__ = (db.UniqueConstraint('contest_id', 'judge_id', name='_ai_run_contest_judge_uc'),)
+
+    def __repr__(self):
+        return f'<AIEvaluationRun {self.id} for Contest {self.contest_id} by Judge {self.judge_id} ({self.status})>' 

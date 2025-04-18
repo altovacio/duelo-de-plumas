@@ -111,3 +111,31 @@ Sitio web minimalista para la gestión y participación en concursos literarios.
 
 *   `flask shell`: Abre un shell interactivo con el contexto de la aplicación.
 *   `flask check-contests`: Verifica concursos abiertos pasados de fecha y los mueve a evaluación; intenta calcular resultados para concursos en evaluación.
+
+## To Do / Future Improvements
+
+*   **Admin UI Enhancements:**
+    *   Improve judge assignment in the contest edit form (e.g., search/filter for judges if the list becomes long).
+    *   Consider adding pagination for lists (contests, users, submissions) in the admin panel.
+    *   Allow admins to view submission text directly from the admin submission list.
+*   **UI/UX:**
+    *   Review the text display mechanism in the evaluation form (currently inline, was previously a toggle) for usability.
+    *   Standardize confirmation messages and redirects.
+    *   Improve visual design and responsiveness.
+*   **Testing:**
+    *   Implement unit tests for models and core logic (e.g., `calculate_contest_results`).
+    *   Implement integration tests for user flows (submission, evaluation, admin actions).
+*   **Seeding Script:**
+    *   Make `seed_mock_data.py` more configurable (e.g., number of users, submissions via arguments).
+    *   Add options to seed different scenarios (e.g., contests in 'open' state, partially judged contests).
+*   **Error Handling & Robustness:**
+    *   Add more specific error handling and user feedback in routes.
+    *   Review input validation across all forms.
+*   **Features:**
+    *   Implement tie-breaking logic in `calculate_contest_results`.
+    *   Allow user registration beyond just judges/admin (optional feature).
+    *   Consider email notifications (e.g., when assigned as judge, contest closing).
+*   **Deployment:**
+    *   Add detailed deployment instructions (e.g., using Gunicorn, Nginx, Docker).
+*   **Security:**
+    *   Perform a security review (CSRF, XSS, SQL Injection, permissions).

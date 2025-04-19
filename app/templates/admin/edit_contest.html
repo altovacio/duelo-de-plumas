@@ -66,16 +66,136 @@
             </p>
             <p>
                 {{ form.judges.label }}<br>
-                {# Use size attribute for height, multiple for multi-select #}
-                {{ form.judges(size=5, multiple=True) }}<br>
-                <small>Mantén presionada la tecla Ctrl (o Cmd en Mac) para seleccionar múltiples jueces.</small><br>
-                {% for error in form.judges.errors %}
-                    <span style="color: red;">[{{ error }}]</span>
-                {% endfor %}
-                {# Add link to create a new judge - opens in new tab for convenience #}
-                <small><a href="{{ url_for('admin.add_judge') }}" target="_blank">(+ Agregar Nuevo Juez)</a></small>
+                <div class="judge-selector">
+                    <div class="judges-container">
+                        <div class="judge-box ai-judges">
+                            <h4>Jueces de IA</h4>
+                            <div class="judges-list">
+                                {% if form.judges.choices %}
+                                    {% for choice in form.judges.choices %}
+                                        {% if choice[0] > 0 and ('Modelo:' in choice[1]) %}
+                                            <div class="judge-item">
+                                                <label>
+                                                    <input type="checkbox" name="judges" value="{{ choice[0] }}" 
+                                                        {% if form.judges.data and choice[0] in form.judges.data %}checked{% endif %}> 
+                                                    {{ choice[1] }}
+                                                </label>
+                                            </div>
+                                        {% endif %}
+                                    {% endfor %}
+                                {% else %}
+                                    <p class="no-judges">No hay jueces de IA disponibles</p>
+                                {% endif %}
+                            </div>
+                            <div class="judge-actions">
+                                <a href="{{ url_for('admin.add_ai_judge') }}" target="_blank" class="small-link">+ Agregar Juez de IA</a>
+                            </div>
+                        </div>
+                        
+                        <div class="judge-box human-judges">
+                            <h4>Jueces Humanos</h4>
+                            <div class="judges-list">
+                                {% if form.judges.choices %}
+                                    {% for choice in form.judges.choices %}
+                                        {% if choice[0] > 0 and ('Modelo:' not in choice[1]) %}
+                                            <div class="judge-item">
+                                                <label>
+                                                    <input type="checkbox" name="judges" value="{{ choice[0] }}" 
+                                                        {% if form.judges.data and choice[0] in form.judges.data %}checked{% endif %}> 
+                                                    {{ choice[1] }}
+                                                </label>
+                                            </div>
+                                        {% endif %}
+                                    {% endfor %}
+                                {% else %}
+                                    <p class="no-judges">No hay jueces humanos disponibles</p>
+                                {% endif %}
+                            </div>
+                            <div class="judge-actions">
+                                <a href="{{ url_for('admin.add_judge') }}" target="_blank" class="small-link">+ Agregar Juez Humano</a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <small class="text-muted">
+                        Selecciona los jueces que evaluarán este concurso. Los jueces de IA muestran entre paréntesis el modelo que utilizan.
+                    </small>
+                </div>
             </p>
             <p>{{ form.submit() }} <a href="{{ url_for('admin.list_contests') }}">Cancelar</a></p>
         </form>
     </div>
+
+    <style>
+        .judge-selector {
+            margin-top: 5px;
+        }
+        .judges-container {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 15px;
+        }
+        .judge-box {
+            flex: 1;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+        }
+        .ai-judges {
+            background-color: #f8f4ff;
+        }
+        .ai-judges h4 {
+            color: #8e44ad;
+            margin-top: 0;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #e5d8f0;
+        }
+        .human-judges {
+            background-color: #f5f9ff;
+        }
+        .human-judges h4 {
+            color: #3498db;
+            margin-top: 0;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #d4e5f7;
+        }
+        .judges-list {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+        }
+        .judge-item {
+            padding: 5px 0;
+        }
+        .judge-item label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+        .judge-item input[type="checkbox"] {
+            margin-right: 8px;
+        }
+        .judge-actions {
+            padding-top: 10px;
+            border-top: 1px solid #dee2e6;
+            text-align: center;
+        }
+        .no-judges {
+            color: #6c757d;
+            font-style: italic;
+            text-align: center;
+            padding: 15px 0;
+        }
+        .text-muted {
+            color: #6c757d;
+            display: block;
+            margin-top: 4px;
+        }
+        .small-link {
+            font-size: 13px;
+            text-decoration: none;
+        }
+    </style>
 {% endblock %} 

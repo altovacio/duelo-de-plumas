@@ -31,6 +31,40 @@
         <hr>
     {% endif %}
 
+    {# Admin section for pending AI evaluations #}
+    {% if current_user.is_authenticated and current_user.is_admin() and pending_ai_evaluations %}
+        <section class="contest-section ai-pending">
+            <h3><i class="fas fa-robot"></i> Evaluaciones de IA Pendientes</h3>
+            <ul class="contest-list">
+                {% for contest in pending_ai_evaluations %}
+                    <li>
+                        <h4><a href="{{ url_for('contest.list_submissions', contest_id=contest.id) }}">{{ contest.title }}</a></h4>
+                        <p class="contest-meta">
+                            Estado: {{ contest.status }} | Fin: {{ contest.end_date.strftime('%d/%m/%Y') }}
+                        </p>
+                        <a href="{{ url_for('contest.list_submissions', contest_id=contest.id) }}" class="button button-small button-ai">Ejecutar Evaluación de IA</a>
+                    </li>
+                {% endfor %}
+            </ul>
+        </section>
+        <style>
+            .ai-pending h3 {
+                color: #8e44ad;
+            }
+            .ai-pending h3 i {
+                margin-right: 8px;
+            }
+            .button-ai {
+                background-color: #8e44ad;
+                color: white;
+            }
+            .button-ai:hover {
+                background-color: #9b59b6;
+            }
+        </style>
+        <hr>
+    {% endif %}
+
     {# Use the macro for active contests #}
     {{ contest_list(active_contests, 'Concursos Activos') }}
 

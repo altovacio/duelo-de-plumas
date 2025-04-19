@@ -40,9 +40,14 @@ def create_contest():
         else:
             contest.password_hash = None # Ensure public doesn't have password
         
-        # Handle judge assignments
-        assigned_judge_ids = form.judges.data # Returns list of selected IDs
-        contest.judges = db.session.scalars(db.select(User).where(User.id.in_(assigned_judge_ids))).all()
+        # Handle judge assignments - process checkbox data
+        assigned_judge_ids = request.form.getlist('judges')
+        if assigned_judge_ids:
+            # Convert string IDs to integers
+            assigned_judge_ids = [int(id) for id in assigned_judge_ids]
+            contest.judges = db.session.scalars(db.select(User).where(User.id.in_(assigned_judge_ids))).all()
+        else:
+            contest.judges = []
         
         db.session.add(contest)
         db.session.commit()
@@ -61,7 +66,10 @@ def edit_contest(contest_id):
     
     # Pre-populate judges multi-select field
     if request.method == 'GET':
-        form.judges.data = [judge.id for judge in contest.judges]
+        if contest.judges:
+            form.judges.data = [judge.id for judge in contest.judges]
+        else:
+            form.judges.data = []
     
     if form.validate_on_submit():
         # Update fields from form
@@ -79,9 +87,14 @@ def edit_contest(contest_id):
         else:
             contest.password_hash = None # Remove password if changed to public
 
-        # Handle judge assignments update
-        assigned_judge_ids = form.judges.data
-        contest.judges = db.session.scalars(db.select(User).where(User.id.in_(assigned_judge_ids))).all()
+        # Handle judge assignments update - process checkbox data
+        assigned_judge_ids = request.form.getlist('judges')
+        if assigned_judge_ids:
+            # Convert string IDs to integers
+            assigned_judge_ids = [int(id) for id in assigned_judge_ids]
+            contest.judges = db.session.scalars(db.select(User).where(User.id.in_(assigned_judge_ids))).all()
+        else:
+            contest.judges = []
 
         db.session.commit()
         flash('Concurso actualizado exitosamente.', 'success')

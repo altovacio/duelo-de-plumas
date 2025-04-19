@@ -3,6 +3,7 @@ from wtforms import StringField, TextAreaField, DateTimeField, SelectField, Pass
 from wtforms.validators import DataRequired, Length, Optional, NumberRange, Email, EqualTo, ValidationError
 from app.models import User
 from app.config.ai_judge_params import AI_MODELS
+from flask import request
 
 class ContestForm(FlaskForm):
     title = StringField('Título del Concurso', validators=[DataRequired(), Length(max=150)])
@@ -22,8 +23,33 @@ class ContestForm(FlaskForm):
     # Need to populate judge choices dynamically in the route
     def __init__(self, *args, **kwargs):
         super(ContestForm, self).__init__(*args, **kwargs)
-        # Query users with the 'judge' role
-        self.judges.choices = [(u.id, u.username) for u in User.query.filter_by(role='judge').order_by('username').all()]
+        
+        # Initialize judges.data to an empty list if not provided
+        if not hasattr(self.judges, 'data') or self.judges.data is None:
+            self.judges.data = []
+            
+        # Create choices - no need for headers now that we're using checkboxes
+        self.judges.choices = []
+        
+        # Get the judges from the database
+        try:
+            human_judges = User.query.filter_by(role='judge', judge_type='human').order_by('username').all()
+            ai_judges = User.query.filter_by(role='judge', judge_type='ai').order_by('username').all()
+            
+            # Add human judges with name only
+            for judge in human_judges:
+                self.judges.choices.append((judge.id, f"{judge.username}"))
+            
+            # Add AI judges with model info
+            for judge in ai_judges:
+                model_name = next((m['name'] for m in AI_MODELS if m['id'] == judge.ai_model), judge.ai_model)
+                self.judges.choices.append((judge.id, f"{judge.username} (Modelo: {model_name})"))
+        except Exception as e:
+            # If there's an error querying the database, log it and provide empty choices
+            print(f"Error loading judges: {e}")
+            self.judges.choices = []
+                
+        # Process the form data in the route, not here (to avoid conflicts)
 
 # Form for Admin to add a new Judge
 class AddJudgeForm(FlaskForm):

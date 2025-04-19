@@ -25,13 +25,6 @@
                 {% endfor %}
             </p>
             <p>
-                {{ form.ai_model.label }}<br>
-                {{ form.ai_model() }}<br>
-                {% for error in form.ai_model.errors %}
-                    <span style="color: red;">[{{ error }}]</span>
-                {% endfor %}
-            </p>
-            <p>
                 {{ form.ai_personality_prompt.label }}<br>
                 <small class="form-hint">{{ form.ai_personality_prompt.description }}</small><br>
                 {{ form.ai_personality_prompt(rows=10, style="width: 100%;") }}<br>

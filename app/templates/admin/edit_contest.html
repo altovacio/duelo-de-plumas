@@ -73,13 +73,35 @@
                             <div class="judges-list">
                                 {% if form.judges.choices %}
                                     {% for choice in form.judges.choices %}
-                                        {% if choice[0] > 0 and ('Modelo:' in choice[1]) %}
+                                        {% set judge_id, judge_name = choice %}
+                                        {% set is_ai_judge = judge_is_ai(judge_id) %}
+                                        {% if is_ai_judge %}
                                             <div class="judge-item">
                                                 <label>
-                                                    <input type="checkbox" name="judges" value="{{ choice[0] }}" 
-                                                        {% if form.judges.data and choice[0] in form.judges.data %}checked{% endif %}> 
-                                                    {{ choice[1] }}
+                                                    <input type="checkbox" name="judges" value="{{ judge_id }}" 
+                                                        {% if form.judges.data and judge_id in form.judges.data %}checked{% endif %}> 
+                                                    {{ judge_name }}
                                                 </label>
+                                                
+                                                {% if is_ai_judge %}
+                                                <div class="ai-model-selector" data-judge-id="{{ judge_id }}" 
+                                                     {% if not form.judges.data or judge_id not in form.judges.data %}style="display:none;"{% endif %}>
+                                                    <select name="judge_model_{{ judge_id }}" class="form-control">
+                                                        <option value="">Seleccionar modelo...</option>
+                                                        {% for model in ai_models %}
+                                                            {% set model_id, model_name = model.id, model.name %}
+                                                            {% set is_selected = judge_model_map and judge_id in judge_model_map and judge_model_map[judge_id] == model_id %}
+                                                            {% if not is_selected and model_id == 'claude-3-5-haiku-latest' and not (judge_model_map and judge_id in judge_model_map) %}
+                                                                {% set is_selected = True %}
+                                                            {% endif %}
+                                                            <option value="{{ model_id }}" 
+                                                                {% if is_selected %}selected{% endif %}>
+                                                                {{ model_name }} ({{ model.input_cost_usd_per_1k_tokens }}$ por 1K tokens)
+                                                            </option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </div>
+                                                {% endif %}
                                             </div>
                                         {% endif %}
                                     {% endfor %}
@@ -97,12 +119,14 @@
                             <div class="judges-list">
                                 {% if form.judges.choices %}
                                     {% for choice in form.judges.choices %}
-                                        {% if choice[0] > 0 and ('Modelo:' not in choice[1]) %}
+                                        {% set judge_id, judge_name = choice %}
+                                        {% set is_ai_judge = judge_is_ai(judge_id) %}
+                                        {% if not is_ai_judge %}
                                             <div class="judge-item">
                                                 <label>
-                                                    <input type="checkbox" name="judges" value="{{ choice[0] }}" 
-                                                        {% if form.judges.data and choice[0] in form.judges.data %}checked{% endif %}> 
-                                                    {{ choice[1] }}
+                                                    <input type="checkbox" name="judges" value="{{ judge_id }}" 
+                                                        {% if form.judges.data and judge_id in form.judges.data %}checked{% endif %}> 
+                                                    {{ judge_name }}
                                                 </label>
                                             </div>
                                         {% endif %}
@@ -198,4 +222,30 @@
             text-decoration: none;
         }
     </style>
+
+    <script>
+        // JavaScript to handle showing/hiding the AI model selector
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get all checkboxes for AI judges
+            const aiJudgeCheckboxes = document.querySelectorAll('.ai-judges input[type="checkbox"]');
+            
+            // Add event listeners to all AI judge checkboxes
+            aiJudgeCheckboxes.forEach(function(checkbox) {
+                checkbox.addEventListener('change', function() {
+                    const judgeId = this.value;
+                    const modelSelector = document.querySelector(`.ai-model-selector[data-judge-id="${judgeId}"]`);
+                    
+                    if (modelSelector) {
+                        if (this.checked) {
+                            // Show the model selector when the judge is checked
+                            modelSelector.style.display = 'block';
+                        } else {
+                            // Hide the model selector when the judge is unchecked
+                            modelSelector.style.display = 'none';
+                        }
+                    }
+                });
+            });
+        });
+    </script>
 {% endblock %} 

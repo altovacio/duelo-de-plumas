@@ -22,27 +22,6 @@ import json
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Load AI models from the JSON file
-def load_ai_models():
-    try:
-        with open(os.path.join('app', 'config', 'ai_model_costs.json'), 'r') as f:
-            models = json.load(f)
-        
-        # Filter to only available models
-        available_models = [model for model in models if model.get('available', False)]
-        
-        # Find default model (haiku3.5)
-        default_model = next((model['id'] for model in available_models 
-                             if model['id'] == 'claude-3-5-haiku-latest'), 
-                             available_models[0]['id'] if available_models else None)
-        
-        default_smart_model = 'claude-3-7-sonnet-latest'
-        
-        return available_models, default_model, default_smart_model
-    except Exception as e:
-        logger.error(f"Error loading AI models: {e}")
-        return [], None
-
 # Initial AI judge personalities
 AI_JUDGE_PERSONAS = [
     {
@@ -121,49 +100,25 @@ def create_ai_judges():
         if existing_ai_judges > 0:
             logger.warning(f"Found {existing_ai_judges} existing AI judges. Aborting to prevent duplicates.")
             return
-
-        # Load available AI models and default model
-        available_models, default_model, default_smart_model = load_ai_models()
-        
-        if not available_models or not default_model:
-            logger.error("Could not load AI models or find default model. Aborting.")
-            return
             
-        logger.info(f"Using default model: {default_model}")
-        
         judges_created = 0
         for i, judge_data in enumerate(AI_JUDGE_PERSONAS, 1):
             try:
                 # Generate a random, secure password (not needed for login, just for completeness)
                 random_password = secrets.token_hex(16)
                 
-                # Create the "fast" version with default model
-                fast_judge = User(
+                # Create the AI judge (without a fixed model)
+                ai_judge = User(
                     username=f"{judge_data['username']}",
                     email=f"{judge_data['username'].lower()}@duelo-de-plumas.ai",
                     role='judge',
                     judge_type='ai',
-                    ai_model=default_model,
                     ai_personality_prompt=judge_data['personality']
                 )
-                fast_judge.set_password(random_password)
-                db.session.add(fast_judge)
+                ai_judge.set_password(random_password)
+                db.session.add(ai_judge)
                 judges_created += 1
-                logger.info(f"Created fast AI judge: {judge_data['username']}-Fast with model {default_model}")
-                
-                # Create the "smarter" version with Sonnet model
-                smarter_judge = User(
-                    username=f"{judge_data['username']}-smarter",
-                    email=f"{judge_data['username'].lower()}-smarter@duelo-de-plumas.ai",
-                    role='judge',
-                    judge_type='ai',
-                    ai_model=default_smart_model,
-                    ai_personality_prompt=judge_data['personality']
-                )
-                smarter_judge.set_password(random_password)
-                db.session.add(smarter_judge)
-                judges_created += 1
-                logger.info(f"Created smarter AI judge: {judge_data['username']}-Smarter with model {default_smart_model}")
+                logger.info(f"Created AI judge: {judge_data['username']} (model will be selected at contest time)")
                 
             except Exception as e:
                 logger.error(f"Error creating AI judge {judge_data['username']}: {e}")

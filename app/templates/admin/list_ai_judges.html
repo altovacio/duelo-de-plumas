@@ -5,6 +5,7 @@
 {% block content %}
     <h2>{{ title }}</h2>
     <p>Gestiona los jueces de inteligencia artificial que pueden evaluar concursos.</p>
+    <p><strong>Nota:</strong> Los modelos de IA se seleccionan al asignar un juez a un concurso específico.</p>
     
     <p><a href="{{ url_for('admin.add_ai_judge') }}" class="button">+ Crear Nuevo Juez de IA</a></p>
     
@@ -13,7 +14,6 @@
             <thead>
                 <tr>
                     <th>Nombre</th>
-                    <th>Modelo</th>
                     <th>Personalidad (Inicio)</th>
                     <th>Concursos Asignados</th>
                     <th>Acciones</th>
@@ -23,7 +23,6 @@
                 {% for judge in ai_judges %}
                     <tr>
                         <td>{{ judge.username }}</td>
-                        <td>{{ judge.ai_model }}</td>
                         <td>{{ judge.ai_personality_prompt[:100] + '...' if judge.ai_personality_prompt and judge.ai_personality_prompt|length > 100 else judge.ai_personality_prompt }}</td>
                         <td>{{ judge.judged_contests.count() }}</td>
                         <td>

@@ -27,7 +27,13 @@
                     {% for ai_judge in ai_judges %}
                         <div class="ai-judge-card">
                             <h4>{{ ai_judge.username }}</h4>
-                            <p>Modelo: {{ ai_judge.ai_model }}</p>
+                            <p>Modelo: 
+                                {% if ai_judge_models and ai_judge.id in ai_judge_models %}
+                                    {{ get_friendly_model_name(ai_judge_models[ai_judge.id]) }}
+                                {% else %}
+                                    No especificado
+                                {% endif %}
+                            </p>
                             
                             {# Check if the AI judge has already voted using server-side data #}
                             {% set has_ai_voted = ai_judge.id in ai_judges_with_votes %}

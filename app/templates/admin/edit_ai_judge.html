@@ -7,21 +7,14 @@
     <p>Modifica la configuración de este juez de inteligencia artificial.</p>
 
     <div class="form-container">
-        <form action="{{ url_for('admin.edit_ai_judge', judge_id=ai_judge.id) }}" method="post" novalidate>
+        <form action="{{ url_for('admin.edit_ai_judge', judge_id=judge.id) }}" method="post" novalidate>
             {{ form.hidden_tag() }}
             
             <div class="form-field">
                 <p class="form-label">Nombre del Juez:</p>
-                <p class="form-value">{{ ai_judge.username }}</p>
+                <p class="form-value">{{ judge.username }}</p>
             </div>
             
-            <p>
-                {{ form.ai_model.label }}<br>
-                {{ form.ai_model() }}<br>
-                {% for error in form.ai_model.errors %}
-                    <span style="color: red;">[{{ error }}]</span>
-                {% endfor %}
-            </p>
             <p>
                 {{ form.ai_personality_prompt.label }}<br>
                 <small class="form-hint">{{ form.ai_personality_prompt.description }}</small><br>

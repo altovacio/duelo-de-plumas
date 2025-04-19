@@ -61,5 +61,13 @@ def create_app(config_class=Config):
     def inject_now():
         from datetime import datetime
         return {'now': datetime.utcnow}
+    
+    # Add context processor for AI model display
+    @app.context_processor
+    def inject_ai_helpers():
+        from app.config.ai_model_names import get_friendly_model_name
+        return {
+            'get_friendly_model_name': get_friendly_model_name
+        }
 
     return app 

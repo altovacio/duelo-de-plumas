@@ -123,6 +123,22 @@ def list_submissions(contest_id):
         .join(User.judged_contests).where(Contest.id == contest.id)
     ).all()
     
+    # Get AI models for each judge from the contest_judges table
+    from app.models import contest_judges
+    
+    ai_judge_models = {}
+    if ai_judges:
+        # Query the contest_judges table to get the models for each AI judge
+        judge_model_results = db.session.execute(
+            db.select(contest_judges.c.user_id, contest_judges.c.ai_model)
+            .where(contest_judges.c.contest_id == contest_id)
+        ).all()
+        
+        # Create a map of judge_id -> ai_model
+        for judge_id, ai_model in judge_model_results:
+            if ai_model:  # Only include if model is not None
+                ai_judge_models[judge_id] = ai_model
+    
     # Pre-check which AI judges have already voted
     ai_judges_with_votes = set()
     if ai_judges:
@@ -140,7 +156,8 @@ def list_submissions(contest_id):
                            submissions=submissions,
                            has_voted=has_voted,
                            ai_judges=ai_judges,
-                           ai_judges_with_votes=ai_judges_with_votes) # Pass AI judges to template
+                           ai_judges_with_votes=ai_judges_with_votes,
+                           ai_judge_models=ai_judge_models) # Pass AI judge models to template
 
 # New route for a judge to evaluate the entire contest (ranking)
 @bp.route('/contest/<int:contest_id>/evaluate', methods=['GET', 'POST'])
@@ -256,7 +273,9 @@ def run_ai_judge(contest_id, judge_id):
     result = run_ai_evaluation(contest_id, judge_id)
     
     if result['success']:
-        flash(f"Evaluación de IA completada. {result['message']} Costo: ${result['cost']:.4f}", 'success')
+        # Check if cost is present in the result
+        cost_info = f" Costo: ${result.get('cost', 0):.4f}" if 'cost' in result else ""
+        flash(f"Evaluación de IA completada. {result['message']}{cost_info}", 'success')
     else:
         flash(f"Error al ejecutar evaluación de IA: {result['message']}", 'danger')
     

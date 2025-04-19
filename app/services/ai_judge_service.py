@@ -15,7 +15,7 @@ import openai
 import anthropic
 import tiktoken
 from app import db
-from app.models import User, Contest, Submission, Vote, AIEvaluation
+from app.models import User, Contest, Submission, Vote, AIEvaluation, contest_judges
 from app.config.ai_judge_params import AI_MODELS, BASE_INSTRUCTION_PROMPT, API_PRICING, DEFAULT_AI_MODEL
 
 # Initialize API clients
@@ -282,122 +282,92 @@ def parse_ai_response(response_text, submissions):
     return results
 
 def run_ai_evaluation(contest_id, judge_id):
-    """
-    Run the AI evaluation process for a contest.
-    
-    1. Fetch contest, judge, and submission data
-    2. Construct the prompt
-    3. Call the AI API
-    4. Parse the response
-    5. Create Vote records
-    6. Create AIEvaluation record
-    7. Return success/failure info
-    """
+    """Run an AI evaluation for a contest using the specified judge."""
     try:
-        # Get contest, judge, and submissions
+        # Get the contest, judge, and submissions
         contest = db.session.get(Contest, contest_id)
         judge = db.session.get(User, judge_id)
         
         if not contest or not judge:
             return {
                 'success': False,
-                'message': "Contest or judge not found"
+                'message': f"Contest ID {contest_id} or Judge ID {judge_id} not found."
             }
         
-        if judge.judge_type != 'ai':
+        if not judge.is_ai_judge():
             return {
                 'success': False,
-                'message': "The specified judge is not an AI judge"
+                'message': f"Judge {judge.username} is not an AI judge."
             }
         
-        if contest.status != 'evaluation':
+        # Check if the judge is assigned to this contest
+        judge_contest_assignment = db.session.execute(
+            db.select(contest_judges).where(
+                contest_judges.c.contest_id == contest_id,
+                contest_judges.c.user_id == judge_id
+            )
+        ).first()
+        
+        if not judge_contest_assignment:
             return {
                 'success': False,
-                'message': f"Contest is not in evaluation phase (current status: {contest.status})"
+                'message': f"Judge {judge.username} is not assigned to this contest."
             }
         
-        submissions = contest.submissions.all()
-        if len(submissions) < 1:
+        # Get the AI model from the association table
+        ai_model_id = judge_contest_assignment.ai_model
+        
+        if not ai_model_id:
+            return {
+                'success': False, 
+                'message': f"No AI model specified for judge {judge.username} in this contest."
+            }
+        
+        # Get submissions for this contest
+        submissions = db.session.scalars(
+            db.select(Submission).where(Submission.contest_id == contest_id)
+        ).all()
+        
+        if not submissions:
             return {
                 'success': False,
-                'message': "No submissions to evaluate"
+                'message': f"No submissions found for contest ID {contest_id}."
             }
         
-        # Get the AI model to use
-        model_id = judge.ai_model or DEFAULT_AI_MODEL
+        # Check for existing evaluation to avoid duplicates
+        existing_evaluation = db.session.scalar(
+            db.select(AIEvaluation).where(
+                AIEvaluation.contest_id == contest_id,
+                AIEvaluation.judge_id == judge_id
+            )
+        )
         
-        # Construct prompt
+        if existing_evaluation:
+            return {
+                'success': False,
+                'message': f"An evaluation already exists for this judge and contest."
+            }
+        
+        # Construct the prompt
         prompt = construct_prompt(contest, judge, submissions)
         
-        # Call AI API
-        api_result = call_ai_api(prompt, model_id)
+        # Call the AI API
+        api_result = call_ai_api(prompt, ai_model_id)
         
         if not api_result['success']:
             return {
                 'success': False,
-                'message': f"API call failed: {api_result['response_text']}"
+                'message': f"Error calling AI API: {api_result['response_text']}"
             }
         
-        # Parse response
+        # Parse the response
         parsed_results = parse_ai_response(api_result['response_text'], submissions)
         
-        if not parsed_results:
-            return {
-                'success': False,
-                'message': "Failed to parse AI response or no rankings found"
-            }
-        
-        # First delete any existing votes from this judge for this contest
-        try:
-            # Get votes to be deleted for logging
-            existing_votes = db.session.scalars(
-                db.select(Vote).where(
-                    Vote.judge_id == judge.id,
-                    Vote.submission.has(contest_id=contest.id)
-                )
-            ).all()
-            
-            if existing_votes:
-                print(f"Deleting {len(existing_votes)} existing votes from judge {judge.id} for contest {contest.id}")
-                
-                # Delete the votes
-                db.session.query(Vote).filter(
-                    Vote.judge_id == judge.id,
-                    Vote.submission.has(contest_id=contest.id)
-                ).delete(synchronize_session='fetch')
-                
-                # Commit the deletion separately to ensure it takes effect
-                db.session.commit()
-                print(f"Successfully deleted existing votes")
-        except Exception as e:
-            db.session.rollback()
-            print(f"Error deleting existing votes: {e}")
-            return {
-                'success': False,
-                'message': f"Error deleting existing votes: {str(e)}"
-            }
-        
-        # Then create new Vote records
-        votes_to_add = []
-        for submission_id, place, comment in parsed_results:
-            vote = Vote(
-                judge_id=judge.id,
-                submission_id=int(submission_id),
-                place=place,
-                comment=comment
-            )
-            votes_to_add.append(vote)
-        
-        # Log what we're adding
-        print(f"Adding {len(votes_to_add)} new votes for judge {judge.id}")
-        for v in votes_to_add:
-            print(f"  New vote: submission_id={v.submission_id}, place={v.place}")
-        
-        # Create AIEvaluation record
+        # Create an AIEvaluation record
         evaluation = AIEvaluation(
-            contest_id=contest.id,
-            judge_id=judge.id,
-            ai_model=model_id,
+            contest_id=contest_id,
+            judge_id=judge_id,
+            ai_model=ai_model_id,
             full_prompt=prompt,
             response_text=api_result['response_text'],
             prompt_tokens=api_result['prompt_tokens'],
@@ -405,27 +375,37 @@ def run_ai_evaluation(contest_id, judge_id):
             cost=api_result['cost']
         )
         
-        # Add to database and commit
-        db.session.add_all(votes_to_add)
         db.session.add(evaluation)
-        db.session.commit()
         
-        # Now check if this evaluation completes the contest
-        from app.contest.routes import calculate_contest_results
-        contest_completed = calculate_contest_results(contest.id)
+        # Create Vote records for each ranked submission
+        votes_created = 0
+        for submission_id, place, comment in parsed_results:
+            # Skip if the submission ID doesn't exist
+            if not db.session.get(Submission, submission_id):
+                continue
+                
+            vote = Vote(
+                judge_id=judge_id,
+                submission_id=submission_id,
+                place=place,
+                comment=comment
+            )
+            db.session.add(vote)
+            votes_created += 1
+        
+        # Commit all changes
+        db.session.commit()
         
         return {
             'success': True,
-            'message': "AI evaluation completed successfully" + (" and contest has been closed" if contest_completed else ""),
-            'cost': api_result['cost'],
-            'votes_count': len(votes_to_add),
-            'contest_completed': contest_completed
+            'message': f"AI evaluation completed successfully. Created {votes_created} vote records.",
+            'evaluation_id': evaluation.id,
+            'cost': api_result['cost']
         }
-        
+    
     except Exception as e:
         db.session.rollback()
-        print(f"Error in run_ai_evaluation: {e}")
         return {
             'success': False,
-            'message': f"Error: {str(e)}"
+            'message': f"Error running AI evaluation: {str(e)}"
         } 

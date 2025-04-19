@@ -1,9 +1,14 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, TextAreaField, DateTimeField, SelectField, PasswordField, BooleanField, SubmitField, SelectMultipleField, IntegerField
+from wtforms import StringField, TextAreaField, DateTimeField, SelectField, PasswordField, BooleanField, SubmitField, SelectMultipleField, IntegerField, FieldList, FormField
 from wtforms.validators import DataRequired, Length, Optional, NumberRange, Email, EqualTo, ValidationError
 from app.models import User
 from app.config.ai_judge_params import AI_MODELS
 from flask import request
+
+# Form for associating a judge with a contest and specifying an AI model if applicable
+class JudgeWithModelForm(FlaskForm):
+    judge_id = SelectField('Juez', coerce=int, validators=[DataRequired()])
+    ai_model = SelectField('Modelo de IA', validators=[Optional()], default='')
 
 class ContestForm(FlaskForm):
     title = StringField('Título del Concurso', validators=[DataRequired(), Length(max=150)])
@@ -18,6 +23,8 @@ class ContestForm(FlaskForm):
     status = SelectField('Estado', choices=[('open', 'Abierto'), ('evaluation', 'En Evaluación'), ('closed', 'Cerrado')], validators=[DataRequired()], default='open')
     # Field to select judges (populate choices in the route)
     judges = SelectMultipleField('Jueces Asignados', coerce=int, validators=[Optional()])
+    # Dictionary to store judge_id -> ai_model selections (will be populated in the route handler)
+    judge_models = {}
     submit = SubmitField('Guardar Concurso')
 
     # Need to populate judge choices dynamically in the route
@@ -40,10 +47,12 @@ class ContestForm(FlaskForm):
             for judge in human_judges:
                 self.judges.choices.append((judge.id, f"{judge.username}"))
             
-            # Add AI judges with model info
+            # Add AI judges with personality only
             for judge in ai_judges:
-                model_name = next((m['name'] for m in AI_MODELS if m['id'] == judge.ai_model), judge.ai_model)
-                self.judges.choices.append((judge.id, f"{judge.username} (Modelo: {model_name})"))
+                self.judges.choices.append((judge.id, f"{judge.username}"))
+                
+            # Initialize the dictionary for judge_id -> ai_model
+            self.judge_models = {judge.id: '' for judge in ai_judges}
         except Exception as e:
             # If there's an error querying the database, log it and provide empty choices
             print(f"Error loading judges: {e}")
@@ -76,15 +85,9 @@ class AddJudgeForm(FlaskForm):
 class AddAIJudgeForm(FlaskForm):
     username = StringField('Nombre del Juez IA', validators=[DataRequired(), Length(min=3, max=64)])
     email = StringField('Email (Placeholder)', default='ai@duelo-de-plumas.com', validators=[Email(), Length(max=120)])
-    ai_model = SelectField('Modelo de IA', validators=[DataRequired()])
     ai_personality_prompt = TextAreaField('Personalidad del Juez', validators=[DataRequired()], 
                               description="Define la personalidad y el enfoque de evaluación de este juez. Este texto se combinará con las instrucciones básicas.")
     submit = SubmitField('Crear Juez IA')
-
-    def __init__(self, *args, **kwargs):
-        super(AddAIJudgeForm, self).__init__(*args, **kwargs)
-        # Populate AI model choices from config
-        self.ai_model.choices = [(model['id'], model['name']) for model in AI_MODELS]
 
     # Validation methods (ensure uniqueness)
     def validate_username(self, username):
@@ -99,12 +102,6 @@ class AddAIJudgeForm(FlaskForm):
 
 # Form for editing an AI Judge
 class EditAIJudgeForm(FlaskForm):
-    ai_model = SelectField('Modelo de IA', validators=[DataRequired()])
     ai_personality_prompt = TextAreaField('Personalidad del Juez', validators=[DataRequired()],
                               description="Define la personalidad y el enfoque de evaluación de este juez. Este texto se combinará con las instrucciones básicas.")
-    submit = SubmitField('Actualizar Juez IA')
-
-    def __init__(self, *args, **kwargs):
-        super(EditAIJudgeForm, self).__init__(*args, **kwargs)
-        # Populate AI model choices from config
-        self.ai_model.choices = [(model['id'], model['name']) for model in AI_MODELS] 
+    submit = SubmitField('Actualizar Juez IA') 

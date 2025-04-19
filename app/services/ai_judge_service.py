@@ -98,7 +98,7 @@ def call_ai_api(prompt, model_id):
         elif model_info['provider'] == 'anthropic':
             response = anthropic_client.messages.create(
                 model=model_info['api_name'],
-                max_tokens=2000,
+                max_tokens=2500,
                 messages=[
                     {"role": "user", "content": prompt}
                 ],

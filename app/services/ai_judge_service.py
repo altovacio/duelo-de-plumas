@@ -103,7 +103,9 @@ def call_ai_api(prompt, model_id):
             response = anthropic_client.messages.create(
                 model=model_info['api_name'],
                 max_tokens=2000,
-                system=prompt,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
                 temperature=0.2
             )
             response_text = response.content[0].text
@@ -140,22 +142,28 @@ def parse_ai_response(response_text, submissions):
     """
     results = []
     
+    # Debug print
+    print("AI RESPONSE:\n" + response_text)
+    
     # Create submission lookup by ID
     submissions_by_id = {str(sub.id): sub for sub in submissions}
     
-    # Extract rankings section
-    ranking_match = re.search(r'RANKING:(.*?)(?:JUSTIFICACIONES:|$)', response_text, re.DOTALL)
+    # Extract rankings section - make the regex more flexible
+    ranking_match = re.search(r'(?:RANKING|CLASIFICACIÓN|RANKING:|CLASIFICACIÓN:)(.*?)(?:JUSTIFICACIONES|JUSTIFICACIÓN|JUSTIFICACIONES:|JUSTIFICACIÓN:|$)', response_text, re.DOTALL | re.IGNORECASE)
     if not ranking_match:
+        print("Failed to find RANKING section")
         return []
     
     ranking_section = ranking_match.group(1).strip()
+    print("Found ranking section:\n" + ranking_section)
     
-    # Extract justifications section
-    justifications_match = re.search(r'JUSTIFICACIONES:(.*?)$', response_text, re.DOTALL)
+    # Extract justifications section - make the regex more flexible
+    justifications_match = re.search(r'(?:JUSTIFICACIONES|JUSTIFICACIÓN|JUSTIFICACIONES:|JUSTIFICACIÓN:)(.*?)$', response_text, re.DOTALL | re.IGNORECASE)
     justifications_section = justifications_match.group(1).strip() if justifications_match else ""
+    if justifications_section:
+        print("Found justifications section")
     
-    # Parse rankings
-    # Look for lines like "1. [ID] - [Title]" or "1. ID - Title"
+    # Parse rankings - more flexible regex
     ranking_lines = ranking_section.split('\n')
     rankings = {}
     
@@ -164,8 +172,8 @@ def parse_ai_response(response_text, submissions):
         if not line:
             continue
             
-        # Try to extract place and submission ID
-        rank_match = re.match(r'(\d+)\.\s+(?:\[?(\d+)\]?)?\s*-?', line)
+        # Try to extract place and submission ID - more flexible patterns
+        rank_match = re.match(r'(\d+)[\.:\)]?\s*(?:\[?(\d+)\]?|TEXTO\s*(?:#|No\.|Número)?\s*(\d+))', line, re.IGNORECASE)
         if rank_match:
             place = int(rank_match.group(1))
             
@@ -173,14 +181,20 @@ def parse_ai_response(response_text, submissions):
             submission_id = None
             if rank_match.group(2):
                 submission_id = rank_match.group(2)
+            elif rank_match.group(3):
+                submission_id = rank_match.group(3)
             else:
                 # Try to extract ID using a more flexible pattern if the first one failed
-                id_match = re.search(r'(?:^|\s)(\d+)(?:\s|$)', line)
+                id_match = re.search(r'(?:^|\s|#|No\.|Número)(\d+)(?:\s|$|\.|\)|-|:)', line)
                 if id_match:
                     submission_id = id_match.group(1)
             
+            print(f"Found ranking: Place {place}, Submission ID {submission_id}")
+            
             if submission_id and submission_id in submissions_by_id:
                 rankings[place] = submission_id
+            else:
+                print(f"Warning: Submission ID {submission_id} not found in available submissions")
     
     # Parse justifications
     justifications = {}

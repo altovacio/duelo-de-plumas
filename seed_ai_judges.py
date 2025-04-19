@@ -16,11 +16,30 @@ import logging
 from flask import Flask
 from app import create_app, db
 from app.models import User
-from app.config.ai_judge_params import DEFAULT_AI_MODEL
+import json
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Load AI models from the JSON file
+def load_ai_models():
+    try:
+        with open(os.path.join('app', 'config', 'ai_model_costs.json'), 'r') as f:
+            models = json.load(f)
+        
+        # Filter to only available models
+        available_models = [model for model in models if model.get('available', False)]
+        
+        # Find default model (haiku3.5)
+        default_model = next((model['id'] for model in available_models 
+                             if model['id'] == 'claude-3-5-haiku-latest'), 
+                             available_models[0]['id'] if available_models else None)
+        
+        return available_models, default_model
+    except Exception as e:
+        logger.error(f"Error loading AI models: {e}")
+        return [], None
 
 # Initial AI judge personalities
 AI_JUDGE_PERSONAS = [
@@ -38,7 +57,7 @@ Presto especial atención a:
 Valoro especialmente los textos que exploran la complejidad de la mente humana, sus sombras, deseos y miedos primordiales."""
     },
     {
-        'username': 'Alfred',
+        'username': 'Albert',
         'personality': """Como juez, mi enfoque se inspira en la brillantez analítica de Albert Einstein. Busco la elegancia y claridad del pensamiento, valorando la originalidad intelectual y la coherencia.
 
 Presto especial atención a:
@@ -101,6 +120,15 @@ def create_ai_judges():
             logger.warning(f"Found {existing_ai_judges} existing AI judges. Aborting to prevent duplicates.")
             return
 
+        # Load available AI models and default model
+        available_models, default_model = load_ai_models()
+        
+        if not available_models or not default_model:
+            logger.error("Could not load AI models or find default model. Aborting.")
+            return
+            
+        logger.info(f"Using default model: {default_model}")
+        
         judges_created = 0
         for i, judge_data in enumerate(AI_JUDGE_PERSONAS, 1):
             try:
@@ -113,13 +141,13 @@ def create_ai_judges():
                     email=f"{judge_data['username'].lower()}@duelo-de-plumas.ai",
                     role='judge',
                     judge_type='ai',
-                    ai_model=DEFAULT_AI_MODEL,
+                    ai_model=default_model,
                     ai_personality_prompt=judge_data['personality']
                 )
                 ai_judge.set_password(random_password)
                 db.session.add(ai_judge)
                 judges_created += 1
-                logger.info(f"Created AI judge: {judge_data['username']}")
+                logger.info(f"Created AI judge: {judge_data['username']} with model {default_model}")
             except Exception as e:
                 logger.error(f"Error creating AI judge {judge_data['username']}: {e}")
         

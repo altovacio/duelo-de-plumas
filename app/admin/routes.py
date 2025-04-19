@@ -3,7 +3,7 @@ from flask_login import login_required
 from app import db
 from app.admin import bp
 from app.admin.forms import ContestForm, AddJudgeForm, AddAIJudgeForm, EditAIJudgeForm
-from app.models import Contest, Submission, User
+from app.models import Contest, Submission, User, Vote, AIEvaluation
 from app.decorators import admin_required
 
 @bp.route('/')
@@ -272,6 +272,50 @@ def delete_ai_judge(judge_id):
         flash(f'Error al eliminar juez de IA: {e}', 'danger')
     
     return redirect(url_for('admin.list_ai_judges'))
+
+@bp.route('/ai_evaluation_costs')
+@login_required
+@admin_required
+def ai_evaluation_costs():
+    """Display the costs of AI evaluations"""
+    evaluations = AIEvaluation.query.order_by(AIEvaluation.timestamp.desc()).all()
+    
+    total_cost = sum(eval.cost for eval in evaluations) if evaluations else 0
+    total_prompt_tokens = sum(eval.prompt_tokens for eval in evaluations) if evaluations else 0
+    total_completion_tokens = sum(eval.completion_tokens for eval in evaluations) if evaluations else 0
+    
+    # Calculate costs by model
+    model_costs = {}
+    for eval in evaluations:
+        if eval.ai_model not in model_costs:
+            model_costs[eval.ai_model] = 0
+        model_costs[eval.ai_model] += eval.cost
+    
+    # Prepare data for chart - convert to JSON-ready lists
+    model_names = list(model_costs.keys())
+    model_costs_values = [model_costs[model] for model in model_names]
+    
+    return render_template('admin/ai_evaluation_costs.html', 
+                          evaluations=evaluations,
+                          total_cost=total_cost,
+                          total_prompt_tokens=total_prompt_tokens,
+                          total_completion_tokens=total_completion_tokens,
+                          model_names=model_names,
+                          model_costs_values=model_costs_values)
+
+@bp.route('/ai_evaluation/<int:evaluation_id>')
+@login_required
+@admin_required
+def view_ai_evaluation(evaluation_id):
+    """Display a specific AI evaluation with full details"""
+    evaluation = db.session.get(AIEvaluation, evaluation_id)
+    if not evaluation:
+        flash('Evaluación no encontrada', 'danger')
+        return redirect(url_for('admin.ai_evaluation_costs'))
+    
+    return render_template('admin/view_ai_evaluation.html',
+                          title='Detalles de Evaluación de IA',
+                          evaluation=evaluation)
 
 # Add route for listing users later maybe
 # @bp.route('/users')

@@ -2,57 +2,63 @@
 Configuration parameters for AI judges in Duelo de Plumas.
 
 This file contains the configuration settings for AI judges, including:
-- Available AI models
 - Base instruction prompts
-- Formatting settings
-- Token limits and constraints
+- Maximum token limits
+- Default model configuration
 """
+import os
+import json
 
-# Available AI models for judges
+# Load AI models from the JSON file
+def load_ai_models():
+    try:
+        models_file = os.path.join(os.path.dirname(__file__), 'ai_model_costs.json')
+        with open(models_file, 'r') as f:
+            models = json.load(f)
+        return models
+    except Exception as e:
+        print(f"Error loading AI models: {e}")
+        return []
+
+# Get all models from JSON file
+AI_MODELS_RAW = load_ai_models()
+
+# Filter to only available models and format for use
 AI_MODELS = [
     {
-        'id': 'gpt-4-turbo',
-        'name': 'GPT-4 Turbo',
-        'provider': 'openai',
-        'max_tokens': 128000,
-        'api_name': 'gpt-4-turbo-preview'
-    },
-    {
-        'id': 'gpt-4', 
-        'name': 'GPT-4',
-        'provider': 'openai',
-        'max_tokens': 8192,
-        'api_name': 'gpt-4'
-    },
-    {
-        'id': 'gpt-3.5-turbo',
-        'name': 'GPT-3.5 Turbo',
-        'provider': 'openai',
-        'max_tokens': 16385,
-        'api_name': 'gpt-3.5-turbo'
-    },
-    {
-        'id': 'claude-3-opus', 
-        'name': 'Claude 3 Opus',
-        'provider': 'anthropic',
-        'max_tokens': 200000,
-        'api_name': 'claude-3-opus-20240229'
-    },
-    {
-        'id': 'claude-3-sonnet', 
-        'name': 'Claude 3 Sonnet',
-        'provider': 'anthropic',
-        'max_tokens': 200000,
-        'api_name': 'claude-3-sonnet-20240229'
-    },
-    {
-        'id': 'claude-3-haiku', 
-        'name': 'Claude 3 Haiku',
-        'provider': 'anthropic',
-        'max_tokens': 200000,
-        'api_name': 'claude-3-haiku-20240307'
+        'id': model['id'],
+        'name': model['name'],
+        'provider': model['provider'].lower(),
+        'max_tokens': model['context_window_k'] * 1000,
+        'api_name': model['id'],
+        'available': model.get('available', False)
     }
+    for model in AI_MODELS_RAW if model.get('available', False)
 ]
+
+# Pricing information from JSON
+API_PRICING = {}
+for model in AI_MODELS_RAW:
+    provider = model['provider'].lower()
+    model_id = model['id']
+    
+    if provider not in API_PRICING:
+        API_PRICING[provider] = {}
+    
+    API_PRICING[provider][model_id] = {
+        'input': model.get('input_cost_usd_per_1k_tokens', 0),
+        'output': model.get('output_cost_usd_per_1k_tokens', 0)
+    }
+
+# Find the default model (Claude 3.5 Haiku)
+DEFAULT_AI_MODEL = next(
+    (model['id'] for model in AI_MODELS_RAW 
+     if model['id'] == 'claude-3-5-haiku-latest' and model.get('available', False)),
+    next(
+        (model['id'] for model in AI_MODELS_RAW if model.get('available', False)),
+        'claude-3-5-haiku-latest'  # Fallback in case no models are available
+    )
+)
 
 # Base instruction prompt for all AI judges
 BASE_INSTRUCTION_PROMPT = """
@@ -87,22 +93,4 @@ JUSTIFICACIONES:
 """
 
 # Maximum number of tokens allowed for personality prompt
-MAX_PERSONALITY_PROMPT_TOKENS = 1000
-
-# Pricing for API calls (USD per 1000 tokens)
-# These rates can be updated as pricing changes
-API_PRICING = {
-    'openai': {
-        'gpt-4-turbo-preview': {'input': 0.01, 'output': 0.03},
-        'gpt-4': {'input': 0.03, 'output': 0.06},
-        'gpt-3.5-turbo': {'input': 0.0005, 'output': 0.0015}
-    },
-    'anthropic': {
-        'claude-3-opus-20240229': {'input': 0.015, 'output': 0.075},
-        'claude-3-sonnet-20240229': {'input': 0.003, 'output': 0.015},
-        'claude-3-haiku-20240307': {'input': 0.00025, 'output': 0.00125}
-    }
-}
-
-# Default model to use if none is specified
-DEFAULT_AI_MODEL = 'gpt-3.5-turbo' 
+MAX_PERSONALITY_PROMPT_TOKENS = 1000 

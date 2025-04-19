@@ -29,8 +29,15 @@
                             <h4>{{ ai_judge.username }}</h4>
                             <p>Modelo: {{ ai_judge.ai_model }}</p>
                             
-                            {# Check if the AI judge has already voted #}
-                            {% set has_ai_voted = ai_judge.votes.filter(submission_id=submissions[0].id if submissions else 0).first() is not none %}
+                            {# Check if the AI judge has already voted - using join instead of filter #}
+                            {% set has_ai_voted = false %}
+                            {% if submissions %}
+                                {% for vote in ai_judge.votes %}
+                                    {% if vote.submission_id == submissions[0].id %}
+                                        {% set has_ai_voted = true %}
+                                    {% endif %}
+                                {% endfor %}
+                            {% endif %}
                             
                             {% if has_ai_voted %}
                                 <p><span class="text-success">✓ Este juez de IA ya ha evaluado el concurso</span></p>

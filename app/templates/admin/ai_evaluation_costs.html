@@ -1,86 +1,82 @@
 {% extends "admin/layout.html" %}
 
-{% block title %}AI Evaluation Costs{% endblock %}
+{% block admin_title %}AI Evaluation Costs{% endblock %}
 
-{% block content %}
-<div class="container mt-4">
-    <div class="row">
-        <div class="col-md-12">
-            <h1 class="mb-4">AI Evaluation Costs</h1>
-            
-            <div class="row mb-4">
-                <div class="col-md-4">
-                    <div class="card shadow-sm">
-                        <div class="card-body">
-                            <h5 class="card-title">Total Cost</h5>
-                            <h2 class="text-primary">${{ "%.2f"|format(total_cost) }}</h2>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card shadow-sm">
-                        <div class="card-body">
-                            <h5 class="card-title">Total Prompt Tokens</h5>
-                            <h2 class="text-secondary">{{ total_prompt_tokens }}</h2>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card shadow-sm">
-                        <div class="card-body">
-                            <h5 class="card-title">Total Completion Tokens</h5>
-                            <h2 class="text-secondary">{{ total_completion_tokens }}</h2>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
+{% block admin_heading %}Costos de Evaluaciones IA{% endblock %}
+
+{% block admin_content %}
+<div class="container-fluid p-0">
+    <div class="row mb-4">
+        <div class="col-md-4">
             <div class="card shadow-sm">
                 <div class="card-body">
-                    <h5 class="card-title mb-4">Cost Breakdown by Model</h5>
-                    <canvas id="costChart" width="400" height="200"></canvas>
+                    <h5 class="card-title">Total Cost</h5>
+                    <h2 class="text-primary">${{ "%.2f"|format(total_cost) }}</h2>
                 </div>
             </div>
-            
-            <div class="card shadow-sm mt-4">
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm">
                 <div class="card-body">
-                    <h5 class="card-title mb-3">AI Evaluations</h5>
-                    <div class="table-responsive">
-                        <table class="table table-striped">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Judge</th>
-                                    <th>Model</th>
-                                    <th>Prompt Tokens</th>
-                                    <th>Completion Tokens</th>
-                                    <th>Cost</th>
-                                    <th>Date</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for eval in evaluations %}
-                                <tr>
-                                    <td>{{ eval.id }}</td>
-                                    <td>{{ eval.judge.username }}</td>
-                                    <td>{{ eval.ai_model }}</td>
-                                    <td>{{ eval.prompt_tokens }}</td>
-                                    <td>{{ eval.completion_tokens }}</td>
-                                    <td>${{ "%.4f"|format(eval.cost) }}</td>
-                                    <td>{{ eval.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
-                                    <td>
-                                        <a href="{{ url_for('admin.view_ai_evaluation', evaluation_id=eval.id) }}" 
-                                           class="btn btn-sm btn-info">
-                                            Ver Detalles
-                                        </a>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
+                    <h5 class="card-title">Total Prompt Tokens</h5>
+                    <h2 class="text-secondary">{{ total_prompt_tokens }}</h2>
                 </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">Total Completion Tokens</h5>
+                    <h2 class="text-secondary">{{ total_completion_tokens }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <h5 class="card-title mb-4">Cost Breakdown by Model</h5>
+            <canvas id="costChart" width="400" height="200"></canvas>
+        </div>
+    </div>
+    
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h5 class="card-title mb-3">AI Evaluations</h5>
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Judge</th>
+                            <th>Model</th>
+                            <th>Prompt Tokens</th>
+                            <th>Completion Tokens</th>
+                            <th>Cost</th>
+                            <th>Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for eval in evaluations %}
+                        <tr>
+                            <td>{{ eval.id }}</td>
+                            <td>{{ eval.judge.username }}</td>
+                            <td>{{ eval.ai_model }}</td>
+                            <td>{{ eval.prompt_tokens }}</td>
+                            <td>{{ eval.completion_tokens }}</td>
+                            <td>${{ "%.4f"|format(eval.cost) }}</td>
+                            <td>{{ eval.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td>
+                                <a href="{{ url_for('admin.view_ai_evaluation', evaluation_id=eval.id) }}" 
+                                   class="btn btn-sm btn-info">
+                                    Ver Detalles
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -89,44 +85,67 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Get context for the chart
-    const ctx = document.getElementById('costChart');
-    
-    // Use the pre-processed data from the Flask route
-    const modelNames = {{ model_names|tojson }};
-    const modelCostsValues = {{ model_costs_values|tojson }};
-    
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: modelNames,
-            datasets: [{
-                label: 'Cost ($)',
-                data: modelCostsValues,
-                backgroundColor: 'rgba(54, 162, 235, 0.6)'
-            }]
-        },
-        options: {
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        callback: function(value) {
-                            return '$' + value.toFixed(2);
+    try {
+        // Get canvas element
+        var chartCanvas = document.getElementById('costChart');
+        
+        // Check if the canvas exists
+        if (!chartCanvas) {
+            console.error('Chart canvas element not found');
+            return;
+        }
+        
+        // Get context
+        var ctx = chartCanvas.getContext('2d');
+        
+        // Get data from template (safely)
+        var modelNames = JSON.parse('{{ model_names|tojson|safe }}');
+        var modelCostsValues = JSON.parse('{{ model_costs_values|tojson|safe }}');
+        
+        // Create the chart
+        var costChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: modelNames,
+                datasets: [{
+                    label: 'Cost ($)',
+                    data: modelCostsValues,
+                    backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                aspectRatio: 1.618, // Golden ratio for aesthetics
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return '$' + value.toFixed(2);
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return '$' + context.raw.toFixed(2);
+                            }
                         }
                     }
                 }
-            },
-            plugins: {
-                legend: {
-                    display: false
-                }
-            },
-            responsive: true,
-            maintainAspectRatio: true,
-            aspectRatio: 1.618
-        }
-    });
+            }
+        });
+    } catch (error) {
+        console.error('Error creating chart:', error);
+    }
 });
 </script>
 {% endblock %} 

@@ -1,78 +1,74 @@
 {% extends "admin/layout.html" %}
 
-{% block title %}{{ title }}{% endblock %}
+{% block admin_title %}{{ title }}{% endblock %}
 
-{% block content %}
-<div class="container mt-4">
-    <div class="row">
-        <div class="col-md-12">
-            <h1 class="mb-4">Detalles de Evaluación IA #{{ evaluation.id }}</h1>
-            
-            <div class="mb-3">
-                <a href="{{ url_for('admin.ai_evaluation_costs') }}" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left"></i> Volver a Costos
-                </a>
-            </div>
-            
-            <div class="card shadow-sm mb-4">
-                <div class="card-body">
-                    <h5 class="card-title">Información General</h5>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <dl class="row">
-                                <dt class="col-sm-4">ID:</dt>
-                                <dd class="col-sm-8">{{ evaluation.id }}</dd>
-                                
-                                <dt class="col-sm-4">Juez:</dt>
-                                <dd class="col-sm-8">{{ evaluation.judge.username }}</dd>
-                                
-                                <dt class="col-sm-4">Concurso:</dt>
-                                <dd class="col-sm-8">
-                                    <a href="{{ url_for('contest.detail', contest_id=evaluation.contest_id) }}">
-                                        {{ evaluation.contest.title }}
-                                    </a>
-                                </dd>
-                                
-                                <dt class="col-sm-4">Modelo:</dt>
-                                <dd class="col-sm-8">{{ evaluation.ai_model }}</dd>
-                            </dl>
-                        </div>
+{% block admin_heading %}Detalles de Evaluación IA #{{ evaluation.id }}{% endblock %}
+
+{% block admin_content %}
+<div class="container-fluid p-0">
+    <div class="mb-3">
+        <a href="{{ url_for('admin.ai_evaluation_costs') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Volver a Costos
+        </a>
+    </div>
+    
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Información General</h5>
+            <div class="row">
+                <div class="col-md-6">
+                    <dl class="row">
+                        <dt class="col-sm-4">ID:</dt>
+                        <dd class="col-sm-8">{{ evaluation.id }}</dd>
                         
-                        <div class="col-md-6">
-                            <dl class="row">
-                                <dt class="col-sm-4">Fecha:</dt>
-                                <dd class="col-sm-8">{{ evaluation.timestamp.strftime('%Y-%m-%d %H:%M') }}</dd>
-                                
-                                <dt class="col-sm-4">Tokens Prompt:</dt>
-                                <dd class="col-sm-8">{{ evaluation.prompt_tokens }}</dd>
-                                
-                                <dt class="col-sm-4">Tokens Completion:</dt>
-                                <dd class="col-sm-8">{{ evaluation.completion_tokens }}</dd>
-                                
-                                <dt class="col-sm-4">Costo:</dt>
-                                <dd class="col-sm-8">${{ "%.4f"|format(evaluation.cost) }}</dd>
-                            </dl>
-                        </div>
-                    </div>
+                        <dt class="col-sm-4">Juez:</dt>
+                        <dd class="col-sm-8">{{ evaluation.judge.username }}</dd>
+                        
+                        <dt class="col-sm-4">Concurso:</dt>
+                        <dd class="col-sm-8">
+                            <a href="{{ url_for('contest.detail', contest_id=evaluation.contest_id) }}">
+                                {{ evaluation.contest.title }}
+                            </a>
+                        </dd>
+                        
+                        <dt class="col-sm-4">Modelo:</dt>
+                        <dd class="col-sm-8">{{ evaluation.ai_model }}</dd>
+                    </dl>
+                </div>
+                
+                <div class="col-md-6">
+                    <dl class="row">
+                        <dt class="col-sm-4">Fecha:</dt>
+                        <dd class="col-sm-8">{{ evaluation.timestamp.strftime('%Y-%m-%d %H:%M') }}</dd>
+                        
+                        <dt class="col-sm-4">Tokens Prompt:</dt>
+                        <dd class="col-sm-8">{{ evaluation.prompt_tokens }}</dd>
+                        
+                        <dt class="col-sm-4">Tokens Completion:</dt>
+                        <dd class="col-sm-8">{{ evaluation.completion_tokens }}</dd>
+                        
+                        <dt class="col-sm-4">Costo:</dt>
+                        <dd class="col-sm-8">${{ "%.4f"|format(evaluation.cost) }}</dd>
+                    </dl>
                 </div>
             </div>
-            
-            <div class="card shadow-sm mb-4">
-                <div class="card-body">
-                    <h5 class="card-title">Respuesta de la IA</h5>
-                    <div class="ai-response p-3 border rounded bg-light">
-                        <pre class="mb-0">{{ evaluation.response_text }}</pre>
-                    </div>
-                </div>
+        </div>
+    </div>
+    
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Respuesta de la IA</h5>
+            <div class="ai-response p-3 border rounded bg-light">
+                <pre class="mb-0">{{ evaluation.response_text }}</pre>
             </div>
-            
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <h5 class="card-title">Prompt Enviado</h5>
-                    <div class="ai-prompt p-3 border rounded bg-light">
-                        <pre class="mb-0">{{ evaluation.full_prompt }}</pre>
-                    </div>
-                </div>
+        </div>
+    </div>
+    
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h5 class="card-title">Prompt Enviado</h5>
+            <div class="ai-prompt p-3 border rounded bg-light">
+                <pre class="mb-0">{{ evaluation.full_prompt }}</pre>
             </div>
         </div>
     </div>

@@ -40,15 +40,22 @@
                             {% endif %}
                             
                             {% if has_ai_voted %}
-                                <p><span class="text-success">✓ Este juez de IA ya ha evaluado el concurso</span></p>
-                                <form action="{{ url_for('contest.run_ai_judge', contest_id=contest.id, judge_id=ai_judge.id) }}" method="post">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                    <button type="submit" class="button button-small">Volver a Ejecutar Evaluación</button>
-                                </form>
+                                <p>
+                                    <span class="badge badge-success">
+                                        <i class="fas fa-check-circle"></i> Evaluación completada
+                                    </span>
+                                </p>
+                                <div class="last-evaluation">
+                                    <p><span class="text-success">✓ Este juez de IA ya ha evaluado el concurso</span></p>
+                                    <form action="{{ url_for('contest.run_ai_judge', contest_id=contest.id, judge_id=ai_judge.id) }}" method="post">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                        <button type="submit" class="button button-small button-secondary">Volver a Ejecutar Evaluación</button>
+                                    </form>
+                                </div>
                             {% else %}
                                 <form action="{{ url_for('contest.run_ai_judge', contest_id=contest.id, judge_id=ai_judge.id) }}" method="post">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                    <button type="submit" class="button">Ejecutar Evaluación</button>
+                                    <button type="submit" class="button button-primary">Ejecutar Evaluación</button>
                                 </form>
                             {% endif %}
                         </div>
@@ -116,6 +123,36 @@
         .ai-judge-card h4 {
             margin-top: 0;
             color: #2c3e50;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 0.25em 0.6em;
+            font-size: 0.85em;
+            font-weight: 700;
+            border-radius: 0.25rem;
+            line-height: 1.5;
+        }
+        
+        .badge-success {
+            color: white;
+            background-color: #28a745;
+        }
+        
+        .button-primary {
+            background-color: #007bff;
+            color: white;
+        }
+        
+        .button-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+        
+        .last-evaluation {
+            border-left: 3px solid #28a745;
+            padding-left: 10px;
+            margin-top: 10px;
         }
     </style>
 {% endblock %} 

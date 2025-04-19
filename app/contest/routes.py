@@ -275,7 +275,18 @@ def run_ai_judge(contest_id, judge_id):
     if result['success']:
         # Check if cost is present in the result
         cost_info = f" Costo: ${result.get('cost', 0):.4f}" if 'cost' in result else ""
-        flash(f"Evaluación de IA completada. {result['message']}{cost_info}", 'success')
+        
+        # Determine if this was a re-evaluation
+        if result.get('is_reevaluation'):
+            flash(f"Re-evaluación de IA completada. {result['message']}{cost_info}", 'success')
+        else:
+            flash(f"Evaluación de IA completada. {result['message']}{cost_info}", 'success')
+        
+        # Check if all judges have voted and close the contest if they have
+        results_calculated = calculate_contest_results(contest_id)
+        if results_calculated:
+            flash('¡Todos los jueces requeridos han votado! Resultados calculados y concurso cerrado.', 'info')
+            return redirect(url_for('contest.detail', contest_id=contest_id))
     else:
         flash(f"Error al ejecutar evaluación de IA: {result['message']}", 'danger')
     

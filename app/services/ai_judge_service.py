@@ -343,10 +343,26 @@ def run_ai_evaluation(contest_id, judge_id):
         )
         
         if existing_evaluation:
-            return {
-                'success': False,
-                'message': f"An evaluation already exists for this judge and contest."
-            }
+            # Instead of returning an error, delete the existing evaluation and votes
+            # First, delete all votes for this judge in this contest
+            db.session.execute(
+                db.delete(Vote)
+                .where(Vote.judge_id == judge_id)
+                .where(Vote.submission_id.in_(
+                    db.select(Submission.id).where(Submission.contest_id == contest_id)
+                ))
+            )
+            
+            # Then delete the existing evaluation
+            db.session.delete(existing_evaluation)
+            db.session.flush()  # Apply the deletions before creating new records
+            
+            print(f"Deleted previous evaluation and votes for judge {judge_id} in contest {contest_id}")
+            
+            # Set flag to indicate this is a re-evaluation
+            is_reevaluation = True
+        else:
+            is_reevaluation = False
         
         # Construct the prompt
         prompt = construct_prompt(contest, judge, submissions)
@@ -400,7 +416,8 @@ def run_ai_evaluation(contest_id, judge_id):
             'success': True,
             'message': f"AI evaluation completed successfully. Created {votes_created} vote records.",
             'evaluation_id': evaluation.id,
-            'cost': api_result['cost']
+            'cost': api_result['cost'],
+            'is_reevaluation': is_reevaluation
         }
     
     except Exception as e:

@@ -36,7 +36,9 @@ def load_ai_models():
                              if model['id'] == 'claude-3-5-haiku-latest'), 
                              available_models[0]['id'] if available_models else None)
         
-        return available_models, default_model
+        default_smart_model = 'claude-3-7-sonnet-latest'
+        
+        return available_models, default_model, default_smart_model
     except Exception as e:
         logger.error(f"Error loading AI models: {e}")
         return [], None
@@ -121,7 +123,7 @@ def create_ai_judges():
             return
 
         # Load available AI models and default model
-        available_models, default_model = load_ai_models()
+        available_models, default_model, default_smart_model = load_ai_models()
         
         if not available_models or not default_model:
             logger.error("Could not load AI models or find default model. Aborting.")
@@ -135,19 +137,34 @@ def create_ai_judges():
                 # Generate a random, secure password (not needed for login, just for completeness)
                 random_password = secrets.token_hex(16)
                 
-                # Create the AI judge
-                ai_judge = User(
-                    username=judge_data['username'],
+                # Create the "fast" version with default model
+                fast_judge = User(
+                    username=f"{judge_data['username']}",
                     email=f"{judge_data['username'].lower()}@duelo-de-plumas.ai",
                     role='judge',
                     judge_type='ai',
                     ai_model=default_model,
                     ai_personality_prompt=judge_data['personality']
                 )
-                ai_judge.set_password(random_password)
-                db.session.add(ai_judge)
+                fast_judge.set_password(random_password)
+                db.session.add(fast_judge)
                 judges_created += 1
-                logger.info(f"Created AI judge: {judge_data['username']} with model {default_model}")
+                logger.info(f"Created fast AI judge: {judge_data['username']}-Fast with model {default_model}")
+                
+                # Create the "smarter" version with Sonnet model
+                smarter_judge = User(
+                    username=f"{judge_data['username']}-smarter",
+                    email=f"{judge_data['username'].lower()}-smarter@duelo-de-plumas.ai",
+                    role='judge',
+                    judge_type='ai',
+                    ai_model=default_smart_model,
+                    ai_personality_prompt=judge_data['personality']
+                )
+                smarter_judge.set_password(random_password)
+                db.session.add(smarter_judge)
+                judges_created += 1
+                logger.info(f"Created smarter AI judge: {judge_data['username']}-Smarter with model {default_smart_model}")
+                
             except Exception as e:
                 logger.error(f"Error creating AI judge {judge_data['username']}: {e}")
         

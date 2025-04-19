@@ -122,13 +122,25 @@ def list_submissions(contest_id):
         db.select(User).where(User.role == 'judge', User.judge_type == 'ai')
         .join(User.judged_contests).where(Contest.id == contest.id)
     ).all()
+    
+    # Pre-check which AI judges have already voted
+    ai_judges_with_votes = set()
+    if ai_judges:
+        # Get a list of all judges with votes for this contest
+        judges_with_votes = db.session.scalars(
+            db.select(Vote.judge_id).distinct()
+            .join(Vote.submission)
+            .where(Submission.contest_id == contest.id)
+        ).all()
+        ai_judges_with_votes = set(judges_with_votes)
 
     return render_template('contest/list_submissions.html', 
                            title=f'Evaluar Envíos: {contest.title}', 
                            contest=contest, 
                            submissions=submissions,
                            has_voted=has_voted,
-                           ai_judges=ai_judges) # Pass AI judges to template
+                           ai_judges=ai_judges,
+                           ai_judges_with_votes=ai_judges_with_votes) # Pass AI judges to template
 
 # New route for a judge to evaluate the entire contest (ranking)
 @bp.route('/contest/<int:contest_id>/evaluate', methods=['GET', 'POST'])

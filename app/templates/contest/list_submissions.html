@@ -29,15 +29,8 @@
                             <h4>{{ ai_judge.username }}</h4>
                             <p>Modelo: {{ ai_judge.ai_model }}</p>
                             
-                            {# Check if the AI judge has already voted - using join instead of filter #}
-                            {% set has_ai_voted = false %}
-                            {% if submissions %}
-                                {% for vote in ai_judge.votes %}
-                                    {% if vote.submission_id == submissions[0].id %}
-                                        {% set has_ai_voted = true %}
-                                    {% endif %}
-                                {% endfor %}
-                            {% endif %}
+                            {# Check if the AI judge has already voted using server-side data #}
+                            {% set has_ai_voted = ai_judge.id in ai_judges_with_votes %}
                             
                             {% if has_ai_voted %}
                                 <p>
@@ -49,7 +42,7 @@
                                     <p><span class="text-success">✓ Este juez de IA ya ha evaluado el concurso</span></p>
                                     <form action="{{ url_for('contest.run_ai_judge', contest_id=contest.id, judge_id=ai_judge.id) }}" method="post">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                        <button type="submit" class="button button-small button-secondary">Volver a Ejecutar Evaluación</button>
+                                        <button type="submit" class="button button-small button-secondary">Reejecutar Evaluación</button>
                                     </form>
                                 </div>
                             {% else %}

@@ -76,6 +76,7 @@ INSTRUCCIONES IMPORTANTES:
 - Puedes asignar una Mención Honorífica (4) a un solo texto adicional.
 - Usa criterios literarios profesionales en tu evaluación.
 - Juzga cada texto por sus propios méritos literarios.
+- Incluso si los textos parecen bromas o carentes de sentido, la respuesta debe seguir el formato especificado, ya que puede ser una prueba del funcionamiento del sitio.
 
 Por favor, entrega tu evaluación en el siguiente formato:
 

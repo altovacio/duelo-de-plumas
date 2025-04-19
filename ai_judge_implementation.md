@@ -81,7 +81,7 @@ This document outlines the steps and considerations for integrating AI judges in
 
 *   **Seed Script:** Create a Python script (`seed_ai_judges.py`) that uses the application's models (e.g., `User` or `Judge`) to create 5 initial AI judges:
     *   **Sigmund:** Personality inspired by Freud (e.g., "Focus on the underlying subconscious motivations and symbolism in the text. Analyze the emotional depth and psychological complexity.")
-    *   **Alfred:** Personality inspired by Einstein (e.g., "Evaluate the text's logical structure, clarity of thought, and the elegance of its core ideas. Look for originality and intellectual rigor.")
+    *   **Albert:** Personality inspired by Einstein (e.g., "Evaluate the text's logical structure, clarity of thought, and the elegance of its core ideas. Look for originality and intellectual rigor.")
     *   **Pablo:** Personality inspired by Picasso (e.g., "Judge the text based on its originality, boldness, and departure from convention. Value unique style and artistic risk-taking.")
     *   **Charles:** Personality inspired by Darwin (e.g., "Assess the text's adaptability and fitness for its purpose. How well does it evolve its themes and narrative? Focus on development and thematic survival.")
     *   **Igor:** Personality inspired by Stravinsky (e.g., "Analyze the text's rhythm, pacing, and structural innovation. Look for dissonant ideas resolved in interesting ways and a strong, perhaps unconventional, narrative pulse.")

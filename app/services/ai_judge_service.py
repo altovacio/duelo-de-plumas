@@ -148,17 +148,18 @@ def parse_ai_response(response_text, submissions):
     # Create submission lookup by ID
     submissions_by_id = {str(sub.id): sub for sub in submissions}
     
-    # Extract rankings section - make the regex more flexible
-    ranking_match = re.search(r'(?:RANKING|CLASIFICACIÓN|RANKING:|CLASIFICACIÓN:)(.*?)(?:JUSTIFICACIONES|JUSTIFICACIÓN|JUSTIFICACIONES:|JUSTIFICACIÓN:|$)', response_text, re.DOTALL | re.IGNORECASE)
+    # Extract rankings section - make the regex even more flexible
+    ranking_match = re.search(r'(?:RANKING|CLASIFICACIÓN|RANKING:|CLASIFICACIÓN:|RANKING FINAL|CLASIFICACIÓN FINAL|RESULTADOS|RESULTADOS:|RANKING FINAL:|CLASIFICACIÓN FINAL:)(.*?)(?:JUSTIFICACIONES|JUSTIFICACIÓN|JUSTIFICACIONES:|JUSTIFICACIÓN:|COMENTARIOS|COMENTARIOS:|$)', response_text, re.DOTALL | re.IGNORECASE)
     if not ranking_match:
-        print("Failed to find RANKING section")
-        return []
+        print("Failed to find RANKING section - trying to extract directly from numbered lines")
+        # If no explicit ranking section, try to identify lines with rankings directly
+        ranking_section = response_text
+    else:
+        ranking_section = ranking_match.group(1).strip()
+        print("Found ranking section:\n" + ranking_section)
     
-    ranking_section = ranking_match.group(1).strip()
-    print("Found ranking section:\n" + ranking_section)
-    
-    # Extract justifications section - make the regex more flexible
-    justifications_match = re.search(r'(?:JUSTIFICACIONES|JUSTIFICACIÓN|JUSTIFICACIONES:|JUSTIFICACIÓN:)(.*?)$', response_text, re.DOTALL | re.IGNORECASE)
+    # Extract justifications section with more flexible regex
+    justifications_match = re.search(r'(?:JUSTIFICACIONES|JUSTIFICACIÓN|JUSTIFICACIONES:|JUSTIFICACIÓN:|COMENTARIOS|COMENTARIOS:|RAZONES|RAZONES:|EXPLICACIÓN|EXPLICACIÓN:)(.*?)$', response_text, re.DOTALL | re.IGNORECASE)
     justifications_section = justifications_match.group(1).strip() if justifications_match else ""
     if justifications_section:
         print("Found justifications section")
@@ -172,34 +173,52 @@ def parse_ai_response(response_text, submissions):
         if not line:
             continue
             
-        # Try to extract place and submission ID - more flexible patterns
-        rank_match = re.match(r'(\d+)[\.:\)]?\s*(?:\[?(\d+)\]?|TEXTO\s*(?:#|No\.|Número)?\s*(\d+))', line, re.IGNORECASE)
-        if rank_match:
-            place = int(rank_match.group(1))
-            
-            # Try to find submission ID in the line
-            submission_id = None
-            if rank_match.group(2):
-                submission_id = rank_match.group(2)
-            elif rank_match.group(3):
-                submission_id = rank_match.group(3)
-            else:
-                # Try to extract ID using a more flexible pattern if the first one failed
-                id_match = re.search(r'(?:^|\s|#|No\.|Número)(\d+)(?:\s|$|\.|\)|-|:)', line)
-                if id_match:
-                    submission_id = id_match.group(1)
-            
+        # Try multiple patterns to extract place and submission ID
+        rank_patterns = [
+            # 1. TEXTO #1
+            r'(?:^|\s)(\d+)[\.:\)]?\s*(?:\[?(?:TEXTO|TEXTO #|TEXT|SUBMISSION)?\s*(?:#|No\.|Número|Number)?\s*(\d+))', 
+            # 2. 1. [123]
+            r'(?:^|\s)(\d+)[\.:\)]?\s*\[?(\d+)\]?',
+            # 3. First place: Text 123
+            r'(?:First|1st|Second|2nd|Third|3rd)(?:\s+place)?:\s*(?:Text|Texto|Submission)?\s*(?:#|No\.)?(\d+)',
+            # 4. Any sequence with digit-digit pattern
+            r'(?:^|\s|\[)(\d+)[^\d]+(\d+)(?:\s|$|\.|\)|\])'
+        ]
+        
+        place = None
+        submission_id = None
+        
+        for pattern in rank_patterns:
+            match = re.search(pattern, line, re.IGNORECASE)
+            if match:
+                # For the special "First/Second/Third place" pattern
+                if "First" in pattern or "1st" in pattern:
+                    submission_id = match.group(1)
+                    if "First" in line or "1st" in line:
+                        place = 1
+                    elif "Second" in line or "2nd" in line:
+                        place = 2
+                    elif "Third" in line or "3rd" in line:
+                        place = 3
+                else:
+                    place = int(match.group(1))
+                    submission_id = match.group(2)
+                
+                if place and submission_id:
+                    break
+        
+        if place and submission_id:
             print(f"Found ranking: Place {place}, Submission ID {submission_id}")
             
-            if submission_id and submission_id in submissions_by_id:
+            if submission_id in submissions_by_id:
                 rankings[place] = submission_id
             else:
                 print(f"Warning: Submission ID {submission_id} not found in available submissions")
     
-    # Parse justifications
+    # Parse justifications - more flexible approach
     justifications = {}
     
-    # Look for lines starting with a number and period
+    # Look for patterns like "1.", "Texto #1:", etc. in justifications section
     current_place = None
     current_justification = []
     
@@ -208,19 +227,51 @@ def parse_ai_response(response_text, submissions):
         if not line:
             continue
             
-        place_match = re.match(r'(\d+)\.', line)
-        if place_match:
-            # Save previous justification if exists
-            if current_place is not None and current_justification:
-                justifications[current_place] = ' '.join(current_justification)
-                current_justification = []
+        # Try to match various place indicator patterns
+        place_patterns = [
+            r'^(\d+)\.',  # Simple "1."
+            r'^(?:Texto|Text|Submission)\s*(?:#|No\.|Number)?\s*(\d+):',  # "Text #1:"
+            r'^(?:(?:First|1st|Second|2nd|Third|3rd)(?:\s+place)?):',  # "First place:"
+            r'^(?:Rank|Ranking|Place)?\s*(?:#|No\.|Number)?\s*(\d+):',  # "Rank #1:"
+        ]
+        
+        for pattern in place_patterns:
+            place_match = re.match(pattern, line, re.IGNORECASE)
+            if place_match:
+                # Save previous justification if exists
+                if current_place is not None and current_justification:
+                    justifications[current_place] = ' '.join(current_justification)
+                    current_justification = []
+                
+                # Handle special cases for text patterns
+                if "First" in pattern or "1st" in pattern:
+                    if "First" in line or "1st" in line:
+                        current_place = 1
+                    elif "Second" in line or "2nd" in line:
+                        current_place = 2
+                    elif "Third" in line or "3rd" in line:
+                        current_place = 3
+                else:
+                    # For numeric patterns
+                    current_place = int(place_match.group(1))
+                    
+                # Extract text after the place indicator
+                remainder = line[place_match.end():].strip()
+                if remainder:
+                    current_justification.append(remainder)
+                    
+                break  # Found a match, stop checking patterns
+                
+        # If no place pattern was found, add line to current justification
+        if current_place is not None:
+            found_pattern = False
+            for pattern in place_patterns:
+                if re.match(pattern, line, re.IGNORECASE):
+                    found_pattern = True
+                    break
             
-            # Start new justification
-            current_place = int(place_match.group(1))
-            current_justification.append(line[place_match.end():].strip())
-        elif current_place is not None:
-            # Continue previous justification
-            current_justification.append(line)
+            if not found_pattern:
+                current_justification.append(line)
     
     # Save the last justification
     if current_place is not None and current_justification:
@@ -231,6 +282,7 @@ def parse_ai_response(response_text, submissions):
         comment = justifications.get(place, "")
         results.append((submission_id, place, comment))
     
+    print(f"Parsed {len(results)} rankings from AI response")
     return results
 
 def run_ai_evaluation(contest_id, judge_id):
@@ -299,13 +351,37 @@ def run_ai_evaluation(contest_id, judge_id):
                 'message': "Failed to parse AI response or no rankings found"
             }
         
-        # Delete any existing votes from this judge for this contest
-        Vote.query.filter(
-            Vote.judge_id == judge.id,
-            Vote.submission.has(contest_id=contest.id)
-        ).delete(synchronize_session='fetch')
+        # First delete any existing votes from this judge for this contest
+        try:
+            # Get votes to be deleted for logging
+            existing_votes = db.session.scalars(
+                db.select(Vote).where(
+                    Vote.judge_id == judge.id,
+                    Vote.submission.has(contest_id=contest.id)
+                )
+            ).all()
+            
+            if existing_votes:
+                print(f"Deleting {len(existing_votes)} existing votes from judge {judge.id} for contest {contest.id}")
+                
+                # Delete the votes
+                db.session.query(Vote).filter(
+                    Vote.judge_id == judge.id,
+                    Vote.submission.has(contest_id=contest.id)
+                ).delete(synchronize_session='fetch')
+                
+                # Commit the deletion separately to ensure it takes effect
+                db.session.commit()
+                print(f"Successfully deleted existing votes")
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error deleting existing votes: {e}")
+            return {
+                'success': False,
+                'message': f"Error deleting existing votes: {str(e)}"
+            }
         
-        # Create Vote records
+        # Then create new Vote records
         votes_to_add = []
         for submission_id, place, comment in parsed_results:
             vote = Vote(
@@ -315,6 +391,11 @@ def run_ai_evaluation(contest_id, judge_id):
                 comment=comment
             )
             votes_to_add.append(vote)
+        
+        # Log what we're adding
+        print(f"Adding {len(votes_to_add)} new votes for judge {judge.id}")
+        for v in votes_to_add:
+            print(f"  New vote: submission_id={v.submission_id}, place={v.place}")
         
         # Create AIEvaluation record
         evaluation = AIEvaluation(

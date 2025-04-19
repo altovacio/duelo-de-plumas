@@ -22,6 +22,7 @@
                     <li><a href="{{ url_for('auth.logout') }}">Cerrar Sesión</a></li>
                 {% else %}
                     <li><a href="{{ url_for('auth.login') }}">Iniciar Sesión</a></li>
+                    <li><a href="{{ url_for('main.register') }}">Registrarse</a></li>
                 {% endif %}
             </ul>
         </nav>

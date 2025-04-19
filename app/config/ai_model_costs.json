@@ -99,7 +99,7 @@
     "available": false
   },
   {
-    "id": "claude-3.7-sonnet-latest",
+    "id": "claude-3-7-sonnet-latest",
     "name": "Claude 3.7 Sonnet",
     "provider": "Anthropic",
     "context_window_k": 200,
@@ -108,7 +108,7 @@
     "available": true
   },
   {
-    "id": "claude-3.5-haiku-latest",
+    "id": "claude-3-5-haiku-latest",
     "name": "Claude 3.5 Haiku",
     "provider": "Anthropic",
     "context_window_k": 200,

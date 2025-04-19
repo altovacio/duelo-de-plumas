@@ -10,7 +10,7 @@ sys.path.insert(0, project_root)
 
 # Now import necessary components from the app
 try:
-    from app.services.ai_judge_service import call_ai_api, get_model_costs
+    from app.services.ai_judge_service import call_ai_api, get_model_costs, calculate_cost
 except ImportError as e:
     print(f"Error importing app modules: {e}")
     print("Ensure this script is run from the project root directory and necessary packages are installed.")
@@ -26,17 +26,17 @@ def test_llm_calls():
     """Tests API calls for available models."""
     logging.info("Starting LLM call test...")
 
-    model_costs = get_model_costs()
-    if not model_costs:
+    model_costs_data = get_model_costs()
+    if not model_costs_data:
         logging.error("Failed to load model costs. Cannot proceed with tests.")
         return
 
-    available_models = [m for m_id, m in model_costs.items() if m.get('available')]
+    available_models = [m for m_id, m in model_costs_data.items() if m.get('available')]
     if not available_models:
         logging.warning("No models marked as available in ai_model_costs.json. No tests to run.")
         return
 
-    test_prompt = "Briefly explain the concept of relativity in simple terms."
+    test_prompt = "Name 5 fruits and 1 tool."
     logging.info(f"Using test prompt: \"{test_prompt}\"")
 
     results = {}
@@ -63,6 +63,10 @@ def test_llm_calls():
         
         if api_result.get('success'):
             logging.info(f"SUCCESS - Response received from {model_id}.")
+            prompt_tokens = api_result.get('prompt_tokens')
+            completion_tokens = api_result.get('completion_tokens')
+            cost = calculate_cost(model_id, prompt_tokens, completion_tokens)
+            results[model_id]['calculated_cost'] = cost
             # print(f"Response Text: {api_result.get('response_text')[:200]}...") # Optionally print snippet
         else:
             logging.error(f"FAILED - Error calling {model_id}: {api_result.get('error')}")
@@ -76,7 +80,8 @@ def test_llm_calls():
             details = f"({result.get('reason')})"
         elif result.get('success') is True:
             status = "SUCCESS"
-            details = f"(Tokens: P={result.get('prompt_tokens', 'N/A')}, C={result.get('completion_tokens', 'N/A')})"
+            cost_str = f"{result.get('calculated_cost', 'N/A'):.6f}" if result.get('calculated_cost') is not None else "N/A"
+            details = f"(Tokens: P={result.get('prompt_tokens', 'N/A')}, C={result.get('completion_tokens', 'N/A')}, Cost: ${cost_str})"
         elif result.get('success') is False:
             status = "FAILED"
             details = f"({result.get('error', 'Unknown error')})"

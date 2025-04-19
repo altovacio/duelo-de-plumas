@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
 from app import db, login_manager # Import db and login_manager from app.py
+import enum
 
 # Association table for Contest Judges (Many-to-Many)
 contest_judges = db.Table('contest_judges',
@@ -9,14 +10,25 @@ contest_judges = db.Table('contest_judges',
     db.Column('contest_id', db.Integer, db.ForeignKey('contest.id'), primary_key=True)
 )
 
+# --- Enums for Roles and Judge Types ---
+class UserRole(enum.Enum):
+    USER = 'user'
+    JUDGE = 'judge'
+    ADMIN = 'admin'
+
+class JudgeType(enum.Enum):
+    HUMAN = 'human'
+    AI = 'ai'
+
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(64), index=True, unique=True, nullable=False)
     email = db.Column(db.String(120), index=True, unique=True, nullable=False)
     password_hash = db.Column(db.String(256))
-    role = db.Column(db.String(10), index=True, default='judge') # 'admin', 'judge', 'user'
-    # New fields for AI Judges
-    judge_type = db.Column(db.String(10), server_default='human', nullable=False) # 'human' or 'ai'
+    # Use Enum for role, force VARCHAR storage
+    role = db.Column(db.Enum(UserRole, native_enum=False), index=True, default=UserRole.JUDGE, nullable=False)
+    # Use Enum for judge_type, force VARCHAR storage (consistency)
+    judge_type = db.Column(db.Enum(JudgeType, native_enum=False), nullable=True) # Nullable for non-judges
     ai_model_id = db.Column(db.String(80), nullable=True) # ID referencing ai_model_costs.json
     ai_personality_prompt = db.Column(db.Text, nullable=True) # Custom prompt for this AI judge
 
@@ -32,13 +44,13 @@ class User(UserMixin, db.Model):
         return check_password_hash(self.password_hash, password)
 
     def is_admin(self):
-        return self.role == 'admin'
+        return self.role == UserRole.ADMIN
 
     def is_ai_judge(self):
-        return self.judge_type == 'ai'
+        return self.judge_type == JudgeType.AI
 
     def __repr__(self):
-        return f'<User {self.username} ({self.role})>'
+        return f'<User {self.username} ({self.role.value})>'
 
 @login_manager.user_loader
 def load_user(id):
@@ -133,4 +145,18 @@ class AIEvaluationRun(db.Model):
     __table_args__ = (db.UniqueConstraint('contest_id', 'judge_id', name='_ai_run_contest_judge_uc'),)
 
     def __repr__(self):
-        return f'<AIEvaluationRun {self.id} for Contest {self.contest_id} by Judge {self.judge_id} ({self.status})>' 
+        return f'<AIEvaluationRun {self.id} for Contest {self.contest_id} by Judge {self.judge_id} ({self.status})>'
+
+# --- Entry Model ---
+class Entry(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(150), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    image_filename = db.Column(db.String(120), nullable=True) # Path relative to UPLOAD_FOLDER
+    contest_id = db.Column(db.Integer, db.ForeignKey('contest.id'), nullable=False)
+    
+    # Removed the relationship to votes as Vote model doesn't link back to Entry
+    # votes = db.relationship('Vote', backref='entry', lazy='dynamic', cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f'<Entry {self.title}>' 

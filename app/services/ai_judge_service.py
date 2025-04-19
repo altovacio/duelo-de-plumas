@@ -40,15 +40,12 @@ def get_model_costs():
 def build_evaluation_prompt(contest, submissions, judge):
     """Constructs the full prompt for the AI judge."""
     logging.info(f"Building prompt for Contest {contest.id} judged by {judge.username} ({judge.ai_model_id})...")
-    # --- 1. Fixed Instruction Prompt --- (Using triple-quoted f-string)
-    # Example JSON needs double quotes internally, escaped or handled carefully.
-    example_json_3 = '''
-        { "rankings": [ { "submission_id": 101, "place": 1, "justification": "Excellent use of imagery." }, { "submission_id": 103, "place": 2, "justification": "Compelling narrative arc." }, { "submission_id": 102, "place": 3, "justification": "Strong character voice." } ] }
-    '''
-    example_json_4_hm = '''
-        { "rankings": [ { "submission_id": 101, "place": 1, "justification": "..." }, { "submission_id": 104, "place": 2, "justification": "..." }, { "submission_id": 102, "place": 3, "justification": "..." }, { "submission_id": 103, "place": 4, "justification": "Unique concept, deserves mention." } ] }
-    '''
+    
+    # --- 1. Define Example JSON separately (using triple quotes) --- 
+    example_json_3_str = '''{ "rankings": [ { "submission_id": 101, "place": 1, "justification": "Excellent use of imagery." }, { "submission_id": 103, "place": 2, "justification": "Compelling narrative arc." }, { "submission_id": 102, "place": 3, "justification": "Strong character voice." } ] }'''
+    example_json_4_hm_str = '''{ "rankings": [ { "submission_id": 101, "place": 1, "justification": "..." }, { "submission_id": 104, "place": 2, "justification": "..." }, { "submission_id": 102, "place": 3, "justification": "..." }, { "submission_id": 103, "place": 4, "justification": "Unique concept, deserves mention." } ] }'''
 
+    # --- 2. Fixed Instruction Prompt (Using triple-quoted f-string) --- 
     instruction_prompt = f'''You are a literary judge tasked with evaluating submissions for a writing contest. 
 Read the contest description and all the submissions provided below.
 
@@ -61,26 +58,26 @@ If there are fewer than 3 submissions, assign ranks accordingly (e.g., only 1st 
 4. Format: Respond ONLY with a JSON object. The JSON object should have a single key 'rankings'. The value should be a list of objects, where each object represents a ranked submission and contains the following keys: 'submission_id' (integer), 'place' (integer, 1=1st, 2=2nd, 3=3rd, 4=HM), and 'justification' (string).
 
 Example for 3 submissions:
-{example_json_3}
+{example_json_3_str}
+
 Example for 4 submissions with one HM:
-{example_json_4_hm}
+{example_json_4_hm_str}
 '''
-    # --- 2. Personality Prompt --- 
+    # --- 3. Personality Prompt --- 
     personality_prompt = judge.ai_personality_prompt or "Evaluate based on general literary merit, creativity, style, and adherence to the theme."
     
-    # --- 3. Contest Information --- 
+    # --- 4. Contest Information --- 
     contest_info = f"\n--- CONTEST DETAILS ---\nTitle: {contest.title}\nDescription: {contest.description}\n"
     
-    # --- 4. Submissions --- 
+    # --- 5. Submissions --- 
     submissions_text = "\n--- SUBMISSIONS ---\n"
     for sub in submissions:
         submissions_text += f"\nSubmission ID: {sub.id}\nTitle: {sub.title}\nText:\n{sub.text_content}\n---\n"
 
-    # --- Combine --- 
-    full_prompt = f"{instruction_prompt}\n--- JUDGE PERSONALITY ---\n{personality_prompt}{contest_info}{submissions_text}\n--- END SUBMISSIONS ---\n\nProvide your evaluation in the specified JSON format only."
-
-    # TODO: Add token counting / truncation logic if necessary based on model limits
-    # print(f"Prompt Length (chars): {len(full_prompt)}") # Basic check
+    # --- 6. Combine --- 
+    full_prompt = f"{instruction_prompt}\n\n--- JUDGE PERSONALITY ---\n{personality_prompt}{contest_info}{submissions_text}\n--- END SUBMISSIONS ---\n\nProvide your evaluation in the specified JSON format only."
+    
+    # TODO: Add token counting / truncation logic
     return full_prompt
 
 def call_ai_api(prompt, model_id):

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+    <h2>{{ title }}</h2>
+    
+    <p><a href="{{ url_for('admin.add_user') }}" class="button">Agregar Nuevo Usuario</a></p>
+
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Rol</th>
+                <th>Tipo Juez</th>
+                <th>Modelo IA</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+                <tr>
+                    <td>{{ user.id }}</td>
+                    <td>{{ user.username }}</td>
+                    <td>{{ user.email }}</td>
+                    <td>{{ user.role | capitalize }}</td>
+                    <td>{{ user.judge_type | capitalize }}</td>
+                    <td>{{ user.ai_model_id if user.judge_type == 'ai' else '-' }}</td>
+                    <td>
+                        <a href="{{ url_for('admin.edit_user', user_id=user.id) }}" class="button button-small">Editar</a>
+                        {# Add Delete button later if needed #}
+                        {# <form action="{{ url_for('admin.delete_user', user_id=user.id) }}" method="post" style="display: inline;">
+                            <button type="submit" class="button button-small button-danger" onclick="return confirm('¿Estás seguro de que quieres eliminar a este usuario?');">Eliminar</button>
+                        </form> #}
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="7">No se encontraron usuarios.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %} 

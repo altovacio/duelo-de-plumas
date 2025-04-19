@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
 from flask_migrate import Migrate
+from flask_bootstrap import Bootstrap
 from config import Config
 from sqlalchemy import MetaData
 
@@ -22,6 +23,7 @@ db = SQLAlchemy(metadata=metadata)
 login_manager = LoginManager()
 csrf = CSRFProtect()
 migrate = Migrate()
+bootstrap = Bootstrap()
 login_manager.login_view = 'auth.login' # Blueprint name ('auth') + function name ('login')
 login_manager.login_message = u"Por favor, inicia sesión para acceder a esta página."
 login_manager.login_message_category = "info"
@@ -35,33 +37,32 @@ def create_app(config_class=Config):
     migrate.init_app(app, db)
     login_manager.init_app(app)
     csrf.init_app(app)
+    bootstrap.init_app(app)
 
     # Register blueprints here
     # Example: Registering a main blueprint
-    from app.main import bp as main_bp # Import the main blueprint
-    app.register_blueprint(main_bp)
+    from app.main import bp as main_blueprint # Import the main blueprint
+    app.register_blueprint(main_blueprint)
 
     # Example: Registering an auth blueprint
-    from app.auth import bp as auth_bp # Import the auth blueprint
-    app.register_blueprint(auth_bp, url_prefix='/auth') # Add /auth prefix to auth routes
+    from app.auth import bp as auth_blueprint # Import the auth blueprint
+    app.register_blueprint(auth_blueprint, url_prefix='/auth') # Add /auth prefix to auth routes
 
     # Register the contest blueprint
-    from app.contest import bp as contest_bp
-    app.register_blueprint(contest_bp, url_prefix='/contest')
+    from app.contest import bp as contest_blueprint
+    app.register_blueprint(contest_blueprint, url_prefix='/contest')
 
     # Register the admin blueprint
-    from app.admin import bp as admin_bp
-    app.register_blueprint(admin_bp)
+    from app.admin import bp as admin_blueprint
+    app.register_blueprint(admin_blueprint)
     # No url_prefix here as it's defined in the blueprint itself
 
-    # Need to import models here *after* db is initialized and *within* the app context
-    # or when blueprints that use them are registered.
-    # For db.create_all(), it needs to be within the app context.
     with app.app_context():
         from . import models # Import models to register them
-        # Consider using Flask-Migrate for database migrations instead of create_all in production
-        # Remove or comment out db.create_all() when using Flask-Migrate
-        # db.create_all()
+        # Create tables if they don't exist (useful for development after db deletion)
+        # NOTE: For production, rely on Flask-Migrate ('flask db upgrade')
+        # This line should ideally be removed or conditional in production.
+        db.create_all()
 
     # Simple test route (will be replaced by blueprints)
     # @app.route('/test')

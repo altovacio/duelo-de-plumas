@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+{% block title %}Registrar Nuevo Usuario{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="card-title mb-0">Registrar Nuevo Usuario</h3>
+                </div>
+                <div class="card-body">
+                    {{ wtf.quick_form(form, button_map={'submit': 'primary'}) }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const roleSelect = document.getElementById('role');
+    const judgeOptionsDiv = document.getElementById('judge-options');
+    const aiOptionsDiv = document.getElementById('ai-options');
+
+    function toggleFields() {
+        const selectedRole = roleSelect.value;
+
+        if (selectedRole === 'JUDGE') {
+            judgeOptionsDiv.style.display = 'block';
+            aiOptionsDiv.style.display = 'none';
+        } else {
+            judgeOptionsDiv.style.display = 'none';
+            aiOptionsDiv.style.display = 'none';
+        }
+    }
+
+    toggleFields();
+
+    roleSelect.addEventListener('change', toggleFields);
+});
+</script>
+{% endblock %} 

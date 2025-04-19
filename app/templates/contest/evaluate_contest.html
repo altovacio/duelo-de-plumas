@@ -5,55 +5,153 @@
 {% block content %}
     <h2>{{ title }}</h2>
     <p>Concurso: <a href="{{ url_for('contest.detail', contest_id=contest.id) }}">{{ contest.title }}</a></p>
-    <p>Instrucciones: Asigna 1er, 2do y 3er lugar (y opcionalmente Mención Honorífica) a los envíos de abajo. Las opciones disponibles dependen del número total de envíos. <strong>Debes asignar exactamente un 1er, un 2do y un 3er lugar si hay suficientes envíos.</strong></p>
 
-    <div class="form-container evaluation-form">
-        <form action="{{ url_for('contest.evaluate_contest', contest_id=contest.id) }}" method="post" novalidate>
-            {{ form.hidden_tag() }}
+    {# --- Check if evaluation is by AI or Human --- #}
+    {% if is_ai_judging_mode %}
+        {# --- AI Judge Display --- #}
+        <h3>Evaluación por Juez de IA: {{ assigned_judge.username }}</h3>
+        <p>Modelo Utilizado: {{ assigned_judge.ai_model_id or 'No especificado' }}</p>
+        
+        {% if ai_evaluation_run %}
+            <p>Estado de la Evaluación IA: 
+                <span class="status-{{ ai_evaluation_run.status }}">
+                    {{ ai_evaluation_run.status | capitalize }}
+                </span>
+                 (Ejecutado: {{ ai_evaluation_run.run_timestamp.strftime('%Y-%m-%d %H:%M:%S') if ai_evaluation_run.run_timestamp else 'N/A' }} UTC)
+            </p>
+            {% if ai_evaluation_run.status == 'completed' %}
+                <p>Costo Estimado: ${{ "%.6f"|format(ai_evaluation_run.total_cost) if ai_evaluation_run.total_cost is not none else 'N/A' }}</p>
+                <p>Tokens (Prompt/Completion): {{ ai_evaluation_run.prompt_tokens or 'N/A' }} / {{ ai_evaluation_run.completion_tokens or 'N/A' }}</p>
+            {% elif ai_evaluation_run.status == 'failed' %}
+                <p style="color: red;">Error: La ejecución de la IA falló. Revisa los logs.</p>
+            {% elif ai_evaluation_run.status == 'running' %}
+                 <p>La evaluación está actualmente en proceso...</p>
+                 {# Optional: Add auto-refresh logic here #}
+            {% endif %}
+        {% else %}
+            <p>Estado de la Evaluación IA: Pendiente</p>
+        {% endif %}
+        
+        {# Trigger Button (Only if admin and not completed/running) #}
+        {% if current_user.is_admin() and (not ai_evaluation_run or ai_evaluation_run.status not in ['completed', 'running']) %}
+            <form action="{{ url_for('contest.trigger_ai_evaluation', contest_id=contest.id, judge_id=assigned_judge.id) }}" method="post" style="margin-bottom: 20px;">
+                 {# Add CSRF token if your app uses Flask-WTF globally #}
+                 {# <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/> #}
+                <button type="submit" class="button">Iniciar Evaluación por IA</button>
+            </form>
+        {% endif %}
 
-            <table class="evaluation-table">
+        {# Display Results Table if Completed #}
+        {% if ai_evaluation_run and ai_evaluation_run.status == 'completed' and ai_votes %}
+            <h4>Resultados de la Evaluación IA:</h4>
+            <table class="evaluation-table results-table">
                 <thead>
                     <tr>
                         <th>ID</th>
                         <th>Título</th>
                         <th>Texto</th>
-                        <th>Lugar</th>
-                        <th>Comentario</th>
+                        <th>Lugar Asignado</th>
+                        <th>Justificación IA</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for sub_form in form.submissions %}
-                        {% set submission = submissions | selectattr('id', 'equalto', sub_form.submission_id.data | int) | first %}
+                    {% for sub in submissions %}
+                        {% set vote = ai_votes.get(sub.id) %}
                         <tr>
-                            <td>
-                                {{ sub_form.submission_id() }}
-                                {{ sub_form.submission_id.data }}
-                            </td>
-                            <td>{{ submission.title if submission else 'Error' }}</td>
+                            <td>{{ sub.id }}</td>
+                            <td>{{ sub.title }}</td>
                             <td>
                                 <button type="button" onclick="toggleText('sub-text-{{ loop.index }}')">Mostrar/Ocultar Texto</button>
                                 <div id="sub-text-{{ loop.index }}" class="submission-text-inline" style="display:none; margin-top: 10px; border: 1px solid #eee; padding: 10px; max-height: 300px; overflow-y: auto; background-color: #f9f9f9;">
-                                    <pre>{{ submission.text_content if submission else 'Error' }}</pre>
+                                    <pre>{{ sub.text_content }}</pre>
                                 </div>
                             </td>
-                            <td>{{ sub_form.place() }}</td>
                             <td>
-                                <textarea id="{{ sub_form.comment.id }}" name="{{ sub_form.comment.name }}" rows="2" class="evaluation-comment">{{ sub_form.comment.data or '' }}</textarea>
-                                {% for error in sub_form.comment.errors %}
-                                    <span style="color: red;">[{{ error }}]</span>
-                                {% endfor %}
+                                {% if vote and vote.place %}
+                                    {% if vote.place == 1 %}1er Lugar
+                                    {% elif vote.place == 2 %}2do Lugar
+                                    {% elif vote.place == 3 %}3er Lugar
+                                    {% elif vote.place == 4 %}Mención Honorífica
+                                    {% else %}Lugar {{ vote.place }}
+                                    {% endif %}
+                                {% else %}
+                                    -
+                                {% endif %}
                             </td>
+                            <td>{{ vote.comment if vote else '-' }}</td>
                         </tr>
                     {% endfor %}
                 </tbody>
             </table>
+        {% elif ai_evaluation_run and ai_evaluation_run.status == 'completed' %}
+             <p><i>No se encontraron resultados de evaluación guardados para esta ejecución.</i></p>
+        {% endif %}
 
-            <p>
-                {{ form.submit() }}
-                <a href="{{ url_for('contest.list_submissions', contest_id=contest.id) }}">Cancelar</a>
-            </p>
-        </form>
-    </div>
+    {% else %}
+        {# --- Human Judge Display --- #}
+        <h3>Evaluación Manual{% if assigned_judge %} por Juez: {{ assigned_judge.username }}{% endif %}</h3>
+        <p>Instrucciones: Asigna 1er, 2do y 3er lugar (y opcionalmente Mención Honorífica) a los envíos de abajo. Las opciones disponibles dependen del número total de envíos. <strong>Debes asignar exactamente un 1er, un 2do y un 3er lugar si hay suficientes envíos.</strong></p>
+        
+        {# Check if current user is the assigned judge or admin #}
+        {% if assigned_judge and current_user.id != assigned_judge.id and not current_user.is_admin() %}
+            <p><i>(Estás viendo la página de evaluación, pero sólo el juez asignado {{ assigned_judge.username }} puede enviar el formulario.)</i></p>
+            {# Optionally disable form elements here using JS or template logic #}
+        {% endif %}
+
+        <div class="form-container evaluation-form">
+            {# POST form now submits to the new route #}
+            <form action="{{ url_for('contest.submit_human_evaluation', contest_id=contest.id) }}" method="post" novalidate>
+                {{ form.hidden_tag() }}
+
+                <table class="evaluation-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Título</th>
+                            <th>Texto</th>
+                            <th>Lugar</th>
+                            <th>Comentario</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for sub_form in form.submissions %}
+                            {# Find matching submission from the list passed to template #}
+                            {% set submission = submissions | selectattr('id', 'equalto', sub_form.submission_id.data | int) | first %}
+                            <tr>
+                                <td>
+                                    {{ sub_form.submission_id() }} {# Hidden input #}
+                                    {{ sub_form.submission_id.data }} {# Display ID #}
+                                </td>
+                                <td>{{ submission.title if submission else 'Error' }}</td>
+                                <td>
+                                    <button type="button" onclick="toggleText('sub-text-{{ loop.index }}')">Mostrar/Ocultar Texto</button>
+                                    <div id="sub-text-{{ loop.index }}" class="submission-text-inline" style="display:none; margin-top: 10px; border: 1px solid #eee; padding: 10px; max-height: 300px; overflow-y: auto; background-color: #f9f9f9;">
+                                        <pre>{{ submission.text_content if submission else 'Error' }}</pre>
+                                    </div>
+                                </td>
+                                <td>{{ sub_form.place() }}</td> {# Select dropdown #}
+                                <td>
+                                    {# Use value attribute for textarea #}
+                                    <textarea id="{{ sub_form.comment.id }}" name="{{ sub_form.comment.name }}" rows="2" class="evaluation-comment">{{ sub_form.comment.data or '' }}</textarea>
+                                    {% for error in sub_form.comment.errors %}
+                                        <span style="color: red;">[{{ error }}]</span>
+                                    {% endfor %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                {# Show submit button only if user is the assigned judge or admin #}
+                {% if not assigned_judge or current_user.id == assigned_judge.id or current_user.is_admin() %}
+                    <p>
+                        {{ form.submit() }}
+                        <a href="{{ url_for('contest.list_submissions', contest_id=contest.id) }}">Cancelar</a>
+                    </p>
+                {% endif %}
+            </form>
+        </div>
+    {% endif %}
 
     <script>
         function toggleText(elementId) {

@@ -73,7 +73,7 @@
                     <span style="color: red;">[{{ error }}]</span>
                 {% endfor %}
                 {# Add link to create a new judge - opens in new tab for convenience #}
-                <small><a href="{{ url_for('admin.add_judge') }}" target="_blank">(+ Agregar Nuevo Juez)</a></small>
+                <small><a href="{{ url_for('admin.add_user') }}" target="_blank">(+ Agregar Nuevo Juez)</a></small>
             </p>
             <p>{{ form.submit() }} <a href="{{ url_for('admin.list_contests') }}">Cancelar</a></p>
         </form>

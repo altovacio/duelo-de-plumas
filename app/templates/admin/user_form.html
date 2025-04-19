@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% from "_formhelpers.html" import render_field %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+    <h2>{{ title }}</h2>
+    <div class="form-container">
+        <form action="{{ form_action }}" method="post" novalidate>
+            {{ form.hidden_tag() }}
+            
+            {{ render_field(form.username) }}
+            {{ render_field(form.email) }}
+            {{ render_field(form.password) }}
+            {{ render_field(form.password2) }}
+            {{ render_field(form.role) }}
+            <div id="judge-options" style="display: none;">
+                {{ render_field(form.judge_type) }}
+                <div id="ai-options" style="display: none;">
+                    {{ render_field(form.ai_model_id) }}
+                    {{ render_field(form.ai_personality_prompt) }}
+                </div>
+            </div>
+
+            <p>{{ form.submit(class_="button") }} 
+               {% if user %}
+                   <a href="{{ url_for('admin.list_users') }}">Cancelar</a>
+               {% else %}
+                    {# Maybe link somewhere else for add? #}
+                   <a href="{{ url_for('admin.index') }}">Cancelar</a> 
+               {% endif %}
+            </p>
+        </form>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const roleSelect = document.getElementById('role');
+            const judgeOptionsDiv = document.getElementById('judge-options');
+            const judgeTypeSelect = document.getElementById('judge_type');
+            const aiOptionsDiv = document.getElementById('ai-options');
+
+            function toggleFields() {
+                const selectedRole = roleSelect.value; // This will be 'user', 'judge', or 'admin' (lowercase)
+                const selectedJudgeType = judgeTypeSelect.value; // This will be 'human' or 'ai' (lowercase)
+
+                // Show/hide the entire judge block based on role
+                // Compare against the actual lowercase value from the option tag
+                if (selectedRole === 'judge') { 
+                    judgeOptionsDiv.style.display = 'block';
+                    // Show/hide AI options based on judge_type within the judge block
+                    // Compare against the actual lowercase value from the option tag
+                    if (selectedJudgeType === 'ai') { 
+                        aiOptionsDiv.style.display = 'block';
+                    } else {
+                        aiOptionsDiv.style.display = 'none';
+                    }
+                } else {
+                    judgeOptionsDiv.style.display = 'none';
+                    aiOptionsDiv.style.display = 'none'; // Ensure AI options are also hidden
+                }
+            }
+
+            // Initial check when page loads
+            toggleFields();
+
+            // Add event listeners
+            roleSelect.addEventListener('change', toggleFields);
+            judgeTypeSelect.addEventListener('change', toggleFields);
+        });
+    </script>
+{% endblock %} 

@@ -3,10 +3,10 @@ from flask_login import current_user, login_user, logout_user, login_required
 from urllib.parse import urlsplit
 from app import db
 from app.auth import bp
-from app.auth.forms import LoginForm, RegistrationForm
+from app.auth.forms import LoginForm
 from app.models import User
 
-# Function to check if any users exist (Reinstated)
+# Restore function to check if any users exist
 def check_no_users():
     return db.session.scalar(db.select(User).limit(1)) is None
 
@@ -42,34 +42,4 @@ def logout():
     flash('Has cerrado sesión exitosamente.', 'info')
     return redirect(url_for('main.index'))
 
-@bp.route('/register', methods=['GET', 'POST'])
-def register():
-    if current_user.is_authenticated:
-        flash('Ya has iniciado sesión.', 'info')
-        return redirect(url_for('main.index'))
-
-    form = RegistrationForm()
-    is_first_user = check_no_users() # Check if this will be the first user
-    if form.validate_on_submit():
-        # Determine role based on whether it's the first user
-        user_role = 'admin' if is_first_user else 'judge'
-        
-        user = User(username=form.username.data, email=form.email.data, role=user_role)
-        user.set_password(form.password.data)
-        db.session.add(user)
-        db.session.commit()
-        
-        if is_first_user:
-            flash('¡Felicidades, eres el primer administrador registrado!', 'success')
-            # Log the new admin in automatically
-            login_user(user)
-            return redirect(url_for('main.index'))
-        else:
-            flash('¡Felicidades, te has registrado exitosamente como juez! Por favor, inicia sesión.', 'success')
-            return redirect(url_for('auth.login'))
-        
-    # Adjust title based on whether it's the first registration
-    title = 'Registrar Primer Admin' if is_first_user else 'Registrar Nueva Cuenta (Juez)'
-    return render_template('auth/register.html', title=title, form=form, is_first_user=is_first_user)
-
-# Add registration route later if needed 
+# Removed the register() function again 

@@ -14,45 +14,38 @@
                 Finalizado: {{ contest.end_date.strftime('%d/%m/%Y') }}
             {% endif %}
         </p>
+        
         <div class="contest-description">
             {{ contest.description | safe }} {# Use safe filter if description contains HTML #}
         </div>
 
         <hr>
 
-        {% if is_open %}
+        {% if contest.status == 'open' %}
             <h3>Enviar tu Texto</h3>
-            {% if current_user.is_authenticated or true %} {# Placeholder: Decide if login is required #}
-                <div class="form-container">
-                    <form action="{{ url_for('contest.detail', contest_id=contest.id) }}" method="post" novalidate>
-                        {{ form.hidden_tag() }}
-                        <p>
-                            {{ form.author_name.label }}<br>
-                            {{ form.author_name(size=40) }}<br>
-                            {% for error in form.author_name.errors %}
-                                <span style="color: red;">[{{ error }}]</span>
-                            {% endfor %}
-                        </p>
-                        <p>
-                            {{ form.title.label }}<br>
-                            {{ form.title(size=60) }}<br>
-                            {% for error in form.title.errors %}
-                                <span style="color: red;">[{{ error }}]</span>
-                            {% endfor %}
-                        </p>
-                        <p>
-                            {{ form.text_content.label }}<br>
-                            {{ form.text_content(rows=15, cols=80) }}<br>
-                            {% for error in form.text_content.errors %}
-                                <span style="color: red;">[{{ error }}]</span>
-                            {% endfor %}
-                        </p>
-                        <p>{{ form.submit() }}</p>
-                    </form>
-                </div>
-            {% else %}
-                <p>Debes <a href="{{ url_for('auth.login', next=request.url) }}">iniciar sesión</a> para enviar un texto.</p>
-            {% endif %}
+            <!-- Manual form that doesn't rely on WTForms -->
+            <div class="form-container">
+                <form action="{{ url_for('contest.detail', contest_id=contest.id) }}" method="post" novalidate>
+                    <!-- Create CSRF token manually -->
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    
+                    <p>
+                        <label for="author_name">Nombre del Autor</label><br>
+                        <input type="text" name="author_name" id="author_name" size="40" required>
+                    </p>
+                    <p>
+                        <label for="title">Título del Texto</label><br>
+                        <input type="text" name="title" id="title" size="60" required>
+                    </p>
+                    <p>
+                        <label for="text_content">Contenido del Texto</label><br>
+                        <textarea name="text_content" id="text_content" rows="15" cols="80" required></textarea>
+                    </p>
+                    <p>
+                        <input type="submit" value="Enviar Texto">
+                    </p>
+                </form>
+            </div>
         {% elif is_evaluation %}
             <h3>Evaluación en Progreso</h3>
             <p>Las sumisiones para este concurso están cerradas. Los resultados se publicarán pronto.</p>

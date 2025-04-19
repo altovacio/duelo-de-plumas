@@ -51,7 +51,16 @@
             <p>Las sumisiones para este concurso están cerradas. Los resultados se publicarán pronto.</p>
             {# Add link for judges/admins to evaluate #}
             {% if current_user.is_authenticated and (current_user.role == 'judge' or current_user.is_admin()) %}
+                <!-- Fixed URLs to match route definitions -->
                 <p><a href="{{ url_for('contest.list_submissions', contest_id=contest.id) }}" class="button">Evaluar Envíos</a></p>
+                
+                <!-- Direct link to evaluation page (alternative) -->
+                <p><a href="{{ url_for('contest.evaluate_contest', contest_id=contest.id) }}" class="button">Ir directamente a página de evaluación</a></p>
+                
+                <!-- Show link to admin panel for admins -->
+                {% if current_user.is_admin() %}
+                    <p><a href="{{ url_for('admin.edit_contest', id=contest.id) }}" class="button">Editar Concurso (Admin)</a></p>
+                {% endif %}
             {% endif %}
         {% elif is_closed %}
             <h3>Resultados Finales</h3>

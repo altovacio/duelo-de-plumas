@@ -182,7 +182,7 @@ def list_submissions(contest_id):
                           already_voted=already_voted,
                           assigned_judge=assigned_judge)
 
-@bp.route('/contest/<int:contest_id>/evaluate', methods=['GET'])
+@bp.route('/<int:contest_id>/evaluate', methods=['GET'])
 @login_required
 def evaluate_contest(contest_id):
     contest = db.session.get(Contest, contest_id)
@@ -238,7 +238,7 @@ def evaluate_contest(contest_id):
                           form=form,
                           assigned_judge=assigned_judge)
 
-@bp.route('/contest/<int:contest_id>/submit_human_evaluation', methods=['POST'])
+@bp.route('/<int:contest_id>/submit_human_evaluation', methods=['POST'])
 @login_required
 def submit_human_evaluation(contest_id):
     contest = db.session.get(Contest, contest_id)
@@ -345,7 +345,7 @@ def submit_human_evaluation(contest_id):
         
         return redirect(url_for('contest.evaluate_contest', contest_id=contest_id))
 
-@bp.route('/contest/<int:contest_id>/run_ai_evaluation/<int:judge_id>', methods=['POST'])
+@bp.route('/<int:contest_id>/run_ai_evaluation/<int:judge_id>', methods=['POST'])
 @login_required
 @admin_required 
 def trigger_ai_evaluation(contest_id, judge_id):

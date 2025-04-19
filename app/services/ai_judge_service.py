@@ -34,7 +34,9 @@ def format_submissions_text(submissions):
     """Format submissions into a concise text format for the AI prompt."""
     submissions_text = ""
     for sub in submissions:
-        submissions_text += f"\n\nTEXTO #{sub.id}: \"{sub.title}\" por {sub.author_name}\n"
+        #Judges should not see the author's name to avoid bias
+        #submissions_text += f"\n\nTEXTO #{sub.id}: \"{sub.title}\" por {sub.author_name}\n"
+        submissions_text += f"\n\nTEXTO #{sub.id}: \"{sub.title}\"\n"
         submissions_text += f"{sub.text_content}\n"
         submissions_text += f"--- FIN DEL TEXTO #{sub.id} ---"
     return submissions_text
@@ -43,23 +45,17 @@ def count_tokens(text, model_id):
     """Count the number of tokens in a text string for a specific model."""
     model_info = get_model_info(model_id)
     
-    if model_info['provider'] == 'openai':
-        # OpenAI models use tiktoken
+    try:
+        encoding = tiktoken.encoding_for_model(model_info['api_name'])
+        return len(encoding.encode(text))
+    except Exception:
         try:
-            encoding = tiktoken.encoding_for_model(model_info['api_name'])
-            return len(encoding.encode(text))
-        except Exception:
             # Fallback to cl100k_base encoding as a reasonable approximation
             encoding = tiktoken.get_encoding("cl100k_base")
             return len(encoding.encode(text))
-    elif model_info['provider'] == 'anthropic':
-        # Anthropic models - use Claude's tokenizer or approximation
-        # For simplicity, we'll use a rough approximation
-        # ~4 characters per token on average
-        return len(text) // 4
-    
-    # Fallback for unknown providers
-    return len(text) // 4
+        except Exception:
+            # Fallback to 4 characters per token as a last resort
+            return len(text) // 4
 
 def construct_prompt(contest, judge, submissions):
     """Construct the full prompt for the AI judge."""

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Duelo de Plumas{% endblock %}
+
+{% block content %}
+    <h2>{{ title }}</h2>
+    <p>Gestiona los jueces de inteligencia artificial que pueden evaluar concursos.</p>
+    
+    <p><a href="{{ url_for('admin.add_ai_judge') }}" class="button">+ Crear Nuevo Juez de IA</a></p>
+    
+    {% if ai_judges %}
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Modelo</th>
+                    <th>Personalidad (Inicio)</th>
+                    <th>Concursos Asignados</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for judge in ai_judges %}
+                    <tr>
+                        <td>{{ judge.username }}</td>
+                        <td>{{ judge.ai_model }}</td>
+                        <td>{{ judge.ai_personality_prompt[:100] + '...' if judge.ai_personality_prompt and judge.ai_personality_prompt|length > 100 else judge.ai_personality_prompt }}</td>
+                        <td>{{ judge.judged_contests.count() }}</td>
+                        <td>
+                            <a href="{{ url_for('admin.edit_ai_judge', judge_id=judge.id) }}" class="button-small">Editar</a>
+                            
+                            {# Delete button with confirmation #}
+                            <form action="{{ url_for('admin.delete_ai_judge', judge_id=judge.id) }}" method="post" class="inline-form" onsubmit="return confirm('¿Estás seguro que quieres eliminar este juez de IA? Esta acción no se puede deshacer.');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <button type="submit" class="button-small button-danger">Eliminar</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No hay jueces de IA definidos todavía.</p>
+    {% endif %}
+    
+    <p><a href="{{ url_for('admin.index') }}">&laquo; Volver al Panel de Administración</a></p>
+{% endblock %} 

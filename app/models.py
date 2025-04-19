@@ -15,6 +15,10 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), index=True, unique=True, nullable=False)
     password_hash = db.Column(db.String(256))
     role = db.Column(db.String(10), index=True, default='judge') # 'admin', 'judge', 'user' (submitter)
+    # AI judge fields
+    judge_type = db.Column(db.String(10), default='human') # 'human' or 'ai'
+    ai_model = db.Column(db.String(50), nullable=True) # The AI model to use (e.g., 'gpt-4', 'claude-3-opus')
+    ai_personality_prompt = db.Column(db.Text, nullable=True) # Prompt defining the AI judge's persona/evaluation focus
     votes = db.relationship('Vote', backref='judge', lazy='dynamic')
     # Relationship for contests a user is judging
     judged_contests = db.relationship('Contest', secondary=contest_judges,
@@ -29,7 +33,12 @@ class User(UserMixin, db.Model):
     def is_admin(self):
         return self.role == 'admin'
 
+    def is_ai_judge(self):
+        return self.role == 'judge' and self.judge_type == 'ai'
+
     def __repr__(self):
+        if self.is_ai_judge():
+            return f'<AI Judge {self.username} ({self.ai_model})>'
         return f'<User {self.username} ({self.role})>'
 
 @login_manager.user_loader
@@ -51,6 +60,8 @@ class Contest(db.Model):
     # Relationship for judges assigned to this contest
     judges = db.relationship('User', secondary=contest_judges,
                              back_populates='judged_contests', lazy='dynamic')
+    # Add relationship to AI evaluations
+    ai_evaluations = db.relationship('AIEvaluation', backref='contest', lazy='dynamic', cascade="all, delete-orphan")
 
     def set_password(self, password):
         if self.contest_type == 'private':
@@ -102,4 +113,22 @@ class Vote(db.Model):
     # __table_args__ = (db.UniqueConstraint('judge_id', 'submission_id', name='_judge_submission_uc'),)
 
     def __repr__(self):
-        return f'<Vote by Judge {self.judge_id} on Submission {self.submission_id} -> Place: {self.place}>' 
+        return f'<Vote by Judge {self.judge_id} on Submission {self.submission_id} -> Place: {self.place}>'
+
+class AIEvaluation(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    contest_id = db.Column(db.Integer, db.ForeignKey('contest.id'), nullable=False)
+    judge_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    ai_model = db.Column(db.String(50), nullable=False) # Record the specific model used
+    full_prompt = db.Column(db.Text, nullable=False) # Store the complete prompt sent to the AI
+    response_text = db.Column(db.Text, nullable=False) # Store the raw response from the AI
+    prompt_tokens = db.Column(db.Integer, nullable=False) # Number of tokens in the prompt
+    completion_tokens = db.Column(db.Integer, nullable=False) # Number of tokens in the response
+    cost = db.Column(db.Float, nullable=False) # Cost in USD
+    timestamp = db.Column(db.DateTime, index=True, default=lambda: datetime.now(timezone.utc))
+    
+    # Relationships
+    judge = db.relationship('User', backref='ai_evaluations')
+    
+    def __repr__(self):
+        return f'<AIEvaluation for Contest {self.contest_id} by Judge {self.judge_id}>' 

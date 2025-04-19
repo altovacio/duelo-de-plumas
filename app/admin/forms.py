@@ -2,6 +2,7 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, TextAreaField, DateTimeField, SelectField, PasswordField, BooleanField, SubmitField, SelectMultipleField, IntegerField
 from wtforms.validators import DataRequired, Length, Optional, NumberRange, Email, EqualTo, ValidationError
 from app.models import User
+from app.config.ai_judge_params import AI_MODELS
 
 class ContestForm(FlaskForm):
     title = StringField('Título del Concurso', validators=[DataRequired(), Length(max=150)])
@@ -43,4 +44,41 @@ class AddJudgeForm(FlaskForm):
         if email.data: # Only validate if email is provided
             user = User.query.filter_by(email=email.data).first()
             if user is not None:
-                raise ValidationError('Esta dirección de email ya está registrada.') 
+                raise ValidationError('Esta dirección de email ya está registrada.')
+
+# Form for Admin to add a new AI Judge
+class AddAIJudgeForm(FlaskForm):
+    username = StringField('Nombre del Juez IA', validators=[DataRequired(), Length(min=3, max=64)])
+    email = StringField('Email (Placeholder)', default='ai@duelo-de-plumas.com', validators=[Email(), Length(max=120)])
+    ai_model = SelectField('Modelo de IA', validators=[DataRequired()])
+    ai_personality_prompt = TextAreaField('Personalidad del Juez', validators=[DataRequired()], 
+                              description="Define la personalidad y el enfoque de evaluación de este juez. Este texto se combinará con las instrucciones básicas.")
+    submit = SubmitField('Crear Juez IA')
+
+    def __init__(self, *args, **kwargs):
+        super(AddAIJudgeForm, self).__init__(*args, **kwargs)
+        # Populate AI model choices from config
+        self.ai_model.choices = [(model['id'], model['name']) for model in AI_MODELS]
+
+    # Validation methods (ensure uniqueness)
+    def validate_username(self, username):
+        user = User.query.filter_by(username=username.data).first()
+        if user is not None:
+            raise ValidationError('Este nombre de usuario ya está en uso.')
+
+    def validate_email(self, email):
+        user = User.query.filter_by(email=email.data).first()
+        if user is not None:
+            raise ValidationError('Esta dirección de email ya está registrada.')
+
+# Form for editing an AI Judge
+class EditAIJudgeForm(FlaskForm):
+    ai_model = SelectField('Modelo de IA', validators=[DataRequired()])
+    ai_personality_prompt = TextAreaField('Personalidad del Juez', validators=[DataRequired()],
+                              description="Define la personalidad y el enfoque de evaluación de este juez. Este texto se combinará con las instrucciones básicas.")
+    submit = SubmitField('Actualizar Juez IA')
+
+    def __init__(self, *args, **kwargs):
+        super(EditAIJudgeForm, self).__init__(*args, **kwargs)
+        # Populate AI model choices from config
+        self.ai_model.choices = [(model['id'], model['name']) for model in AI_MODELS] 

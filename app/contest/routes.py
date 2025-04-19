@@ -9,6 +9,7 @@ from app.decorators import judge_required # Import judge_required
 from sqlalchemy import func, distinct # Import func, distinct
 from wtforms.validators import ValidationError # Need this for the except block
 from sqlalchemy.orm import joinedload # Import joinedload
+from app.services.ai_judge_service import run_ai_evaluation # Import AI judge service
 
 @bp.route('/<int:contest_id>', methods=['GET', 'POST'])
 def detail(contest_id):
@@ -115,12 +116,19 @@ def list_submissions(contest_id):
                        .limit(1)
         )
         has_voted = vote_exists is not None
+    
+    # Get AI judges assigned to this contest
+    ai_judges = db.session.scalars(
+        db.select(User).where(User.role == 'judge', User.judge_type == 'ai')
+        .join(User.judged_contests).where(Contest.id == contest.id)
+    ).all()
 
     return render_template('contest/list_submissions.html', 
                            title=f'Evaluar Envíos: {contest.title}', 
                            contest=contest, 
                            submissions=submissions,
-                           has_voted=has_voted) # Pass voting status to template
+                           has_voted=has_voted,
+                           ai_judges=ai_judges) # Pass AI judges to template
 
 # New route for a judge to evaluate the entire contest (ranking)
 @bp.route('/contest/<int:contest_id>/evaluate', methods=['GET', 'POST'])
@@ -222,6 +230,26 @@ def evaluate_contest(contest_id):
                            contest=contest,
                            submissions=submissions,
                            form=form)
+
+# New route to run AI evaluation
+@bp.route('/contest/<int:contest_id>/run_ai_evaluation/<int:judge_id>', methods=['POST'])
+@login_required
+def run_ai_judge(contest_id, judge_id):
+    # Check permissions - only admin or assigned judges can trigger AI evaluation
+    if not current_user.is_admin():
+        flash('Solo los administradores pueden ejecutar evaluaciones de IA.', 'danger')
+        return redirect(url_for('contest.detail', contest_id=contest_id))
+    
+    # Run the AI evaluation process
+    result = run_ai_evaluation(contest_id, judge_id)
+    
+    if result['success']:
+        flash(f"Evaluación de IA completada. {result['message']} Costo: ${result['cost']:.4f}", 'success')
+    else:
+        flash(f"Error al ejecutar evaluación de IA: {result['message']}", 'danger')
+    
+    # Return to submissions list
+    return redirect(url_for('contest.list_submissions', contest_id=contest_id))
 
 def calculate_contest_results(contest_id):
     """Calculates points and ranks for a contest if all judges have voted."""

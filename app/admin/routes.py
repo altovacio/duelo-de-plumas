@@ -2,7 +2,7 @@ from flask import render_template, flash, redirect, url_for, request, abort
 from flask_login import login_required
 from app import db
 from app.admin import bp
-from app.admin.forms import ContestForm, AddJudgeForm
+from app.admin.forms import ContestForm, AddJudgeForm, AddAIJudgeForm, EditAIJudgeForm
 from app.models import Contest, Submission, User
 from app.decorators import admin_required
 
@@ -181,6 +181,97 @@ def add_judge():
 
     # Render the template for GET request or if POST validation/creation failed
     return render_template('admin/add_judge.html', title='Agregar Nuevo Juez', form=form)
+
+@bp.route('/users/ai_judges')
+@login_required
+@admin_required
+def list_ai_judges():
+    ai_judges = db.session.scalars(
+        db.select(User).where(User.role == 'judge', User.judge_type == 'ai').order_by(User.username)
+    ).all()
+    return render_template('admin/list_ai_judges.html', title='Jueces de IA', ai_judges=ai_judges)
+
+@bp.route('/users/add_ai_judge', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def add_ai_judge():
+    form = AddAIJudgeForm()
+    if form.validate_on_submit():
+        # Try creating the AI judge
+        try:
+            # Create a password that's unusable for login (since this is an AI judge)
+            import secrets
+            random_password = secrets.token_hex(16)
+            
+            ai_judge = User(
+                username=form.username.data,
+                email=form.email.data,
+                role='judge',
+                judge_type='ai',
+                ai_model=form.ai_model.data,
+                ai_personality_prompt=form.ai_personality_prompt.data
+            )
+            ai_judge.set_password(random_password)
+            db.session.add(ai_judge)
+            db.session.commit()
+            
+            flash(f'Juez de IA "{ai_judge.username}" creado exitosamente.', 'success')
+            return redirect(url_for('admin.list_ai_judges'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error al crear juez de IA: {e}', 'danger')
+    
+    return render_template('admin/add_ai_judge.html', title='Agregar Juez de IA', form=form)
+
+@bp.route('/users/edit_ai_judge/<int:judge_id>', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def edit_ai_judge(judge_id):
+    ai_judge = db.session.get(User, judge_id)
+    if not ai_judge or ai_judge.role != 'judge' or ai_judge.judge_type != 'ai':
+        abort(404)
+    
+    form = EditAIJudgeForm(obj=ai_judge)
+    
+    if form.validate_on_submit():
+        try:
+            ai_judge.ai_model = form.ai_model.data
+            ai_judge.ai_personality_prompt = form.ai_personality_prompt.data
+            db.session.commit()
+            flash(f'Juez de IA "{ai_judge.username}" actualizado exitosamente.', 'success')
+            return redirect(url_for('admin.list_ai_judges'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error al actualizar juez de IA: {e}', 'danger')
+    
+    return render_template('admin/edit_ai_judge.html', title=f'Editar Juez de IA: {ai_judge.username}', 
+                          form=form, ai_judge=ai_judge)
+
+@bp.route('/users/delete_ai_judge/<int:judge_id>', methods=['POST'])
+@login_required
+@admin_required
+def delete_ai_judge(judge_id):
+    ai_judge = db.session.get(User, judge_id)
+    if not ai_judge or ai_judge.role != 'judge' or ai_judge.judge_type != 'ai':
+        abort(404)
+    
+    try:
+        # Check if the judge has been assigned to any contests
+        assigned_contests = ai_judge.judged_contests.all()
+        if assigned_contests:
+            contest_names = ', '.join([c.title for c in assigned_contests])
+            flash(f'No se puede eliminar el juez porque está asignado a los siguientes concursos: {contest_names}', 'danger')
+            return redirect(url_for('admin.list_ai_judges'))
+        
+        # Delete the judge
+        db.session.delete(ai_judge)
+        db.session.commit()
+        flash(f'Juez de IA "{ai_judge.username}" eliminado exitosamente.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error al eliminar juez de IA: {e}', 'danger')
+    
+    return redirect(url_for('admin.list_ai_judges'))
 
 # Add route for listing users later maybe
 # @bp.route('/users')

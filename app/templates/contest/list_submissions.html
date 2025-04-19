@@ -16,6 +16,39 @@
         {% if has_voted %}
             <p><span class="text-success">✓ Has registrado tu ranking para este concurso.</span></p>
         {% endif %}
+        
+        {# Add AI judges section if available and user is admin #}
+        {% if ai_judges and current_user.is_admin() %}
+            <div class="ai-judges-section">
+                <h3>Jueces de IA Asignados</h3>
+                <p>Los siguientes jueces de IA están disponibles para este concurso. Puedes ejecutar sus evaluaciones manualmente:</p>
+                
+                <div class="ai-judges-list">
+                    {% for ai_judge in ai_judges %}
+                        <div class="ai-judge-card">
+                            <h4>{{ ai_judge.username }}</h4>
+                            <p>Modelo: {{ ai_judge.ai_model }}</p>
+                            
+                            {# Check if the AI judge has already voted #}
+                            {% set has_ai_voted = ai_judge.votes.filter(submission_id=submissions[0].id if submissions else 0).first() is not none %}
+                            
+                            {% if has_ai_voted %}
+                                <p><span class="text-success">✓ Este juez de IA ya ha evaluado el concurso</span></p>
+                                <form action="{{ url_for('contest.run_ai_judge', contest_id=contest.id, judge_id=ai_judge.id) }}" method="post">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <button type="submit" class="button button-small">Volver a Ejecutar Evaluación</button>
+                                </form>
+                            {% else %}
+                                <form action="{{ url_for('contest.run_ai_judge', contest_id=contest.id, judge_id=ai_judge.id) }}" method="post">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <button type="submit" class="button">Ejecutar Evaluación</button>
+                                </form>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
     {% elif contest.status == 'closed' %}
         <p>Este concurso ha finalizado y los resultados han sido publicados (o están pendientes).</p> {# TODO: Show results #}
     {% endif %}
@@ -45,4 +78,37 @@
     {% else %}
         <p>No hay envíos para evaluar en este concurso.</p>
     {% endif %}
+{% endblock %}
+
+{% block styles %}
+    {{ super() }}
+    <style>
+        .ai-judges-section {
+            margin-top: 30px;
+            margin-bottom: 30px;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        
+        .ai-judges-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .ai-judge-card {
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 5px;
+            background-color: white;
+        }
+        
+        .ai-judge-card h4 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+    </style>
 {% endblock %} 

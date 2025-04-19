@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Duelo de Plumas{% endblock %}
+
+{% block content %}
+    <h2>{{ title }}</h2>
+    <p>Modifica la configuración de este juez de inteligencia artificial.</p>
+
+    <div class="form-container">
+        <form action="{{ url_for('admin.edit_ai_judge', judge_id=ai_judge.id) }}" method="post" novalidate>
+            {{ form.hidden_tag() }}
+            
+            <div class="form-field">
+                <p class="form-label">Nombre del Juez:</p>
+                <p class="form-value">{{ ai_judge.username }}</p>
+            </div>
+            
+            <p>
+                {{ form.ai_model.label }}<br>
+                {{ form.ai_model() }}<br>
+                {% for error in form.ai_model.errors %}
+                    <span style="color: red;">[{{ error }}]</span>
+                {% endfor %}
+            </p>
+            <p>
+                {{ form.ai_personality_prompt.label }}<br>
+                <small class="form-hint">{{ form.ai_personality_prompt.description }}</small><br>
+                {{ form.ai_personality_prompt(rows=10, style="width: 100%;") }}<br>
+                {% for error in form.ai_personality_prompt.errors %}
+                    <span style="color: red;">[{{ error }}]</span>
+                {% endfor %}
+            </p>
+            <p>{{ form.submit() }}</p>
+        </form>
+    </div>
+    <p><a href="{{ url_for('admin.list_ai_judges') }}">&laquo; Volver a la Lista de Jueces de IA</a></p>
+{% endblock %}
+
+{% block styles %}
+    {{ super() }}
+    <style>
+        .form-hint {
+            color: #666;
+            font-style: italic;
+            margin-bottom: 5px;
+            display: inline-block;
+        }
+        .form-field {
+            margin-bottom: 15px;
+        }
+        .form-label {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .form-value {
+            margin-top: 0;
+        }
+    </style>
+{% endblock %} 

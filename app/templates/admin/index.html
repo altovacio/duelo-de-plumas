@@ -7,6 +7,8 @@
     <p>Bienvenido al panel de administración.</p>
     <ul>
         <li><a href="{{ url_for('admin.list_contests') }}">Gestionar Concursos</a></li>
+        <li><a href="{{ url_for('admin.add_judge') }}">Agregar Juez Humano</a></li>
+        <li><a href="{{ url_for('admin.list_ai_judges') }}">Gestionar Jueces de IA</a></li>
         {# Add links to user management, etc. later #}
     </ul>
 {% endblock %} 

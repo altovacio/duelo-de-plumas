@@ -54,7 +54,6 @@ class Contest(db.Model):
     status = db.Column(db.String(20), index=True, default='open') # 'open', 'evaluation', 'closed'
     contest_type = db.Column(db.String(10), default='public') # 'public', 'private'
     password_hash = db.Column(db.String(256), nullable=True) # Only if contest_type is 'private'
-    anonymous_submissions = db.Column(db.Boolean, default=False)
     required_judges = db.Column(db.Integer, default=1) # Number of judges needed to close evaluation
     submissions = db.relationship('Submission', backref='contest', lazy='dynamic', cascade="all, delete-orphan")
     # Relationship for judges assigned to this contest

@@ -33,7 +33,6 @@ def create_contest():
             end_date=form.end_date.data,
             required_judges=form.required_judges.data,
             contest_type=form.contest_type.data,
-            anonymous_submissions=form.anonymous_submissions.data,
             status=form.status.data
         )
         if form.contest_type.data == 'private' and form.contest_password.data:
@@ -130,7 +129,6 @@ def edit_contest(contest_id):
         contest.end_date = form.end_date.data
         contest.required_judges = form.required_judges.data
         contest.contest_type = form.contest_type.data
-        contest.anonymous_submissions = form.anonymous_submissions.data
         contest.status = form.status.data
         
         if form.contest_type.data == 'private':

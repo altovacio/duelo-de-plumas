@@ -19,7 +19,6 @@ class ContestForm(FlaskForm):
     contest_type = SelectField('Tipo', choices=[('public', 'Público'), ('private', 'Privado')], validators=[DataRequired()])
     # Password only required if type is private (add custom validation logic in route or here)
     contest_password = PasswordField('Contraseña (si es Privado)', validators=[Optional()])
-    anonymous_submissions = BooleanField('Permitir Envíos Anónimos (ocultar hasta cierre)')
     status = SelectField('Estado', choices=[('open', 'Abierto'), ('evaluation', 'En Evaluación'), ('closed', 'Cerrado')], validators=[DataRequired()], default='open')
     # Field to select judges (populate choices in the route)
     judges = SelectMultipleField('Jueces Asignados', coerce=int, validators=[Optional()])

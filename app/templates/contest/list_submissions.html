@@ -72,9 +72,8 @@
                 <tr>
                     <th>ID</th>
                     <th>Título del Texto</th>
-                    <th>Autor</th> {# Consider hiding if contest.anonymous_submissions and status != 'closed' #}
                     <th>Fecha de Envío</th>
-                    {# Remove old score/action columns for individual eval #}
+                    {# Remove author column - judges should never see author names #}
                 </tr>
             </thead>
             <tbody>
@@ -82,7 +81,6 @@
                     <tr>
                         <td>{{ submission.id }}</td>
                         <td>{{ submission.title }}</td>
-                        <td>{{ submission.author_name }}</td>
                         <td>{{ submission.submission_date.strftime('%Y-%m-%d %H:%M') }}</td>
                     </tr>
                 {% endfor %}

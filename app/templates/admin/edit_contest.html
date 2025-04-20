@@ -46,14 +46,8 @@
             </p>
             <p>
                 {{ form.contest_password.label }}<br>
-                {{ form.contest_password(size=30) }}<br>
+                {{ form.contest_password(size=32, placeholder='Dejar en blanco para concursos públicos') }}<br>
                 {% for error in form.contest_password.errors %}
-                    <span style="color: red;">[{{ error }}]</span>
-                {% endfor %}
-            </p>
-            <p>
-                {{ form.anonymous_submissions() }} {{ form.anonymous_submissions.label }}<br>
-                {% for error in form.anonymous_submissions.errors %}
                     <span style="color: red;">[{{ error }}]</span>
                 {% endfor %}
             </p>

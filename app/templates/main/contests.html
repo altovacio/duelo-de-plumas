@@ -6,15 +6,19 @@
         {% if contests %}
             <ul class="contest-list">
                 {% for contest in contests %}
-                    <li>
+                    <li {% if contest.contest_type == 'private' %}class="private-contest"{% endif %}>
                         {# Link differs for judges viewing their assigned list #}
                         {% if is_judge_view %}
                             <h4><a href="{{ url_for('contest.list_submissions', contest_id=contest.id) }}">{{ contest.title }}</a></h4>
                         {% else %}
-                            <h4><a href="{{ url_for('contest.detail', contest_id=contest.id) }}">{{ contest.title }}</a></h4>
+                            <h4><a href="{{ url_for('contest.detail', contest_id=contest.id) }}">{{ contest.title }}
+                            {% if contest.contest_type == 'private' %}<span class="private-badge">Privado</span>{% endif %}
+                            </h4>
                         {% endif %}
                         <p class="contest-meta">
+                            {% if not is_judge_view %}
                             Tipo: {{ contest.contest_type.capitalize() }} |
+                            {% endif %}
                             {% if contest.status == 'open' %}
                                 Fecha Límite: {{ contest.end_date.strftime('%d/%m/%Y %H:%M') }} UTC
                             {% elif contest.status == 'evaluation' %}
@@ -60,6 +64,21 @@
                     </li>
                 {% endfor %}
             </ul>
+            <style>
+                .private-contest {
+                    border-left: 3px solid #8e44ad;
+                    padding-left: 10px;
+                }
+                .private-badge {
+                    background-color: #8e44ad;
+                    color: white;
+                    font-size: 0.7em;
+                    padding: 2px 6px;
+                    border-radius: 3px;
+                    margin-left: 8px;
+                    vertical-align: middle;
+                }
+            </style>
         {% else %}
             <p>No hay concursos en esta categoría.</p>
         {% endif %}

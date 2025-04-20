@@ -1,4 +1,4 @@
-from flask import render_template, url_for, redirect, request
+from flask import render_template, url_for, redirect, request, session
 from flask_login import current_user
 from app.main import bp
 from app.models import Contest, User, Submission, Vote # Import Vote
@@ -9,21 +9,69 @@ from datetime import datetime
 @bp.route('/index')
 def index():
     current_time = datetime.utcnow()
-    # Fetch active public contests
-    active_contests = db.session.scalars(
-        db.select(Contest)
-        .where(Contest.contest_type == 'public')
-        .where(Contest.status == 'open')
-        .where(Contest.end_date > current_time)
+    
+    # Build the base query for active contests
+    active_contests_query = db.select(Contest) \
+        .where(Contest.status == 'open') \
+        .where(Contest.end_date > current_time) \
         .order_by(Contest.end_date.asc())
+    
+    # Fetch all public contests
+    public_contests = db.session.scalars(
+        active_contests_query.where(Contest.contest_type == 'public')
     ).all()
+    
+    # Fetch private contests that the user has access to
+    private_contests = []
+    if current_user.is_authenticated and current_user.is_admin():
+        # Admin can see all private contests
+        private_contests = db.session.scalars(
+            active_contests_query.where(Contest.contest_type == 'private')
+        ).all()
+    else:
+        # For regular users, check session for private contest access
+        private_contest_ids = []
+        for key in session.keys():
+            if key.startswith('contest_access_'):
+                try:
+                    contest_id = int(key.split('_')[-1])
+                    private_contest_ids.append(contest_id)
+                except ValueError:
+                    continue
+        
+        if private_contest_ids:
+            private_contests = db.session.scalars(
+                active_contests_query
+                .where(Contest.contest_type == 'private')
+                .where(Contest.id.in_(private_contest_ids))
+            ).all()
+    
+    # Combine public and private contests
+    active_contests = public_contests + private_contests
 
-    # Fetch recently closed contests (all for now, limit later if needed)
-    closed_contests = db.session.scalars(
-        db.select(Contest)
-        .where(Contest.status == 'closed')
-        .order_by(Contest.end_date.desc())
-    ).all()
+    # Fetch recently closed contests
+    closed_contests_query = db.select(Contest).where(Contest.status == 'closed').order_by(Contest.end_date.desc())
+    
+    # For non-admins, only show public closed contests or private ones they have access to
+    if not (current_user.is_authenticated and current_user.is_admin()):
+        closed_private_ids = []
+        for key in session.keys():
+            if key.startswith('contest_access_'):
+                try:
+                    contest_id = int(key.split('_')[-1])
+                    closed_private_ids.append(contest_id)
+                except ValueError:
+                    continue
+        
+        if closed_private_ids:
+            closed_contests_query = closed_contests_query.where(
+                (Contest.contest_type == 'public') | 
+                ((Contest.contest_type == 'private') & Contest.id.in_(closed_private_ids))
+            )
+        else:
+            closed_contests_query = closed_contests_query.where(Contest.contest_type == 'public')
+            
+    closed_contests = db.session.scalars(closed_contests_query).all()
 
     # Fetch pending evaluations for the current judge
     judge_assigned_evaluations = []
@@ -82,25 +130,66 @@ def index():
 @bp.route('/contests')
 def list_contests():
     now = datetime.utcnow()
-    # Public lists
-    contests_open = db.session.scalars(
-        db.select(Contest)
-        .where(Contest.status == 'open')
-        .where(Contest.end_date > now)
+    
+    # Base query for open contests
+    open_contests_query = db.select(Contest) \
+        .where(Contest.status == 'open') \
+        .where(Contest.end_date > now) \
         .order_by(Contest.end_date.asc())
-    ).all()
     
-    contests_evaluation = db.session.scalars(
-        db.select(Contest)
-        .where(Contest.status == 'evaluation')
+    # Base query for contests in evaluation
+    evaluation_contests_query = db.select(Contest) \
+        .where(Contest.status == 'evaluation') \
         .order_by(Contest.end_date.desc())
-    ).all()
     
-    contests_closed = db.session.scalars(
-        db.select(Contest)
-        .where(Contest.status == 'closed')
+    # Base query for closed contests
+    closed_contests_query = db.select(Contest) \
+        .where(Contest.status == 'closed') \
         .order_by(Contest.end_date.desc())
-    ).all()
+    
+    # For admin, show all contests
+    if current_user.is_authenticated and current_user.is_admin():
+        contests_open = db.session.scalars(open_contests_query).all()
+        contests_evaluation = db.session.scalars(evaluation_contests_query).all()
+        contests_closed = db.session.scalars(closed_contests_query).all()
+    else:
+        # For regular users, fetch public contests and private ones they have access to
+        private_contest_ids = []
+        for key in session.keys():
+            if key.startswith('contest_access_'):
+                try:
+                    contest_id = int(key.split('_')[-1])
+                    private_contest_ids.append(contest_id)
+                except ValueError:
+                    continue
+        
+        # Open contests - public + accessible private
+        if private_contest_ids:
+            contests_open = db.session.scalars(
+                open_contests_query.where(
+                    (Contest.contest_type == 'public') | 
+                    ((Contest.contest_type == 'private') & Contest.id.in_(private_contest_ids))
+                )
+            ).all()
+            
+            contests_evaluation = db.session.scalars(
+                evaluation_contests_query.where(
+                    (Contest.contest_type == 'public') | 
+                    ((Contest.contest_type == 'private') & Contest.id.in_(private_contest_ids))
+                )
+            ).all()
+            
+            contests_closed = db.session.scalars(
+                closed_contests_query.where(
+                    (Contest.contest_type == 'public') | 
+                    ((Contest.contest_type == 'private') & Contest.id.in_(private_contest_ids))
+                )
+            ).all()
+        else:
+            # Only public contests if no private access
+            contests_open = db.session.scalars(open_contests_query.where(Contest.contest_type == 'public')).all()
+            contests_evaluation = db.session.scalars(evaluation_contests_query.where(Contest.contest_type == 'public')).all()
+            contests_closed = db.session.scalars(closed_contests_query.where(Contest.contest_type == 'public')).all()
     
     # Judge specific list
     judge_assigned_evaluations = []

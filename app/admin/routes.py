@@ -1,8 +1,8 @@
-from flask import render_template, flash, redirect, url_for, request, abort
+from flask import render_template, flash, redirect, url_for, request, abort, session
 from flask_login import login_required
 from app import db
 from app.admin import bp
-from app.admin.forms import ContestForm, AddJudgeForm, AddAIJudgeForm, EditAIJudgeForm
+from app.admin.forms import ContestForm, AddJudgeForm, AddAIJudgeForm, EditAIJudgeForm, ResetContestPasswordForm
 from app.models import Contest, Submission, User, Vote, AIEvaluation, contest_judges
 from app.decorators import admin_required
 from app.config.ai_judge_params import AI_MODELS, AI_MODELS_RAW
@@ -209,12 +209,42 @@ def delete_contest(contest_id):
     if not contest:
         abort(404)
     
-    # TODO: Add cascading delete or check for submissions before deleting?
-    # For now, directly delete the contest.
+    # Delete contest
     db.session.delete(contest)
     db.session.commit()
     flash('Concurso eliminado exitosamente.', 'success')
     return redirect(url_for('admin.list_contests'))
+
+# New route for resetting a contest password
+@bp.route('/contests/<int:contest_id>/reset-password', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def reset_contest_password(contest_id):
+    contest = db.session.get(Contest, contest_id)
+    if not contest:
+        abort(404)
+    
+    # If contest is not private, redirect with an error
+    if contest.contest_type != 'private':
+        flash('Solo se puede cambiar la contraseña de concursos privados.', 'warning')
+        return redirect(url_for('admin.list_contests'))
+    
+    form = ResetContestPasswordForm()
+    
+    if form.validate_on_submit():
+        # Reset password
+        contest.set_password(form.new_password.data)
+        db.session.commit()
+        
+        # Clear any session access tokens for this contest
+        for key in list(session.keys()):
+            if key.startswith(f'contest_access_{contest_id}'):
+                session.pop(key)
+        
+        flash('Contraseña del concurso cambiada exitosamente.', 'success')
+        return redirect(url_for('admin.list_contests'))
+    
+    return render_template('admin/reset_contest_password.html', form=form, contest=contest)
 
 @bp.route('/contests/<int:contest_id>/set_status', methods=['POST'])
 @login_required

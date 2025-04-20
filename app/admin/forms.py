@@ -60,6 +60,12 @@ class ContestForm(FlaskForm):
                 
         # Process the form data in the route, not here (to avoid conflicts)
 
+# Form for resetting a private contest's password
+class ResetContestPasswordForm(FlaskForm):
+    new_password = PasswordField('Nueva Contraseña', validators=[DataRequired()])
+    confirm_password = PasswordField('Confirmar Contraseña', validators=[DataRequired(), EqualTo('new_password', message='Las contraseñas deben coincidir.')])
+    submit = SubmitField('Cambiar Contraseña')
+
 # Form for Admin to add a new Judge
 class AddJudgeForm(FlaskForm):
     username = StringField('Nombre de Usuario del Juez', validators=[DataRequired(), Length(min=3, max=64)])

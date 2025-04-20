@@ -1,8 +1,8 @@
-from flask import render_template, flash, redirect, url_for, abort, request
+from flask import render_template, flash, redirect, url_for, abort, request, session
 from flask_login import current_user, login_required # Added login_required
 from app import db
 from app.contest import bp
-from app.contest.forms import SubmissionForm, ContestEvaluationForm, SubmissionRankForm # Use new form
+from app.contest.forms import SubmissionForm, ContestEvaluationForm, SubmissionRankForm, ContestPasswordForm # Import ContestPasswordForm
 from app.models import Contest, Submission, Vote, User # Added User
 from datetime import datetime, timezone
 from app.decorators import judge_required # Import judge_required
@@ -17,13 +17,15 @@ def detail(contest_id):
     if not contest:
         abort(404) # Contest not found
 
-    # Check if contest is public or if user needs password for private contest (implement later)
+    # Check if contest is private and if user has access
     if contest.contest_type == 'private':
-        # TODO: Add password check logic here for private contests
-        flash('Los concursos privados aún no están implementados.', 'warning')
-        # For now, maybe redirect or show limited info
-        # return redirect(url_for('main.index'))
-        pass # Allow access for now during development
+        # Admin always has access
+        if not (current_user.is_authenticated and current_user.is_admin()):
+            # Check if user has the correct password in session
+            contest_access_key = f'contest_access_{contest_id}'
+            if contest_access_key not in session:
+                # Redirect to password entry page
+                return redirect(url_for('contest.enter_password', contest_id=contest_id))
 
     form = None
     is_open = (contest.status == 'open' and contest.end_date > datetime.utcnow())
@@ -82,6 +84,53 @@ def detail(contest_id):
                            votes_by_submission=votes_by_submission if is_closed else {} # Pass votes dict
                           )
 
+# New route for entering password for private contests
+@bp.route('/<int:contest_id>/password', methods=['GET', 'POST'])
+def enter_password(contest_id):
+    contest = db.session.get(Contest, contest_id)
+    if not contest:
+        abort(404)
+    
+    # If contest is not private or admin is logged in, redirect to contest detail
+    if contest.contest_type != 'private' or (current_user.is_authenticated and current_user.is_admin()):
+        return redirect(url_for('contest.detail', contest_id=contest_id))
+    
+    # Check if user already has access in session
+    if f'contest_access_{contest_id}' in session:
+        return redirect(url_for('contest.detail', contest_id=contest_id))
+    
+    # Show password form
+    form = ContestPasswordForm()
+    if form.validate_on_submit():
+        if contest.check_password(form.password.data):
+            # Password correct, set session variable for access
+            session[f'contest_access_{contest_id}'] = True
+            flash('Acceso concedido al concurso privado.', 'success')
+            return redirect(url_for('contest.detail', contest_id=contest_id))
+        else:
+            flash('Contraseña incorrecta. Por favor, inténtalo de nuevo.', 'danger')
+    
+    return render_template('contest/enter_password.html', form=form, contest=contest)
+
+# New route to check passwords for POST requests
+@bp.route('/<int:contest_id>/check-password', methods=['POST'])
+def check_password(contest_id):
+    contest = db.session.get(Contest, contest_id)
+    if not contest:
+        abort(404)
+    
+    form = ContestPasswordForm()
+    if form.validate_on_submit():
+        if contest.check_password(form.password.data):
+            # Password correct, set session variable for access
+            session[f'contest_access_{contest_id}'] = True
+            flash('Acceso concedido al concurso privado.', 'success')
+            return redirect(url_for('contest.detail', contest_id=contest_id))
+        else:
+            flash('Contraseña incorrecta. Por favor, inténtalo de nuevo.', 'danger')
+    
+    return redirect(url_for('contest.enter_password', contest_id=contest_id))
+
 # Route for judges to view submissions for a contest
 @bp.route('/<int:contest_id>/submissions')
 @login_required
@@ -95,6 +144,14 @@ def list_submissions(contest_id):
     if not current_user.is_admin() and current_user not in contest.judges.all():
         flash('No tienes permiso para evaluar este concurso.', 'danger')
         return redirect(url_for('contest.detail', contest_id=contest.id))
+
+    # Check if contest is private and if judge has access (admin always has access)
+    if contest.contest_type == 'private' and not current_user.is_admin():
+        # Check if judge has the correct password in session
+        contest_access_key = f'contest_access_{contest_id}'
+        if contest_access_key not in session:
+            # Redirect to password entry page
+            return redirect(url_for('contest.enter_password', contest_id=contest_id))
 
     if contest.status not in ['evaluation', 'closed']:
          if not current_user.is_admin():
@@ -171,6 +228,14 @@ def evaluate_contest(contest_id):
     if not current_user.is_admin() and current_user not in contest.judges.all():
         flash('No tienes permiso para evaluar este concurso.', 'danger')
         return redirect(url_for('contest.detail', contest_id=contest.id))
+    
+    # Check if contest is private and if judge has access (admin always has access)
+    if contest.contest_type == 'private' and not current_user.is_admin():
+        # Check if judge has the correct password in session
+        contest_access_key = f'contest_access_{contest_id}'
+        if contest_access_key not in session:
+            # Redirect to password entry page
+            return redirect(url_for('contest.enter_password', contest_id=contest_id))
     
     if contest.status != 'evaluation':
         flash('Sólo se puede evaluar durante la fase de evaluación.', 'warning')

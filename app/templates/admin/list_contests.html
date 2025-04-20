@@ -48,6 +48,9 @@
                         <td>
                             <a href="{{ url_for('admin.edit_contest', contest_id=contest.id) }}" class="button-small">Editar/Asignar Jueces</a>
                             <a href="{{ url_for('admin.list_submissions', contest_id=contest.id) }}" class="button-small">Ver Envíos</a>
+                            {% if contest.contest_type == 'private' %}
+                            <a href="{{ url_for('admin.reset_contest_password', contest_id=contest.id) }}" class="button-small">Cambiar Contraseña</a>
+                            {% endif %}
                             <form action="{{ url_for('admin.delete_contest', contest_id=contest.id) }}" method="post" style="display:inline;" onsubmit="return confirm('¿Estás seguro de que quieres eliminar este concurso? Esta acción no se puede deshacer.');">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                 <button type="submit" class="button-small button-danger">Eliminar</button>

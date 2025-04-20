@@ -62,6 +62,11 @@ class ContestEvaluationForm(FlaskForm):
 
         return True # Validation passed
 
+# Form for entering password to access private contests
+class ContestPasswordForm(FlaskForm):
+    password = PasswordField('Contraseña', validators=[DataRequired()])
+    submit = SubmitField('Acceder al Concurso')
+
 class ContestForm(FlaskForm):
     # ... (existing ContestForm, including __init__) ...
     submit = SubmitField('Guardar Concurso')

@@ -44,9 +44,9 @@
                     <span style="color: red;">[{{ error }}]</span>
                 {% endfor %}
             </p>
-            <p>
+            <p id="password-field" style="display: {{ 'block' if form.contest_type.data == 'private' else 'none' }};">
                 {{ form.contest_password.label }}<br>
-                {{ form.contest_password(size=32, placeholder='Dejar en blanco para concursos públicos') }}<br>
+                {{ form.contest_password(size=32, placeholder='Comparte esta contraseña con participantes y jueces') }}<br>
                 {% for error in form.contest_password.errors %}
                     <span style="color: red;">[{{ error }}]</span>
                 {% endfor %}
@@ -240,6 +240,20 @@
                     }
                 });
             });
+            
+            // Handle showing/hiding password field based on contest type
+            const contestTypeSelect = document.querySelector('#contest_type');
+            const passwordField = document.querySelector('#password-field');
+            
+            if (contestTypeSelect && passwordField) {
+                // Initially set based on current value
+                passwordField.style.display = contestTypeSelect.value === 'private' ? 'block' : 'none';
+                
+                // Add event listener for changes
+                contestTypeSelect.addEventListener('change', function() {
+                    passwordField.style.display = this.value === 'private' ? 'block' : 'none';
+                });
+            }
         });
     </script>
 {% endblock %} 

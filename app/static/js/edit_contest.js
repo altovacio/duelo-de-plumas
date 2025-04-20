@@ -1,49 +1,15 @@
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize Quill rich text editor
-    let quill = null;
+    // Initialize Quill rich text editor using our custom component
+    let quillEditor = null;
     const quillContainer = document.getElementById('quill-editor');
     const textArea = document.getElementById('description_textarea');
     
     if (quillContainer && textArea) {
-        // Initialize Quill with custom options
-        quill = new Quill(quillContainer, {
-            theme: 'snow',
-            modules: {
-                toolbar: [
-                    // Basic formatting
-                    ['bold', 'italic', 'underline', 'strike'],
-                    
-                    // Alignment (requested: horizontal alignment)
-                    [{ 'align': ['', 'center', 'right', 'justify'] }],
-                    
-                    // Quote format (requested)
-                    ['blockquote'],
-                    
-                    // Lists
-                    [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-                    
-                    // Headers
-                    [{ 'header': [1, 2, 3, false] }],
-                    
-                    // Clean formatting
-                    ['clean']
-                ]
-            },
-            placeholder: FormConfig.richTextEditor.placeholder
+        // Create a new QuillEditor instance
+        quillEditor = new QuillEditor({
+            container: quillContainer,
+            textarea: textArea
         });
-        
-        // Set initial content from textarea
-        if (textArea.value) {
-            quill.root.innerHTML = textArea.value;
-        }
-        
-        // Update hidden form field before submitting the form
-        const form = quillContainer.closest('form');
-        if (form) {
-            form.addEventListener('submit', function() {
-                textArea.value = quill.root.innerHTML;
-            });
-        }
     }
     
     // Password visibility toggle

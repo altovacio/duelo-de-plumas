@@ -11,6 +11,7 @@ Sitio web minimalista para la gestión y participación en concursos literarios.
 *   Cálculo Automático de Resultados y Cierre de Concurso.
 *   Visualización de Resultados y Textos Enviados en Concursos Cerrados.
 *   Registro de Administrador (primer usuario) y Jueces.
+*   Jueces de IA con personalidades distintas para evaluar textos automáticamente.
 
 ## Flujos de Usuario
 
@@ -97,15 +98,205 @@ Sitio web minimalista para la gestión y participación en concursos literarios.
 
 ## Instalación y Ejecución (Desarrollo)
 
-1.  Clonar el repositorio.
-2.  Crear un entorno virtual: `python -m venv venv`
-3.  Activar el entorno: `source venv/bin/activate` (Linux/macOS) o `venv\Scripts\activate` (Windows)
-4.  Instalar dependencias: `pip install -r requirements.txt`
-5.  Crear un archivo `.env` y definir `SECRET_KEY` (ver `config.py`).
-6.  (Opcional) Eliminar `app.db` si existe y se quiere empezar de cero.
-7.  Ejecutar la aplicación: `flask run` o `python run.py`
-8.  Acceder a `http://127.0.0.1:5000`
-9.  Registrar el primer usuario (admin) vía `/auth/register`.
+1. Clonar el repositorio.
+2. Crear un entorno virtual: `python -m venv venv`
+3. Activar el entorno: 
+   * Linux/macOS: `source venv/bin/activate` 
+   * Windows: `venv\Scripts\activate`
+4. Instalar dependencias: `pip install -r requirements.txt`
+5. Crear un archivo `.env` con las siguientes variables:
+   ```
+   SECRET_KEY=tu_clave_secreta_aqui # Para Flask
+   OPENAI_API_KEY=tu_clave_de_openai  # Para jueces de IA
+   ANTHROPIC_API_KEY=tu_clave_de_anthropic  # Para jueces de IA
+   
+   # Opcional: Para crear admin automáticamente
+   ADMIN_USERNAME=nombre_de_usuario
+   ADMIN_EMAIL=correo@ejemplo.com
+   ADMIN_PASSWORD=contraseña_segura
+   ```
+6. Ejecutar la aplicación: `python run.py`
+   * Esto creará automáticamente la base de datos (app.db)
+7. Crear usuario administrador:
+   * **Opción A:** Acceder a `http://127.0.0.1:5000/auth/register` y registrar el primer usuario manualmente (se convierte automáticamente en administrador).
+   * **Opción B:** Ejecutar `python create_admin.py` para crear un administrador automáticamente usando las credenciales del archivo `.env`.
+8. Inicializar los jueces de IA: `python seed_ai_judges.py`
+   * Este paso crea los 5 jueces de IA con diferentes personalidades
+
+## Despliegue a Producción
+
+1. **Preparación del Servidor:**
+   * Configura un servidor Linux (Ubuntu/Debian recomendado)
+   * Instala Python 3.8+ y pip
+   * Instala Git: `apt-get install git`
+   * Instala virtualenv: `pip install virtualenv`
+
+2. **Clonar y Configurar la Aplicación:**
+   ```bash
+   # Clonar el repositorio
+   git clone https://github.com/tu-usuario/duelo-de-plumas.git
+   cd duelo-de-plumas
+   
+   # Crear entorno virtual
+   python -m venv venv
+   source venv/bin/activate
+   
+   # Instalar dependencias
+   pip install -r requirements.txt
+   pip install gunicorn  # Servidor WSGI para producción
+   
+   # Configurar variables de entorno
+   cp .env.example .env
+   # Editar .env con editor de texto para configurar:
+   # - SECRET_KEY (genera una clave segura)
+   # - FLASK_ENV=production
+   # - DATABASE_URL (si usas una base de datos externa)
+   # - OPENAI_API_KEY y ANTHROPIC_API_KEY para los jueces de IA
+   ```
+
+3. **Configurar Gunicorn:**
+   * Crea un archivo `wsgi.py` en la raíz del proyecto:
+   ```python
+   from app import create_app
+   
+   application = create_app()
+   
+   if __name__ == "__main__":
+       application.run()
+   ```
+   
+   * Prueba Gunicorn localmente:
+   ```bash
+   gunicorn --bind 0.0.0.0:8000 wsgi:application
+   ```
+
+4. **Configurar Systemd para Gestionar el Servicio:**
+   * Crea un archivo de servicio:
+   ```bash
+   sudo nano /etc/systemd/system/duelo-de-plumas.service
+   ```
+   
+   * Añade la configuración del servicio:
+   ```
+   [Unit]
+   Description=Duelo de Plumas Web Application
+   After=network.target
+   
+   [Service]
+   User=www-data
+   Group=www-data
+   WorkingDirectory=/ruta/completa/a/duelo-de-plumas
+   Environment="PATH=/ruta/completa/a/duelo-de-plumas/venv/bin"
+   ExecStart=/ruta/completa/a/duelo-de-plumas/venv/bin/gunicorn --workers 3 --bind unix:duelo-de-plumas.sock -m 007 wsgi:application
+   
+   [Install]
+   WantedBy=multi-user.target
+   ```
+   
+   * Inicia y habilita el servicio:
+   ```bash
+   sudo systemctl start duelo-de-plumas
+   sudo systemctl enable duelo-de-plumas
+   sudo systemctl status duelo-de-plumas  # Verificar estado
+   ```
+
+5. **Configurar Nginx como Proxy Inverso:**
+   * Instala Nginx: `sudo apt-get install nginx`
+   * Configura un sitio para la aplicación:
+   ```bash
+   sudo nano /etc/nginx/sites-available/duelo-de-plumas
+   ```
+   
+   * Añade la configuración del sitio:
+   ```
+   server {
+       listen 80;
+       server_name tu-dominio.com www.tu-dominio.com;
+       
+       location / {
+           include proxy_params;
+           proxy_pass http://unix:/ruta/completa/a/duelo-de-plumas/duelo-de-plumas.sock;
+       }
+       
+       location /static {
+           alias /ruta/completa/a/duelo-de-plumas/app/static;
+       }
+   }
+   ```
+   
+   * Activa el sitio y reinicia Nginx:
+   ```bash
+   sudo ln -s /etc/nginx/sites-available/duelo-de-plumas /etc/nginx/sites-enabled
+   sudo nginx -t  # Verifica la configuración
+   sudo systemctl restart nginx
+   ```
+
+6. **Configurar SSL con Certbot (Opcional pero Recomendado):**
+   ```bash
+   sudo apt-get install certbot python3-certbot-nginx
+   sudo certbot --nginx -d tu-dominio.com -d www.tu-dominio.com
+   ```
+
+7. **Actualizar la Aplicación (Deploy):**
+   ```bash
+   # Accede al directorio de la aplicación
+   cd /ruta/completa/a/duelo-de-plumas
+   
+   # Activa el entorno virtual
+   source venv/bin/activate
+   
+   # Obtén los últimos cambios
+   git pull origin main
+   
+   # Instala nuevas dependencias si las hay
+   pip install -r requirements.txt
+   
+   # Aplica migraciones de base de datos si son necesarias
+   flask db upgrade
+   
+   # Reinicia el servicio
+   sudo systemctl restart duelo-de-plumas
+   ```
+
+8. **Inicialización de la Aplicación:**
+   * Para una instalación desde cero, asegúrate de:
+     * **Opción A:** Acceder a la aplicación y registrar el primer usuario (que será administrador)
+     * **Opción B:** Crear un administrador automáticamente:
+       ```bash
+       # Asegúrate de configurar ADMIN_USERNAME, ADMIN_EMAIL y ADMIN_PASSWORD en .env
+       cd /ruta/completa/a/duelo-de-plumas
+       source venv/bin/activate
+       python create_admin.py
+       ```
+     * Ejecutar el script para inicializar los jueces de IA:
+     ```bash
+     cd /ruta/completa/a/duelo-de-plumas
+     source venv/bin/activate
+     python seed_ai_judges.py
+     ```
+
+9. **Verificación y Monitoreo:**
+   * Verifica que la aplicación sea accesible en tu dominio
+   * Configura logs y monitoreo según sea necesario:
+   ```bash
+   sudo journalctl -u duelo-de-plumas.service  # Ver logs del servicio
+   sudo tail -f /var/log/nginx/error.log  # Ver logs de error de Nginx
+   ```
+
+10. **Backups Periódicos:**
+   * Configura respaldos automáticos de la base de datos:
+   ```bash
+   # Ejemplo de script para backup diario de SQLite
+   mkdir -p /backups/duelo-de-plumas
+   sqlite3 /ruta/completa/a/duelo-de-plumas/app.db ".backup '/backups/duelo-de-plumas/backup_$(date +%Y%m%d).db'"
+   
+   # Añade este script a crontab para ejecutarlo diariamente
+   ```
+
+11. **Consideraciones de Seguridad:**
+    * Configura un firewall (como UFW)
+    * Mantén el sistema actualizado con `apt-get update` y `apt-get upgrade`
+    * Considera implementar límites de tasa para prevenir abusos
 
 ## Comandos CLI Útiles
 

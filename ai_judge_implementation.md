@@ -96,4 +96,33 @@ This document outlines the steps and considerations for integrating AI judges in
 *   Test error handling (API errors, parsing errors).
 *   Manually review AI results on test contests for quality, fairness, and adherence to both instruction and personality prompts.
 
+## 7. Recent Updates - Re-evaluation and Contest Closing
+
+### Re-evaluation Functionality
+
+The AI judge implementation has been updated to support re-evaluation:
+
+*   Administrators can now re-trigger an AI evaluation even if the judge has already evaluated the contest.
+*   When re-evaluation is triggered, the system:
+    *   Deletes the previous `AIEvaluation` record
+    *   Deletes all `Vote` records from this AI judge for the contest
+    *   Creates a fresh evaluation with new API calls
+    *   Updates the user interface to indicate this was a re-evaluation
+*   Re-evaluation is useful when:
+    *   The previous evaluation had parsing issues
+    *   New submissions were added (though this should be rare in the normal workflow)
+    *   Testing different prompt formats or AI models
+
+### Automatic Contest Closing
+
+When an AI judge completes its evaluation (whether initial or re-evaluation):
+
+*   The system automatically calls `calculate_contest_results(contest_id)`
+*   This function checks if all required judges (both human and AI) have now submitted evaluations
+*   If all required judges have voted, the contest automatically transitions to 'closed' status
+*   Results are calculated (scores, rankings) and stored
+*   The user is redirected to the contest details page showing the final results
+
+This automation ensures a smooth workflow where contests close as soon as all required evaluations are complete, without requiring further administrator action.
+
 Let's review this updated plan and refine it further if needed. 

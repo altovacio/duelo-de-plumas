@@ -5,10 +5,30 @@ document.addEventListener('DOMContentLoaded', function() {
     const textArea = document.getElementById('description_textarea');
     
     if (quillContainer && textArea) {
-        // Initialize Quill with config options
+        // Initialize Quill with custom options
         quill = new Quill(quillContainer, {
-            theme: FormConfig.richTextEditor.theme,
-            modules: FormConfig.richTextEditor.modules,
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    // Basic formatting
+                    ['bold', 'italic', 'underline', 'strike'],
+                    
+                    // Alignment (requested: horizontal alignment)
+                    [{ 'align': ['', 'center', 'right', 'justify'] }],
+                    
+                    // Quote format (requested)
+                    ['blockquote'],
+                    
+                    // Lists
+                    [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+                    
+                    // Headers
+                    [{ 'header': [1, 2, 3, false] }],
+                    
+                    // Clean formatting
+                    ['clean']
+                ]
+            },
             placeholder: FormConfig.richTextEditor.placeholder
         });
         

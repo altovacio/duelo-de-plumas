@@ -27,14 +27,28 @@
                             <form action="{{ url_for('admin.set_contest_status', contest_id=contest.id) }}" method="post" class="inline-form">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                 <select name="new_status" class="small-select">
-                                    <option value="open" {% if contest.status == 'open' %}selected{% endif %}>Open</option>
-                                    <option value="evaluation" {% if contest.status == 'evaluation' %}selected{% endif %}>Evaluation</option>
-                                    <option value="closed" {% if contest.status == 'closed' %}selected{% endif %}>Closed</option>
+                                    <option value="open" {% if contest.status == 'open' %}selected{% endif %}>Abierto</option>
+                                    <option value="evaluation" {% if contest.status == 'evaluation' %}selected{% endif %}>En evaluación</option>
+                                    <option value="closed" {% if contest.status == 'closed' %}selected{% endif %}>Cerrado</option>
                                 </select>
-                                <button type="submit" class="button-small">Cambiar</button>
+                                <button type="submit" class="button-icon status-apply-button" title="Aplicar cambio de estado">✔️</button>
                             </form>
                         </td>
-                        <td>{{ contest.contest_type.capitalize() }}</td>
+                        <td class="type-column">
+                            {# Translate contest type #}
+                            <span>
+                                {% if contest.contest_type == 'public' %}
+                                    Público
+                                {% elif contest.contest_type == 'private' %}
+                                    Privado
+                                {% else %}
+                                    {{ contest.contest_type.capitalize() }} {# Fallback #}
+                                {% endif %}
+                            </span>
+                            {% if contest.contest_type == 'private' %}
+                                <a href="{{ url_for('admin.reset_contest_password', contest_id=contest.id) }}" class="button-icon type-action-icon" title="Cambiar Contraseña">🔑</a>
+                            {% endif %}
+                        </td>
                         <td>
                             {% if contest.judges.all() %}
                                 {% for judge in contest.judges %}
@@ -44,16 +58,16 @@
                                 <span class="text-muted">Ninguno</span>
                             {% endif %}
                         </td>
-                        <td>{{ contest.end_date.strftime('%Y-%m-%d %H:%M') }}</td>
-                        <td>
-                            <a href="{{ url_for('admin.edit_contest', contest_id=contest.id) }}" class="button-small">Editar/Asignar Jueces</a>
-                            <a href="{{ url_for('admin.list_submissions', contest_id=contest.id) }}" class="button-small">Ver Envíos</a>
-                            {% if contest.contest_type == 'private' %}
-                            <a href="{{ url_for('admin.reset_contest_password', contest_id=contest.id) }}" class="button-small">Cambiar Contraseña</a>
-                            {% endif %}
+                        {# Compare with current_time_utc #}
+                        <td {% if contest.end_date.replace(tzinfo=timezone.utc) < current_time_utc %}class="date-past"{% endif %}>
+                            {{ contest.end_date.strftime('%Y-%m-%d %H:%M') }}
+                        </td>
+                        <td class="actions-column">
+                            <a href="{{ url_for('admin.edit_contest', contest_id=contest.id) }}" class="button-icon" title="Editar Concurso">✏️</a>
+                            <a href="{{ url_for('admin.list_submissions', contest_id=contest.id) }}" class="button-icon" title="Ver Envíos">👁️</a>
                             <form action="{{ url_for('admin.delete_contest', contest_id=contest.id) }}" method="post" style="display:inline;" onsubmit="return confirm('¿Estás seguro de que quieres eliminar este concurso? Esta acción no se puede deshacer.');">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                <button type="submit" class="button-small button-danger">Eliminar</button>
+                                <button type="submit" class="button-icon button-danger" title="Eliminar Concurso">🗑️</button>
                             </form>
                         </td>
                     </tr>

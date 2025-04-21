@@ -248,6 +248,21 @@ form .cancel-button:hover {
         flex-direction: column;
         align-items: stretch;
     }
+
+    .admin-table th, .admin-table td {
+        padding: 8px 10px; /* Slightly reduce padding on smaller screens */
+    }
+
+    .admin-table .actions-column a,
+    .admin-table .actions-column button {
+        display: block; /* Stack buttons vertically */
+        margin-bottom: 5px;
+        text-align: center;
+    }
+
+    .admin-table .actions-column form {
+        display: block; /* Ensure form takes full width */
+    }
 }
 
 /* Flash Messages */
@@ -507,4 +522,237 @@ form .cancel-button:hover {
         padding: 2px 6px;
         font-size: 0.85em;
     }
+}
+
+/* Admin Table Specific Styles */
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    background-color: #ffffff; /* White background for the table */
+}
+
+.admin-table th, .admin-table td {
+    border: 1px solid #ddd; /* Light grey border */
+    padding: 12px 15px; /* Increased padding for better spacing */
+    text-align: left;
+    vertical-align: middle; /* Vertically center content */
+}
+
+.admin-table th {
+    background-color: #f8f9fa; /* Very light grey background for headers */
+    color: #333; /* Darker text for headers */
+    font-weight: bold;
+}
+
+.admin-table tr:nth-child(even) {
+    background-color: #fdfdfd; /* Slightly off-white for even rows */
+}
+
+.admin-table tr:hover {
+    background-color: #f1f1f1; /* Light grey hover effect */
+}
+
+.admin-table td a {
+    color: var(--link-color);
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.admin-table td a:hover {
+    color: var(--link-hover-color);
+    text-decoration: underline;
+}
+
+/* Specific column alignments if needed */
+.admin-table .actions-column {
+    text-align: center; /* Center actions icons */
+    white-space: nowrap; /* Prevent action buttons from wrapping */
+}
+
+.admin-table .type-column {
+    white-space: nowrap; /* Prevent type text and icon wrapping */
+}
+
+.admin-table .status-apply-button {
+    margin-left: 5px; /* Space between dropdown and button */
+    padding: 3px 6px; /* Smaller padding for the icon button */
+    vertical-align: middle; /* Align button with select */
+}
+
+.admin-table .small-select {
+    padding: 4px 8px; /* Adjust padding for smaller select */
+    vertical-align: middle; /* Align select with button */
+}
+
+.admin-table .inline-form {
+    display: flex; /* Use flexbox for alignment */
+    align-items: center; /* Center items vertically */
+}
+
+
+/* Ensure icons in actions are spaced slightly */
+.admin-table .actions-column .button-icon {
+    margin: 0 3px; /* Add small horizontal margin */
+}
+
+/* Style for past dates */
+.admin-table td.date-past {
+    color: #dc3545; /* Red color for past dates */
+    font-style: italic;
+}
+
+/* Action Buttons within the table */
+.admin-table .actions-column a,
+.admin-table .actions-column button {
+    padding: 6px 10px;
+    font-size: 0.9em;
+    border-radius: 3px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    vertical-align: middle;
+}
+
+.admin-table .actions-column form {
+    display: inline-flex;
+    align-items: center;
+    margin: 0; /* Ensure zero margin */
+    padding: 0;
+}
+
+.admin-table .actions-column a.button-small,
+.admin-table .actions-column button.button-small {
+    background-color: #6c757d; /* Muted grey button */
+    color: white;
+    border: 1px solid #6c757d;
+}
+
+.admin-table .actions-column a.button-small:hover,
+.admin-table .actions-column button.button-small:hover {
+    background-color: #5a6268;
+    border-color: #545b62;
+    text-decoration: none;
+}
+
+.admin-table .actions-column button.button-danger {
+    background-color: #c82333; /* Muted red for danger */
+    border-color: #bd2130;
+    color: white;
+}
+
+.admin-table .actions-column button.button-danger:hover {
+    background-color: #a71d2a;
+    border-color: #941a25;
+}
+
+/* Status Change Form within table */
+.admin-table .inline-form {
+    display: flex;
+    align-items: center; /* Ensure vertical alignment */
+    gap: 5px;
+    justify-content: flex-start;
+    margin: 0; /* Remove any default form margin */
+}
+
+.admin-table .small-select {
+    padding: 5px 8px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    font-size: 0.9em;
+    flex-grow: 1; /* Allow select to take available space */
+    min-width: 100px; /* Ensure a minimum width */
+}
+
+/* Apply button specific styling (within inline form) */
+.admin-table .inline-form .status-apply-button {
+    padding: 4px 6px; /* Slightly smaller padding */
+    font-size: 1em; /* Adjust size if needed */
+    color: #28a745; /* Green color for apply */
+    background-color: transparent;
+    border: none;
+}
+
+.admin-table .inline-form .status-apply-button:hover {
+    color: #218838; /* Darker green on hover */
+}
+
+/* Style for icon buttons */
+.admin-table .button-icon {
+    padding: 4px 8px; /* Adjust padding for icon */
+    font-size: 1.1em; /* Slightly larger icon */
+    line-height: 1; /* Ensure icon aligns well */
+    background: none; /* Remove background */
+    border: none; /* Remove border */
+    color: #6c757d; /* Default icon color */
+    cursor: pointer;
+    vertical-align: middle;
+    transition: color 0.2s ease;
+    /* Ensure inline forms containing icons don't add extra space */
+    display: inline-flex; 
+    align-items: center;
+    justify-content: center;
+}
+
+.admin-table .button-icon:hover {
+    color: #333;
+}
+
+.admin-table .button-icon.button-danger {
+    background: none; /* Ensure no background */
+    border: none; /* Ensure no border */
+    color: #c82333; /* Danger color for delete icon */
+}
+
+/* Type column specific styling */
+.admin-table .type-column {
+    white-space: nowrap; /* Keep this */
+}
+
+/* Optional: specific style for icon in type column if needed */
+.admin-table .type-action-icon {
+    font-size: 1em; /* Adjust if necessary */
+    color: #6c757d; /* Match other icons */
+    background: none; /* Remove background */
+    border: none; /* Remove border */
+}
+
+.admin-table .type-action-icon:hover {
+    color: #333; /* Match other icons hover */
+}
+
+/* Style for the main "+ Create New Contest" button */
+a.button {
+    display: inline-block;
+    background-color: #5a5a5a;
+    color: white;
+    padding: 10px 18px;
+    border: none;
+    border-radius: 4px;
+    text-decoration: none;
+    font-weight: 500;
+    transition: background-color 0.2s ease;
+}
+
+a.button:hover {
+    background-color: #444;
+    text-decoration: none;
+}
+
+/* Text Muted Style (e.g., for 'Ninguno') */
+.text-muted {
+    color: #777;
+    font-style: italic;
+}
+
+/* Style for past dates */
+.admin-table .date-past {
+    position: relative; /* Needed for absolute positioning of pseudo-element if desired, but using inline for now */
+}
+
+.admin-table .date-past::after {
+    content: " 🏁"; /* Use checkered flag emoji */
+    display: inline-block;
+    margin-left: 5px;
 } 

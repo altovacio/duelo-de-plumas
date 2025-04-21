@@ -1,11 +1,12 @@
-from flask import render_template, flash, redirect, url_for, request, abort, session
-from flask_login import login_required
+from flask import render_template, flash, redirect, url_for, request, abort, session, current_app
+from flask_login import login_required, current_user
 from app import db
 from app.admin import bp
 from app.admin.forms import ContestForm, AddJudgeForm, AddAIJudgeForm, EditAIJudgeForm, ResetContestPasswordForm
 from app.models import Contest, Submission, User, Vote, AIEvaluation, contest_judges
 from app.decorators import admin_required
 from app.config.ai_judge_params import AI_MODELS, AI_MODELS_RAW
+from datetime import datetime, timezone
 
 @bp.route('/')
 @login_required
@@ -19,7 +20,8 @@ def index():
 @admin_required
 def list_contests():
     contests = db.session.scalars(db.select(Contest).order_by(Contest.start_date.desc())).all()
-    return render_template('admin/list_contests.html', title='Gestionar Concursos', contests=contests)
+    current_time_utc = datetime.now(timezone.utc)
+    return render_template('admin/list_contests.html', title='Gestionar Concursos', contests=contests, current_time_utc=current_time_utc, timezone=timezone)
 
 @bp.route('/contests/create', methods=['GET', 'POST'])
 @login_required

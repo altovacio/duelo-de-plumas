@@ -61,5 +61,5 @@ def check_contests_command():
         print("No contests currently in evaluation phase.")
 
 if __name__ == '__main__':
-    # Use debug=True for development, turn off for production
-    app.run(debug=True) 
+    # Use run(debug=True) for development, turn off for production
+    app.run() 

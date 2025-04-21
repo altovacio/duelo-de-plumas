@@ -6,6 +6,10 @@
     <title>{% block title %}Duelo de Plumas{% endblock %}</title>
     <!-- Link to CSS file (we'll create this later) -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
+    <!-- SimpleMDE Markdown Editor - Open Source -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.css">
+    <script src="https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.js"></script>
     {% block head_extra %}{% endblock %}
 </head>
 <body>

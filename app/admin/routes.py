@@ -26,66 +26,82 @@ def list_contests():
 @admin_required
 def create_contest():
     form = ContestForm()
+    
     if form.validate_on_submit():
+        # Get form data
+        status = form.status.data
+        contest_type = form.contest_type.data
+        contest_password = form.contest_password.data if contest_type == 'private' else None
+        
+        # Create the contest
         contest = Contest(
             title=form.title.data,
             description=form.description.data,
+            status=status,
+            contest_type=contest_type,
             end_date=form.end_date.data,
-            required_judges=form.required_judges.data,
-            contest_type=form.contest_type.data,
-            status=form.status.data
+            required_judges=form.required_judges.data
         )
-        if form.contest_type.data == 'private' and form.contest_password.data:
-            contest.set_password(form.contest_password.data)
-        else:
-            contest.password_hash = None # Ensure public doesn't have password
         
-        # Add contest to database to get its ID
-        db.session.add(contest)
-        db.session.flush()  # Flush to get the ID without committing
-        
-        # Handle judge assignments - process checkbox data
-        assigned_judge_ids = request.form.getlist('judges')
-        if assigned_judge_ids:
-            # Convert string IDs to integers
-            assigned_judge_ids = [int(id) for id in assigned_judge_ids]
-            judges = db.session.scalars(db.select(User).where(User.id.in_(assigned_judge_ids))).all()
+        # Set password if private contest
+        if contest_password:
+            contest.set_password(contest_password)
             
-            # Add judges to the contest via the association table
-            for judge in judges:
-                # Use the insert statement for the association table with AI model if needed
-                if judge.judge_type == 'ai':
-                    # Get the model selected for this AI judge
-                    model_id = request.form.get(f'judge_model_{judge.id}')
-                    if not model_id:
-                        flash(f'Debe seleccionar un modelo para el juez IA {judge.username}', 'danger')
-                        # We'll still render the form again with user's current input
-                        available_models = [m for m in AI_MODELS_RAW if m.get('available', True)]
-                        return render_template('admin/edit_contest.html', 
-                                             title='Crear Concurso', 
-                                             form=form, 
-                                             form_action=url_for('admin.create_contest'),
-                                             judge_is_ai=is_ai_judge,
-                                             ai_models=available_models)
+        # Add to DB to get an ID
+        db.session.add(contest)
+        db.session.flush()  # Get ID without committing
+        
+        # Process judge assignments
+        assigned_judge_ids = request.form.getlist('judges')
+        
+        if assigned_judge_ids:
+            try:
+                # Convert string IDs to integers
+                assigned_judge_ids = [int(id) for id in assigned_judge_ids]
+                judges = db.session.scalars(db.select(User).where(User.id.in_(assigned_judge_ids))).all()
+                
+                # Add judges to the contest via the association table
+                for judge in judges:
+                    # Get model for AI judges
+                    ai_model = None
+                    if judge.judge_type == 'ai':
+                        ai_model = request.form.get(f'judge_model_{judge.id}')
+                        if not ai_model:
+                            flash(f'Debe seleccionar un modelo para el juez IA {judge.username}', 'danger')
+                            available_models = [m for m in AI_MODELS_RAW if m.get('available', True)]
+                            return render_template('admin/edit_contest.html', 
+                                                  title='Crear Concurso', 
+                                                  form=form, 
+                                                  form_action=url_for('admin.create_contest'),
+                                                  judge_is_ai=is_ai_judge,
+                                                  ai_models=available_models)
                     
-                    # Model was selected, add judge with the model
+                    # Insert judge with model if AI, without if human
                     db.session.execute(db.insert(contest_judges).values(
                         user_id=judge.id, 
                         contest_id=contest.id,
-                        ai_model=model_id
+                        ai_model=ai_model
                     ))
-                else:
-                    # Human judge - no model needed
-                    db.session.execute(db.insert(contest_judges).values(
-                        user_id=judge.id, 
-                        contest_id=contest.id
-                    ))
+            except Exception as e:
+                flash(f'Error al asignar jueces: {str(e)}', 'danger')
+                db.session.rollback()
+                available_models = [m for m in AI_MODELS_RAW if m.get('available', True)]
+                return render_template('admin/edit_contest.html', 
+                                     title='Crear Concurso', 
+                                     form=form, 
+                                     form_action=url_for('admin.create_contest'),
+                                     judge_is_ai=is_ai_judge,
+                                     ai_models=available_models)
         
-        db.session.commit()
-        flash('Concurso creado exitosamente.', 'success')
-        return redirect(url_for('admin.list_contests'))
+        try:
+            db.session.commit()
+            flash(f'Concurso "{contest.title}" creado con éxito', 'success')
+            return redirect(url_for('admin.list_contests'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error al crear el concurso: {str(e)}', 'danger')
     
-    # For GET requests, prepare the form with AI models
+    # GET or form validation failure
     available_models = [m for m in AI_MODELS_RAW if m.get('available', True)]
     return render_template('admin/edit_contest.html', 
                          title='Crear Concurso', 
@@ -105,6 +121,7 @@ def edit_contest(contest_id):
     
     # Create a map of judge_id -> current ai_model
     judge_model_map = {}
+    
     if request.method == 'GET':
         # Get current judge-model pairings from the database
         judge_model_results = db.session.execute(db.select(contest_judges.c.user_id, 
@@ -123,81 +140,82 @@ def edit_contest(contest_id):
             form.judges.data = []
     
     if form.validate_on_submit():
-        # Update fields from form
+        # Update basic contest data
         contest.title = form.title.data
         contest.description = form.description.data
+        contest.status = form.status.data
+        contest.contest_type = form.contest_type.data
         contest.end_date = form.end_date.data
         contest.required_judges = form.required_judges.data
-        contest.contest_type = form.contest_type.data
-        contest.status = form.status.data
         
-        if form.contest_type.data == 'private':
+        # Update password if private
+        if contest.contest_type == 'private':
             if form.contest_password.data:
                 contest.set_password(form.contest_password.data)
         else:
-            contest.password_hash = None # Remove password if changed to public
-
-        # Handle judge assignments update
-        assigned_judge_ids = request.form.getlist('judges')
+            contest.password_hash = None  # Clear password for public contests
         
-        # First, remove all existing contest-judge associations
-        db.session.execute(db.delete(contest_judges)
-                         .where(contest_judges.c.contest_id == contest.id))
-        
-        # Then add the new ones
-        if assigned_judge_ids:
-            # Convert string IDs to integers
-            assigned_judge_ids = [int(id) for id in assigned_judge_ids]
-            judges = db.session.scalars(db.select(User).where(User.id.in_(assigned_judge_ids))).all()
+        # Process judge assignments - first remove all existing judges
+        try:
+            # Delete all existing judge associations for this contest
+            db.session.execute(db.delete(contest_judges).where(contest_judges.c.contest_id == contest.id))
             
-            # Add judges to the contest one by one to handle AI models
-            for judge in judges:
-                if judge.judge_type == 'ai':
-                    # Get the model selected for this AI judge
-                    model_id = request.form.get(f'judge_model_{judge.id}')
-                    if not model_id:
-                        flash(f'Debe seleccionar un modelo para el juez IA {judge.username}', 'danger')
-                        # Render the form again with user's current input
-                        available_models = [m for m in AI_MODELS_RAW if m.get('available', True)]
-                        return render_template('admin/edit_contest.html', 
-                                             title='Editar Concurso', 
-                                             form=form, 
-                                             contest=contest, 
-                                             form_action=url_for('admin.edit_contest', contest_id=contest.id),
-                                             judge_is_ai=is_ai_judge,
-                                             ai_models=available_models,
-                                             judge_model_map=judge_model_map)
+            # Get the new judge assignments
+            assigned_judge_ids = request.form.getlist('judges')
+            
+            if assigned_judge_ids:
+                # Convert string IDs to integers
+                assigned_judge_ids = [int(id) for id in assigned_judge_ids]
+                judges = db.session.scalars(db.select(User).where(User.id.in_(assigned_judge_ids))).all()
+                
+                # Add judges to the contest via the association table
+                for judge in judges:
+                    # Get model for AI judges
+                    ai_model = None
+                    if judge.judge_type == 'ai':
+                        ai_model = request.form.get(f'judge_model_{judge.id}')
+                        if not ai_model:
+                            flash(f'Debe seleccionar un modelo para el juez IA {judge.username}', 'danger')
+                            # Get current judge models to repopulate the form
+                            judge_model_results = db.session.execute(db.select(contest_judges.c.user_id, 
+                                                                             contest_judges.c.ai_model)
+                                                                   .where(contest_judges.c.contest_id == contest.id)).all()
+                            for j_id, j_model in judge_model_results:
+                                if j_model:
+                                    judge_model_map[j_id] = j_model
+                                    
+                            available_models = [m for m in AI_MODELS_RAW if m.get('available', True)]
+                            return render_template('admin/edit_contest.html',
+                                                 title=f'Editar Concurso: {contest.title}',
+                                                 form=form,
+                                                 form_action=url_for('admin.edit_contest', contest_id=contest.id),
+                                                 judge_is_ai=is_ai_judge,
+                                                 judge_model_map=judge_model_map,
+                                                 ai_models=available_models)
                     
-                    # Model was selected, add judge with the model
+                    # Insert judge with model if AI, without if human
                     db.session.execute(db.insert(contest_judges).values(
                         user_id=judge.id, 
                         contest_id=contest.id,
-                        ai_model=model_id
+                        ai_model=ai_model
                     ))
-                else:
-                    # Human judge - no model needed
-                    db.session.execute(db.insert(contest_judges).values(
-                        user_id=judge.id, 
-                        contest_id=contest.id
-                    ))
-
-        db.session.commit()
-        flash('Concurso actualizado exitosamente.', 'success')
-        return redirect(url_for('admin.list_contests'))
+            
+            db.session.commit()
+            flash(f'Concurso "{contest.title}" actualizado con éxito', 'success')
+            return redirect(url_for('admin.list_contests'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error al actualizar el concurso: {str(e)}', 'danger')
     
-    form.contest_password.data = '' 
-    
-    # For all requests, prepare the AI models data
+    # If validation failed or GET request
     available_models = [m for m in AI_MODELS_RAW if m.get('available', True)]
-    
-    return render_template('admin/edit_contest.html', 
-                         title='Editar Concurso', 
-                         form=form, 
-                         contest=contest, 
+    return render_template('admin/edit_contest.html',
+                         title=f'Editar Concurso: {contest.title}',
+                         form=form,
                          form_action=url_for('admin.edit_contest', contest_id=contest.id),
                          judge_is_ai=is_ai_judge,
-                         ai_models=available_models,
-                         judge_model_map=judge_model_map)
+                         judge_model_map=judge_model_map,
+                         ai_models=available_models)
 
 @bp.route('/contests/<int:contest_id>/delete', methods=['POST'])
 @login_required

@@ -12,18 +12,23 @@ class JudgeWithModelForm(FlaskForm):
 
 class ContestForm(FlaskForm):
     title = StringField('Título del Concurso', validators=[DataRequired(), Length(max=150)])
-    description = TextAreaField('Descripción')
-    # Use DateTimeLocalField for better browser support with datetime-local input type
-    end_date = DateTimeField('Fecha Límite', format='%Y-%m-%dT%H:%M', validators=[DataRequired()])
-    required_judges = IntegerField('Número de Jueces Requerido', default=1, validators=[DataRequired(), NumberRange(min=1)])
-    contest_type = SelectField('Tipo', choices=[('public', 'Público'), ('private', 'Privado')], validators=[DataRequired()])
-    # Password only required if type is private (add custom validation logic in route or here)
-    contest_password = PasswordField('Contraseña (si es Privado)', validators=[Optional()])
-    status = SelectField('Estado', choices=[('open', 'Abierto'), ('evaluation', 'En Evaluación'), ('closed', 'Cerrado')], validators=[DataRequired()], default='open')
-    # Field to select judges (populate choices in the route)
-    judges = SelectMultipleField('Jueces Asignados', coerce=int, validators=[Optional()])
-    # Dictionary to store judge_id -> ai_model selections (will be populated in the route handler)
-    judge_models = {}
+    description = TextAreaField('Descripción', 
+                               render_kw={"placeholder": "Describe el concurso con detalle. Puedes usar Markdown para dar formato al texto."})
+    end_date = DateTimeField('Fecha de Finalización', format='%Y-%m-%dT%H:%M', validators=[DataRequired()])
+    required_judges = IntegerField('Jueces Requeridos', 
+                                  validators=[DataRequired(), NumberRange(min=1, max=9)],
+                                  default=1)
+    contest_type = SelectField('Tipo de Concurso', choices=[
+        ('public', 'Público'), 
+        ('private', 'Privado')
+    ], validators=[DataRequired()])
+    status = SelectField('Estado del Concurso', choices=[
+        ('open', 'Abierto'), 
+        ('evaluation', 'En Evaluación'), 
+        ('closed', 'Cerrado')
+    ], validators=[DataRequired()])
+    contest_password = PasswordField('Contraseña del Concurso Privado')
+    judges = SelectMultipleField('Jueces', coerce=int)
     submit = SubmitField('Guardar Concurso')
 
     # Need to populate judge choices dynamically in the route

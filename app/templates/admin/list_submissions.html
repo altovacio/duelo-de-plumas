@@ -26,7 +26,12 @@
                         <td>{{ submission.author_name }}</td>
                         <td>{{ submission.submission_date.strftime('%Y-%m-%d %H:%M') }}</td>
                         <td>
-                            <a href="#" class="button-small">Ver Texto</a> {# TODO: Link to view submission text #}
+                            <button type="button" class="view-full-text-btn button button-small" 
+                                    data-fulltext="{{ submission.text_content | markdown | safe }}" 
+                                    data-title="{{ submission.title }}" 
+                                    data-author="{{ submission.author_name }}">
+                                    Leer texto completo
+                            </button>
                             {# Add evaluation links/info later #}
                         </td>
                     </tr>
@@ -36,4 +41,138 @@
     {% else %}
         <p>Todavía no hay envíos para este concurso.</p>
     {% endif %}
+
+    {# Modal for Full Text Display #}
+    <div id="text-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <button type="button" class="modal-close-btn">&times;</button>
+            <h3 id="modal-title"></h3>
+            <p id="modal-author" class="modal-author-text"></p>
+            <div id="modal-text" class="markdown-content">
+                {# Full text will be injected here by JS #}
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block styles %}
+    {{ super() }} {# Include base styles #}
+    <style>
+        /* Modal Styles (Copied from detail.html, ensure consistency or move to global CSS) */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000; /* Ensure modal is on top */
+            overflow-y: auto; /* Allow modal itself to scroll if content overflows */
+        }
+        .modal-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 5px;
+            width: 80%;
+            max-width: 900px;
+            max-height: 90vh; /* Limit height */
+            overflow-y: auto; /* Allow content inside modal to scroll */
+            position: relative; /* For close button positioning */
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        .modal-close-btn {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            background: none;
+            border: none;
+            font-size: 1.8rem;
+            cursor: pointer;
+            color: #666;
+        }
+        .modal-close-btn:hover {
+            color: #333;
+        }
+        #modal-title {
+            margin-top: 0;
+            margin-bottom: 5px; /* Space below title */
+            color: #333;
+        }
+        .modal-author-text {
+            font-style: italic;
+            color: #555;
+            margin-bottom: 15px; /* Space below author */
+        }
+        #modal-text {
+            margin-top: 15px;
+        }
+        /* Ensure markdown content styles are applied if not global */
+        .markdown-content {
+            white-space: normal; 
+            word-wrap: break-word; 
+        }
+        .markdown-content p, .markdown-content ul, .markdown-content ol, .markdown-content blockquote {
+            margin-bottom: 1em; /* Adjust spacing for readability */
+        }
+        .markdown-content h1, .markdown-content h2, .markdown-content h3, .markdown-content h4, .markdown-content h5, .markdown-content h6 {
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+        }
+    </style>
+{% endblock %}
+
+{% block scripts %}
+    {{ super() }} {# Include base scripts #}
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const modal = document.getElementById('text-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalAuthor = document.getElementById('modal-author');
+        const modalText = document.getElementById('modal-text');
+        const closeBtn = modal.querySelector('.modal-close-btn');
+
+        // Check if modal elements exist before proceeding
+        if (!modal || !modalTitle || !modalAuthor || !modalText || !closeBtn) {
+            console.error('Modal elements not found!');
+            return;
+        }
+
+        document.querySelectorAll('.view-full-text-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const fullText = this.getAttribute('data-fulltext');
+                const title = this.getAttribute('data-title');
+                const author = this.getAttribute('data-author');
+                
+                modalTitle.textContent = title;
+                modalAuthor.textContent = 'por ' + author;
+                modalText.innerHTML = fullText; // Render pre-formatted markdown
+                modal.style.display = 'flex';
+                document.body.style.overflow = 'hidden'; // Prevent background scroll
+            });
+        });
+
+        function closeModal() {
+            modal.style.display = 'none';
+            document.body.style.overflow = ''; // Restore background scroll
+        }
+
+        closeBtn.addEventListener('click', closeModal);
+
+        modal.addEventListener('click', function(event) {
+            // Close if clicked on the overlay (background) but not the content itself
+            if (event.target === modal) { 
+                closeModal();
+            }
+        });
+
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape' && modal.style.display === 'flex') {
+                closeModal();
+            }
+        });
+    });
+    </script>
 {% endblock %} 

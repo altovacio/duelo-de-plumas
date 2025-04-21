@@ -41,6 +41,10 @@ def create_app(config_class=Config):
     from app.admin import bp as admin_bp
     app.register_blueprint(admin_bp)
     # No url_prefix here as it's defined in the blueprint itself
+    
+    # Register filters blueprint
+    from app.filters import filters_bp
+    app.register_blueprint(filters_bp)
 
     # Need to import models here *after* db is initialized and *within* the app context
     # or when blueprints that use them are registered.

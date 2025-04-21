@@ -14,8 +14,8 @@
                 Finalizado: {{ contest.end_date.strftime('%d/%m/%Y') }}
             {% endif %}
         </p>
-        <div class="contest-description">
-            {{ contest.description | safe }} {# Use safe filter if description contains HTML #}
+        <div class="contest-description markdown-content">
+            {{ contest.description | markdown | safe }}
         </div>
 
         <hr>
@@ -42,7 +42,8 @@
                         </p>
                         <p>
                             {{ form.text_content.label }}<br>
-                            {{ form.text_content(rows=15, cols=80) }}<br>
+                            {{ form.text_content(rows=15, cols=80, id="markdown-editor") }}<br>
+                            <small class="text-muted">Soporta formato Markdown para dar estilo al texto.</small><br>
                             {% for error in form.text_content.errors %}
                                 <span style="color: red;">[{{ error }}]</span>
                             {% endfor %}
@@ -82,9 +83,9 @@
                                 <span class="points">({{ submission.total_points }} pts)</span>
                             </h4>
                             
-                            {# Submission Text #}
-                            <div class="submission-text-closed">
-                                <pre>{{ submission.text_content }}</pre>
+                            {# Submission Text with Markdown #}
+                            <div class="submission-text-closed markdown-content">
+                                {{ submission.text_content | markdown | safe }}
                             </div>
 
                             {# Judge Comments #}
@@ -121,11 +122,25 @@
         .rank-badge { background-color: #eee; color: #333; padding: 0.2em 0.5em; border-radius: 3px; font-size: 0.9em; margin-right: 0.5em; }
         .points { font-weight: normal; color: #555; font-size: 0.9em; }
         .submission-text-closed { margin-top: 1em; margin-bottom: 1em; max-height: 400px; overflow-y: auto; background-color: #fdfdfd; padding: 10px; border: 1px solid #eee; }
-        .submission-text-closed pre { white-space: pre-wrap; word-wrap: break-word; margin: 0; }
+        .markdown-content { white-space: normal; word-wrap: break-word; margin: 0; }
         .judge-comments { margin-top: 1em; font-size: 0.9em; }
         .judge-comments h5 { font-size: 1em; margin-bottom: 0.3em; }
         .judge-comments ul { list-style: none; padding-left: 0; margin-left: 0; }
         .judge-comments li { background-color: #f5f5f5; border-left: 3px solid #ccc; padding: 0.5em; margin-bottom: 0.5em; }
         .submission-divider { border: 0; height: 1px; background-color: #eee; margin: 2em 0; }
     </style>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const editorElement = document.getElementById('markdown-editor');
+            if (editorElement) {
+                const simplemde = new SimpleMDE({
+                    element: editorElement,
+                    spellChecker: false,
+                    status: ["lines", "words", "cursor"],
+                    placeholder: "Escribe tu texto aquí. Puedes usar Markdown para dar formato al texto."
+                });
+            }
+        });
+    </script>
 {% endblock %} 

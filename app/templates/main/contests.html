@@ -32,7 +32,9 @@
                             {% endif %}
                         </p>
                         {% if not is_judge_view %}
-                        <p>{{ contest.description|truncate(150) }}</p>
+                        <div class="contest-description-preview markdown-content">
+                            {{ contest.description|truncate(150)|markdown|safe }}
+                        </div>
                         {# Display winner info for closed contests #}
                         {% if contest.status == 'closed' %}
                             {% set ranked_submissions = contest.submissions.filter(Submission.final_rank != None).order_by(Submission.final_rank.asc(), Submission.total_points.desc()).all() %}
@@ -77,6 +79,10 @@
                     border-radius: 3px;
                     margin-left: 8px;
                     vertical-align: middle;
+                }
+                .markdown-content {
+                    white-space: normal;
+                    word-wrap: break-word;
                 }
             </style>
         {% else %}

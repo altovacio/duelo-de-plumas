@@ -32,8 +32,8 @@
                             <td>{{ submission.title if submission else 'Error' }}</td>
                             <td>
                                 <button type="button" onclick="toggleText('sub-text-{{ loop.index }}')">Mostrar/Ocultar Texto</button>
-                                <div id="sub-text-{{ loop.index }}" class="submission-text-inline" style="display:none; margin-top: 10px; border: 1px solid #eee; padding: 10px; max-height: 300px; overflow-y: auto; background-color: #f9f9f9;">
-                                    <pre>{{ submission.text_content if submission else 'Error' }}</pre>
+                                <div id="sub-text-{{ loop.index }}" class="submission-text-inline markdown-content" style="display:none; margin-top: 10px; border: 1px solid #eee; padding: 10px; max-height: 300px; overflow-y: auto; background-color: #f9f9f9;">
+                                    {{ submission.text_content|markdown|safe if submission else 'Error' }}
                                 </div>
                             </td>
                             <td>{{ sub_form.place() }}</td>
@@ -66,4 +66,10 @@
         }
     </script>
 
+    <style>
+        .markdown-content {
+            white-space: normal;
+            word-wrap: break-word;
+        }
+    </style>
 {% endblock %} 

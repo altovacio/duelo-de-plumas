@@ -1,0 +1,25 @@
+{
+    "contest_name": "Muestra",
+    "submissions": [
+        {
+            "title": "Asnos Estúpidos",
+            "author": "Isaac Asimov",
+            "filename": "AsnosEstupidos.txt"
+        },
+        {
+            "title": "Cierra la última puerta",
+            "author": "Truman Capote",
+            "filename": "CierraLaUltimaPuerta.txt"
+        },
+        {
+            "title": "El Reino de los Colores",
+            "author": "ChatGPT",
+            "filename": "ElReinoDeLosColores.txt"
+        },
+        {
+            "title": "Lección de cocina",
+            "author": "Rosario Castellanos",
+            "filename": "LeccionDeCocina.txt"
+        }
+    ]
+}

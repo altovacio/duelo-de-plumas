@@ -11,16 +11,16 @@ sys.path.insert(0, project_dir)
 # in your scripts. These are placeholders.
 try:
     # Example: Assuming create_admin.py has a main function like run()
-    # from create_admin import run as run_create_admin
-    pass # Replace pass with your actual import
+    from create_admin import run as run_create_admin
+    # pass # Replace pass with your actual import
 except ImportError:
     print("Warning: Could not import 'create_admin'. Skipping admin creation.")
     def run_create_admin(): print("Skipping admin creation...") # Placeholder
 
 try:
     # Example: Assuming seed_ai_judges.py has a main function like run()
-    # from seed_ai_judges import run as run_seed_ai_judges
-    pass # Replace pass with your actual import
+    from seed_ai_judges import run as run_seed_ai_judges
+    # pass # Replace pass with your actual import
 except ImportError:
     print("Warning: Could not import 'seed_ai_judges'. Skipping AI judges seeding.")
     def run_seed_ai_judges(): print("Skipping AI judges seeding...") # Placeholder
@@ -38,15 +38,13 @@ def initialize_database():
 
     print("\nStep 1: Creating Admin User...")
     try:
-        # run_create_admin() # Uncomment and adjust once imported
-        print("Admin user creation step placeholder.") # Placeholder
+        run_create_admin()
     except Exception as e:
         print(f"Error during admin creation: {e}")
 
     print("\nStep 2: Seeding AI Judges...")
     try:
-        # run_seed_ai_judges() # Uncomment and adjust once imported
-        print("AI judges seeding step placeholder.") # Placeholder
+        run_seed_ai_judges()
     except Exception as e:
         print(f"Error during AI judges seeding: {e}")
 

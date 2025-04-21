@@ -26,6 +26,15 @@ def extract_title_from_content(content):
         return match.group(1).strip()
     return None
 
+def extract_story_text(content):
+    """Extracts the main story text, removing title and author lines."""
+    # Remove lines starting with Título: or Autor: (case-insensitive)
+    lines = content.splitlines()
+    story_lines = [line for line in lines if not re.match(r"^(Título|Autor|Autora):", line, re.IGNORECASE)]
+    # Join the remaining lines and strip leading/trailing whitespace
+    story_text = '\n'.join(story_lines).strip()
+    return story_text
+
 def seed_contest_in_db(examples_dir, contest_name, contest_desc, duration_days):
     """Reads text files and seeds a contest and its submissions in the database."""
     app = create_app()
@@ -61,19 +70,22 @@ def seed_contest_in_db(examples_dir, contest_name, contest_desc, duration_days):
                 file_path = os.path.join(examples_dir, filename)
                 try:
                     with open(file_path, 'r', encoding='utf-8') as f:
-                        content = f.read()
+                        full_content = f.read()
 
-                    author_name = extract_author(content)
+                    author_name = extract_author(full_content)
                     # Use title from content if available, otherwise from filename
-                    title_from_content = extract_title_from_content(content)
+                    title_from_content = extract_title_from_content(full_content)
                     title_from_filename = os.path.splitext(filename)[0].replace('_', ' ').replace('-', ' ')
                     title = title_from_content if title_from_content else title_from_filename
+                    
+                    # Extract the story text only
+                    story_text = extract_story_text(full_content)
 
                     # Create Submission object
                     submission = Submission(
                         author_name=author_name, # Using the name directly from text
                         title=title,
-                        text_content=content, # Store the full text
+                        text_content=story_text, # Store only the extracted story text
                         contest_id=new_contest.id
                     )
                     db.session.add(submission)

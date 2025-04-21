@@ -15,3 +15,9 @@ class Config:
     # Example: Contest parameters
     # MAX_SUBMISSION_LENGTH = 5000 # words
     # JUDGES_PER_CONTEST = 3 
+
+# Configuration for the contest seeding script
+
+CONTEST_NAME = "Muestra"
+EXAMPLES_DIR = "examples"
+OUTPUT_FILE = f"{CONTEST_NAME.lower()}_contest_data.json" 

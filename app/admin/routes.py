@@ -7,6 +7,7 @@ from app.models import Contest, Submission, User, Vote, AIEvaluation, contest_ju
 from app.decorators import admin_required
 from app.config.ai_judge_params import AI_MODELS, AI_MODELS_RAW
 from datetime import datetime, timezone
+from sqlalchemy.exc import SQLAlchemyError
 
 @bp.route('/')
 @login_required
@@ -301,6 +302,40 @@ def list_submissions(contest_id):
         db.select(Submission).where(Submission.contest_id == contest.id).order_by(Submission.submission_date.asc())
     ).all()
     return render_template('admin/list_submissions.html', title=f'Envíos para {contest.title}', contest=contest, submissions=submissions)
+
+@bp.route('/submissions/<int:submission_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_submission(submission_id):
+    submission = db.session.get(Submission, submission_id)
+    if not submission:
+        flash('Envío no encontrado.', 'danger')
+        # Attempt to redirect back to a sensible default if contest_id is missing
+        referer = request.headers.get("Referer")
+        if referer:
+             return redirect(referer)
+        else:
+            # Fallback if referer isn't available (less likely for POST)
+            return redirect(url_for('admin.list_contests')) 
+
+    contest_id = submission.contest_id  # Store contest_id for redirection
+
+    try:
+        # Delete associated votes first
+        votes_to_delete = db.session.scalars(db.select(Vote).where(Vote.submission_id == submission.id)).all()
+        for vote in votes_to_delete:
+            db.session.delete(vote)
+        
+        # Now delete the submission
+        db.session.delete(submission)
+        db.session.commit()
+        flash('Envío eliminado exitosamente.', 'success')
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        flash(f'Error al eliminar el envío: {e}', 'danger')
+        current_app.logger.error(f"Error deleting submission {submission_id}: {e}")
+
+    return redirect(url_for('admin.list_submissions', contest_id=contest_id))
 
 @bp.route('/users/add_judge', methods=['GET', 'POST'])
 @login_required

@@ -25,14 +25,21 @@
                         <td>{{ submission.title }}</td>
                         <td>{{ submission.author_name }}</td>
                         <td>{{ submission.submission_date.strftime('%Y-%m-%d %H:%M') }}</td>
-                        <td>
+                        <td class="actions-cell">
                             <button type="button" class="view-full-text-btn button button-small" 
                                     data-fulltext="{{ submission.text_content | markdown | safe }}" 
                                     data-title="{{ submission.title }}" 
                                     data-author="{{ submission.author_name }}">
-                                    Leer texto completo
+                                    Ver Texto
                             </button>
-                            {# Add evaluation links/info later #}
+                            
+                            <form action="{{ url_for('admin.delete_submission', submission_id=submission.id) }}" method="post" style="display: inline; margin-left: 5px;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <button type="submit" class="button button-danger button-small" 
+                                        onclick="return confirm('¿Estás seguro de que quieres eliminar este envío? Esta acción no se puede deshacer.');">
+                                    <i class="fas fa-trash-alt"></i> Eliminar
+                                </button>
+                            </form>
                         </td>
                     </tr>
                 {% endfor %}

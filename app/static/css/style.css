@@ -1,3 +1,83 @@
+/* == Full Screen Text Modal == */
+.modal-overlay {
+    position: fixed; /* Stay in place */
+    left: 0;
+    top: 0;
+    width: 100%; /* Full width */
+    height: 100%; /* Full height */
+    background-color: rgba(0, 0, 0, 0.7); /* Black w/ opacity */
+    z-index: 1000; /* Sit on top */
+    display: flex; /* Use flexbox for centering */
+    align-items: center; /* Center vertically */
+    justify-content: center; /* Center horizontally */
+    overflow-y: auto; /* Enable scroll if needed */
+}
+
+.modal-content {
+    background-color: #fefefe;
+    margin: auto; /* Auto margin helps centering */
+    padding: 30px;
+    border: 1px solid #888;
+    width: 85%; /* Could be more or less, depending on screen size */
+    max-width: 900px; /* Max width */
+    min-height: 70%; /* Minimum height */
+    max-height: 90vh; /* Max height relative to viewport */
+    border-radius: 5px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    position: relative; /* For positioning the close button */
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-content h3 {
+    margin-top: 0;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #eee;
+}
+
+#modal-text {
+    flex-grow: 1; /* Allow text area to fill space */
+    overflow-y: auto; /* Scroll within the text area if needed */
+    margin-top: 15px;
+}
+
+/* Ensure markdown content within modal is styled */
+#modal-text.markdown-content {
+    white-space: normal;
+    word-wrap: break-word;
+    /* Add any other necessary markdown styles here or ensure global ones apply */
+}
+
+.modal-close-btn {
+    position: absolute;
+    top: 10px;
+    right: 20px;
+    color: #aaa;
+    font-size: 28px;
+    font-weight: bold;
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+
+.modal-close-btn:hover,
+.modal-close-btn:focus {
+    color: black;
+    text-decoration: none;
+}
+
+/* Style for the button in the table */
+.evaluation-table .view-full-text-btn {
+    margin-top: 8px;
+    display: block; /* Make it block to appear below preview */
+}
+
+.submission-text-preview {
+    /* Optional: Add styling for the preview if needed */
+    color: #555;
+    font-size: 0.9em;
+}
+
 /* Basic Reset & Defaults */
 body {
     font-family: 'Georgia', 'Times New Roman', serif; /* Literary feel */
@@ -755,4 +835,20 @@ a.button:hover {
     content: " 🏁"; /* Use checkered flag emoji */
     display: inline-block;
     margin-left: 5px;
+}
+
+/* Add alignment for evaluation table */
+.evaluation-table td {
+    vertical-align: top;
+    padding-top: 15px; /* Ensure consistent top padding */
+}
+
+.evaluation-table th {
+    vertical-align: bottom; /* Align headers to bottom for consistency */
+}
+
+/* Ensure collapsible text container doesn't add excessive default margin */
+.evaluation-table .collapsible-text {
+    margin-top: 5px; /* Reduced margin-top */
+    /* Other styles remain */
 } 

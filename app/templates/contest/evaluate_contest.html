@@ -11,12 +11,11 @@
         <form action="{{ url_for('contest.evaluate_contest', contest_id=contest.id) }}" method="post" novalidate>
             {{ form.hidden_tag() }}
 
-            <table class="evaluation-table">
+            <table class="evaluation-table admin-table">
                 <thead>
                     <tr>
-                        <th>ID</th>
                         <th>Título</th>
-                        <th>Texto</th>
+                        <th>Texto (Vista Previa)</th>
                         <th>Lugar</th>
                         <th>Comentario</th>
                     </tr>
@@ -25,16 +24,18 @@
                     {% for sub_form in form.submissions %}
                         {% set submission = submissions | selectattr('id', 'equalto', sub_form.submission_id.data | int) | first %}
                         <tr>
-                            <td>
-                                {{ sub_form.submission_id() }}
-                                {{ sub_form.submission_id.data }}
-                            </td>
+                            {{ sub_form.submission_id(style="display: none;") }}
+                            
                             <td>{{ submission.title if submission else 'Error' }}</td>
-                            <td>
-                                <button type="button" onclick="toggleText('sub-text-{{ loop.index }}')">Mostrar/Ocultar Texto</button>
-                                <div id="sub-text-{{ loop.index }}" class="submission-text-inline markdown-content" style="display:none; margin-top: 10px; border: 1px solid #eee; padding: 10px; max-height: 300px; overflow-y: auto; background-color: #f9f9f9;">
-                                    {{ submission.text_content|markdown|safe if submission else 'Error' }}
+                            <td class="text-preview-cell">
+                                <div class="submission-text-preview">
+                                    {{ (submission.text_content[:100] + '...' if submission.text_content|length > 100 else submission.text_content)|markdown|safe if submission else 'Error' }}
                                 </div>
+                                <button type="button" class="view-full-text-btn button-small" 
+                                        data-fulltext="{{ submission.text_content|markdown|safe if submission else '' }}"
+                                        data-title="{{ submission.title if submission else 'Error' }}">
+                                    Ver Texto Completo
+                                </button>
                             </td>
                             <td>{{ sub_form.place() }}</td>
                             <td>
@@ -48,28 +49,56 @@
                 </tbody>
             </table>
 
-            <p>
+            <p class="form-buttons">
                 {{ form.submit() }}
-                <a href="{{ url_for('contest.list_submissions', contest_id=contest.id) }}">Cancelar</a>
+                <a href="{{ url_for('contest.list_submissions', contest_id=contest.id) }}" class="cancel-button">Cancelar</a>
             </p>
         </form>
     </div>
 
-    <script>
-        function toggleText(elementId) {
-            var element = document.getElementById(elementId);
-            if (element.style.display === "none") {
-                element.style.display = "block";
-            } else {
-                element.style.display = "none";
-            }
-        }
-    </script>
+    <div id="text-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <button type="button" class="modal-close-btn">&times;</button>
+            <h3 id="modal-title"></h3>
+            <div id="modal-text" class="markdown-content">
+                {# Full text will be injected here by JS #}
+            </div>
+        </div>
+    </div>
 
-    <style>
-        .markdown-content {
-            white-space: normal;
-            word-wrap: break-word;
-        }
-    </style>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const modal = document.getElementById('text-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalText = document.getElementById('modal-text');
+        const closeBtn = modal.querySelector('.modal-close-btn');
+
+        document.querySelectorAll('.view-full-text-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const fullText = this.getAttribute('data-fulltext');
+                const title = this.getAttribute('data-title');
+                
+                modalTitle.textContent = title;
+                modalText.innerHTML = fullText;
+                modal.style.display = 'flex';
+            });
+        });
+
+        closeBtn.addEventListener('click', function() {
+            modal.style.display = 'none';
+        });
+
+        modal.addEventListener('click', function(event) {
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        });
+
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape' && modal.style.display === 'flex') {
+                modal.style.display = 'none';
+            }
+        });
+    });
+    </script>
 {% endblock %} 

@@ -76,9 +76,7 @@ def create_admin_user():
                 email=admin_email,
                 password_hash=generate_password_hash(admin_password),
                 role='admin',
-                judge_type='human',
-                about_me='',
-                last_seen=datetime.now(timezone.utc)
+                judge_type='human'
             )
             
             db.session.add(admin)

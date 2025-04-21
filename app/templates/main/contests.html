@@ -19,10 +19,17 @@
                             </h4>
                         </div>
                         <div class="contest-meta">
-                            <span class="meta-date">📅 Finalizado: {{ contest.end_date.strftime('%d/%m/%Y') }}</span>
+                            {% if contest.status == 'open' %}
+                                <span class="meta-date">📅 Fecha Límite: {{ contest.end_date.strftime('%d/%m/%Y %H:%M') }} UTC</span>
+                            {% elif contest.status == 'evaluation' %}
+                                <span class="meta-date">⏳ Evaluación en progreso (Finalizó: {{ contest.end_date.strftime('%d/%m/%Y') }})</span>
+                             {% elif contest.status == 'closed' %}
+                                <span class="meta-date">📅 Finalizado: {{ contest.end_date.strftime('%d/%m/%Y') }}</span>
+                            {% endif %}
                         </div>
                         
-                        {% if not is_judge_view and contest.status == 'closed' %}
+                        {# Only show results for PUBLIC closed contests #}
+                        {% if not is_judge_view and contest.status == 'closed' and contest.contest_type == 'public' %}
                             {% set ranked_submissions = contest.submissions.filter(Submission.final_rank != None).order_by(Submission.final_rank.asc(), Submission.total_points.desc()).all() %}
                             {% if ranked_submissions %}
                                 <div class="contest-results">
@@ -163,35 +170,38 @@
                                 <span class="meta-date">📅 Finalizado: {{ contest.end_date.strftime('%d/%m/%Y') }}</span>
                             </div>
                             
-                            {% set ranked_submissions = contest.submissions.filter(Submission.final_rank != None).order_by(Submission.final_rank.asc(), Submission.total_points.desc()).all() %}
-                            {% if ranked_submissions %}
-                                <div class="contest-results">
-                                    {% for rank in [1, 2, 3] %}
-                                        {% for sub in ranked_submissions %}
-                                            {% if sub.final_rank == rank %}
-                                                {% if rank == 1 %}
-                                                    <div class="result-item">
-                                                        <span class="rank">1er Lugar:</span> 
-                                                        <span class="submission-title">"{{ sub.title }}"</span> 
-                                                        <span class="submission-author">por {{ sub.author_name }}</span>
-                                                    </div>
-                                                {% elif rank == 2 %}
-                                                    <div class="result-item">
-                                                        <span class="rank">2do Lugar:</span> 
-                                                        <span class="submission-title">"{{ sub.title }}"</span> 
-                                                        <span class="submission-author">por {{ sub.author_name }}</span>
-                                                    </div>
-                                                {% elif rank == 3 %}
-                                                    <div class="result-item">
-                                                        <span class="rank">3er Lugar:</span> 
-                                                        <span class="submission-title">"{{ sub.title }}"</span> 
-                                                        <span class="submission-author">por {{ sub.author_name }}</span>
-                                                    </div>
+                            {# Only show results for PUBLIC closed contests #}
+                            {% if contest.contest_type == 'public' %}
+                                {% set ranked_submissions = contest.submissions.filter(Submission.final_rank != None).order_by(Submission.final_rank.asc(), Submission.total_points.desc()).all() %}
+                                {% if ranked_submissions %}
+                                    <div class="contest-results">
+                                        {% for rank in [1, 2, 3] %}
+                                            {% for sub in ranked_submissions %}
+                                                {% if sub.final_rank == rank %}
+                                                    {% if rank == 1 %}
+                                                        <div class="result-item">
+                                                            <span class="rank">1er Lugar:</span> 
+                                                            <span class="submission-title">"{{ sub.title }}"</span> 
+                                                            <span class="submission-author">por {{ sub.author_name }}</span>
+                                                        </div>
+                                                    {% elif rank == 2 %}
+                                                        <div class="result-item">
+                                                            <span class="rank">2do Lugar:</span> 
+                                                            <span class="submission-title">"{{ sub.title }}"</span> 
+                                                            <span class="submission-author">por {{ sub.author_name }}</span>
+                                                        </div>
+                                                    {% elif rank == 3 %}
+                                                        <div class="result-item">
+                                                            <span class="rank">3er Lugar:</span> 
+                                                            <span class="submission-title">"{{ sub.title }}"</span> 
+                                                            <span class="submission-author">por {{ sub.author_name }}</span>
+                                                        </div>
+                                                    {% endif %}
                                                 {% endif %}
-                                            {% endif %}
+                                            {% endfor %}
                                         {% endfor %}
-                                    {% endfor %}
-                                </div>
+                                    </div>
+                                {% endif %}
                             {% endif %}
                         </li>
                     {% endfor %}

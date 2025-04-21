@@ -5,108 +5,91 @@
 {% block title %}Inicio - Duelo de Plumas{% endblock %}
 
 {% block content %}
-    <section class="hero">
-        <h1>Bienvenido a Duelo de Plumas</h1>
-        <p>La plataforma para concursos literarios.</p>
-        <!-- Add more introductory content or imagery here -->
-    </section>
-
-    {# Judge's Pending Evaluations Section #}
-    {% if current_user.is_authenticated and current_user.role == 'judge' and judge_assigned_evaluations %}
-        <section class="contest-section judge-pending">
-            <h3>Mis Evaluaciones Pendientes</h3>
-            <ul class="contest-list">
-                {% for contest in judge_assigned_evaluations %}
-                    <li>
-                        <h4><a href="{{ url_for('contest.list_submissions', contest_id=contest.id) }}">{{ contest.title }}</a></h4>
-                        <p class="contest-meta">
-                            Estado: {{ contest.status }} | Fin (referencial): {{ contest.end_date.strftime('%d/%m/%Y') }}
-                        </p>
-                        {# Add link to evaluation page #}
-                        <a href="{{ url_for('contest.evaluate_contest', contest_id=contest.id) }}" class="button button-small">Evaluar Ahora</a>
-                    </li>
-                {% endfor %}
-            </ul>
+    <div class="contests-container"> {# Added container similar to contests.html #}
+        <section class="hero">
+            <h1>Bienvenido a Duelo de Plumas</h1>
+            <p>La plataforma para concursos literarios.</p>
+            <!-- Add more introductory content or imagery here -->
         </section>
-        <hr>
-    {% endif %}
 
-    {# Admin section for pending AI evaluations #}
-    {% if current_user.is_authenticated and current_user.is_admin() and pending_ai_evaluations %}
-        <section class="contest-section ai-pending">
-            <h3><i class="fas fa-robot"></i> Evaluaciones de IA Pendientes</h3>
-            <ul class="contest-list">
-                {% for contest in pending_ai_evaluations %}
-                    <li>
-                        <h4><a href="{{ url_for('contest.list_submissions', contest_id=contest.id) }}">{{ contest.title }}</a></h4>
-                        <p class="contest-meta">
-                            Estado: {{ contest.status }} | Fin: {{ contest.end_date.strftime('%d/%m/%Y') }}
-                        </p>
-                        <a href="{{ url_for('contest.list_submissions', contest_id=contest.id) }}" class="button button-small button-ai">Ejecutar Evaluación de IA</a>
-                    </li>
-                {% endfor %}
-            </ul>
-        </section>
-        <style>
-            .ai-pending h3 {
-                color: #8e44ad;
-            }
-            .ai-pending h3 i {
-                margin-right: 8px;
-            }
-            .button-ai {
-                background-color: #8e44ad;
-                color: white;
-            }
-            .button-ai:hover {
-                background-color: #9b59b6;
-            }
-        </style>
-        <hr>
-    {% endif %}
-
-    {# Use the macro for active contests #}
-    {{ contest_list(active_contests, 'Concursos Abiertos') }}
-
-    <hr>
-
-    {# New section for recently closed contests #}
-    <section class="contest-section recent-closed">
-        <h3>Concursos Recién Finalizados</h3>
-        {% if closed_contests %}
-            <ul class="contest-list">
-                {# Loop through closed contests, maybe limit display later #}
-                {% for contest in closed_contests[:3] %} {# Display max 3 for example #}
-                    <li>
-                        <h4><a href="{{ url_for('contest.detail', contest_id=contest.id) }}">{{ contest.title }}</a></h4>
-                        <p class="contest-meta">
-                            Finalizado: {{ contest.end_date.strftime('%d/%m/%Y') }}
-                        </p>
-                        {# Display winner info for closed contests #}
-                        {% set ranked_submissions = contest.submissions.filter(Submission.final_rank != None).order_by(Submission.final_rank.asc(), Submission.total_points.desc()).all() %}
-                        {% if ranked_submissions %}
-                            <div class="winners-list winners-summary">
-                            {% set first_place = ranked_submissions | selectattr('final_rank', 'equalto', 1) | list %}
-                            {% if first_place %}
-                                <p><strong>1er Lugar:</strong>
-                                {% for sub in first_place %}"{% if not loop.first %}, "%}
-                                {% endif %}{{ sub.title }}" por {{ sub.author_name }}{% endfor %}</p>
-                            {% else %}
-                                <p><em>Resultados no disponibles.</em></p>
-                            {% endif %}
+        {# Judge's Pending Evaluations Section #}
+        {% if current_user.is_authenticated and current_user.role == 'judge' and judge_assigned_evaluations %}
+            <div class="judge-evaluation-section">
+                <h3 class="section-title">Mis Evaluaciones Pendientes</h3>
+                <ul class="contest-list">
+                    {% for contest in judge_assigned_evaluations %}
+                        <li class="contest-item {% if contest.contest_type == 'private' %}private-contest{% endif %}">
+                            <div class="contest-header">
+                                <h4 class="contest-title">
+                                    <a href="{{ url_for('contest.list_submissions', contest_id=contest.id) }}">{{ contest.title }}</a>
+                                    {% if contest.contest_type == 'private' %}<span class="private-badge">Privado</span>{% endif %}
+                                </h4>
                             </div>
-                        {% else %}
-                            <p><em>Resultados no disponibles.</em></p>
-                        {% endif %}
-                    </li>
-                {% endfor %}
-                 {# Link to the main contests page if there are more #}
-                 {% if closed_contests|length > 3 %}
-                    <p style="text-align: right;"><a href="{{ url_for('main.list_contests') }}">Ver todos los concursos finalizados...</a></p>
-                 {% endif %}
-            </ul>
-        {% else %}
-            <p>Aún no hay concursos finalizados.</p>
+                             <div class="contest-meta">
+                                <span class="meta-date">⏰ Evaluación requerida (Finalizó: {{ contest.end_date.strftime('%d/%m/%Y') }})</span>
+                            </div>
+                            {# Add link to evaluation page #}
+                            <a href="{{ url_for('contest.evaluate_contest', contest_id=contest.id) }}" class="button button-small">Evaluar Ahora</a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <hr class="section-divider">
         {% endif %}
-    </section>
+
+        {# Admin section for pending AI evaluations #}
+        {% if current_user.is_authenticated and current_user.is_admin() and pending_ai_evaluations %}
+            <section class="contest-section ai-pending">
+                <h3 class="section-title"><i class="fas fa-robot"></i> Evaluaciones de IA Pendientes</h3>
+                <ul class="contest-list">
+                    {% for contest in pending_ai_evaluations %}
+                        <li class="contest-item {% if contest.contest_type == 'private' %}private-contest{% endif %}">
+                            <div class="contest-header">
+                                <h4 class="contest-title">
+                                    <a href="{{ url_for('contest.list_submissions', contest_id=contest.id) }}">{{ contest.title }}</a>
+                                    {% if contest.contest_type == 'private' %}<span class="private-badge">Privado</span>{% endif %}
+                                </h4>
+                            </div>
+                            <div class="contest-meta">
+                                <span class="meta-date">Estado: {{ contest.status }} | Fin: {{ contest.end_date.strftime('%d/%m/%Y') }}</span>
+                            </div>
+                            <a href="{{ url_for('contest.list_submissions', contest_id=contest.id) }}" class="button button-small button-ai">Ejecutar Evaluación de IA</a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </section>
+            <style>
+                .ai-pending h3 {
+                    color: #8e44ad;
+                }
+                .ai-pending h3 i {
+                    margin-right: 8px;
+                }
+                .button-ai {
+                    background-color: #8e44ad;
+                    color: white;
+                }
+                .button-ai:hover {
+                    background-color: #9b59b6;
+                }
+            </style>
+            <hr class="section-divider">
+        {% endif %}
+
+        {# Use the macro for active contests #}
+        {{ contest_list(active_contests, 'Concursos Abiertos') }}
+
+        <hr class="section-divider">
+
+        {# Use the macro for recently closed contests #}
+        {# Note: The route currently fetches all closed contests, but the macro handles displaying results only for public ones #}
+        {# We pass only the first 3 closed contests for brevity on the index page #}
+        {{ contest_list(closed_contests[:3], 'Concursos Recién Finalizados') }}
+        
+        {# Link to the main contests page if there are more closed contests than shown #}
+        {% if closed_contests|length > 3 %}
+            <p style="text-align: right;"><a href="{{ url_for('main.list_contests') }}">Ver todos los concursos finalizados...</a></p>
+        {% endif %}
+    
+    </div> {# End contests-container #}
 {% endblock %} 

@@ -62,4 +62,4 @@ def check_contests_command():
 
 if __name__ == '__main__':
     # Use run(debug=True) for development, turn off for production
-    app.run() 
+    app.run(debug=True) 

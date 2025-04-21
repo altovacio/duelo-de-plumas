@@ -113,18 +113,20 @@ Sitio web minimalista para la gestión y participación en concursos literarios.
    OPENAI_API_KEY=tu_clave_de_openai  # Para jueces de IA
    ANTHROPIC_API_KEY=tu_clave_de_anthropic  # Para jueces de IA
    
-   # Opcional: Para crear admin automáticamente
+   # Obligatorio para init_db.py
    ADMIN_USERNAME=nombre_de_usuario
    ADMIN_EMAIL=correo@ejemplo.com
    ADMIN_PASSWORD=contraseña_segura
    ```
-6. Ejecutar la aplicación: `python run.py`
-   * Esto creará automáticamente la base de datos (app.db)
-7. Crear usuario administrador:
-   * **Opción A:** Acceder a `http://127.0.0.1:5000/auth/register` y registrar el primer usuario manualmente (se convierte automáticamente en administrador).
-   * **Opción B:** Ejecutar `python create_admin.py` para crear un administrador automáticamente usando las credenciales del archivo `.env`.
-8. Inicializar los jueces de IA: `python seed_ai_judges.py`
-   * Este paso crea los 5 jueces de IA con diferentes personalidades
+6. Ejecutar la aplicación **por primera vez**: `python run.py`
+   * Esto creará automáticamente la base de datos (`app.db` por defecto) si no existe.
+   * Puedes detener la aplicación después de que la base de datos se haya creado.
+7. **Inicializar la base de datos:** Ejecutar `python init_db.py`
+   * **Importante:** Este script debe ejecutarse *después* de que la base de datos haya sido creada (paso 6).
+   * Creará el usuario administrador usando las credenciales del archivo `.env`.
+   * Creará los jueces de IA iniciales.
+   * Creará un concurso de ejemplo ("Muestra") con textos del directorio `/examples`.
+8. Ejecutar la aplicación para usarla: `python run.py`
 
 ## Despliegue a Producción
 
@@ -155,25 +157,22 @@ Sitio web minimalista para la gestión y participación en concursos literarios.
    # - FLASK_ENV=production
    # - DATABASE_URL (si usas una base de datos externa)
    # - OPENAI_API_KEY y ANTHROPIC_API_KEY para los jueces de IA
+   # - ADMIN_USERNAME, ADMIN_EMAIL, ADMIN_PASSWORD (obligatorios para init_db.py)
    ```
 
-3. **Configurar Gunicorn:**
-   * Crea un archivo `wsgi.py` en la raíz del proyecto:
-   ```python
-   from app import create_app
-   
-   application = create_app()
-   
-   if __name__ == "__main__":
-       application.run()
-   ```
-   
-   * Prueba Gunicorn localmente:
-   ```bash
-   gunicorn --bind 0.0.0.0:8000 wsgi:application
-   ```
+3. **Configurar Gunicorn y WSGI:**
+   * Asegúrate de que tienes un archivo `wsgi.py` en la raíz (como se muestra en el ejemplo del README original).
+   * La primera vez que Gunicorn/WSGI se ejecute (o al crear la base de datos si usas un gestor externo), la estructura de la base de datos se creará.
 
-4. **Configurar Systemd para Gestionar el Servicio:**
+4. **Inicializar la Base de Datos:**
+   * **Importante:** Después de que la base de datos haya sido creada por la aplicación, ejecuta el script de inicialización:
+     ```bash
+     # Asegúrate de estar en el directorio del proyecto y con el entorno activado
+     python init_db.py
+     ```
+   * Este script creará el administrador, los jueces de IA y el concurso de ejemplo usando las credenciales del archivo `.env`.
+
+5. **Configurar Systemd para Gestionar el Servicio:**
    * Crea un archivo de servicio:
    ```bash
    sudo nano /etc/systemd/system/duelo-de-plumas.service
@@ -203,7 +202,7 @@ Sitio web minimalista para la gestión y participación en concursos literarios.
    sudo systemctl status duelo-de-plumas  # Verificar estado
    ```
 
-5. **Configurar Nginx como Proxy Inverso:**
+6. **Configurar Nginx como Proxy Inverso:**
    * Instala Nginx: `sudo apt-get install nginx`
    * Configura un sitio para la aplicación:
    ```bash
@@ -234,13 +233,13 @@ Sitio web minimalista para la gestión y participación en concursos literarios.
    sudo systemctl restart nginx
    ```
 
-6. **Configurar SSL con Certbot (Opcional pero Recomendado):**
+7. **Configurar SSL con Certbot (Opcional pero Recomendado):**
    ```bash
    sudo apt-get install certbot python3-certbot-nginx
    sudo certbot --nginx -d tu-dominio.com -d www.tu-dominio.com
    ```
 
-7. **Actualizar la Aplicación (Deploy):**
+8. **Actualizar la Aplicación (Deploy):**
    ```bash
    # Accede al directorio de la aplicación
    cd /ruta/completa/a/duelo-de-plumas
@@ -260,23 +259,6 @@ Sitio web minimalista para la gestión y participación en concursos literarios.
    # Reinicia el servicio
    sudo systemctl restart duelo-de-plumas
    ```
-
-8. **Inicialización de la Aplicación:**
-   * Para una instalación desde cero, asegúrate de:
-     * **Opción A:** Acceder a la aplicación y registrar el primer usuario (que será administrador)
-     * **Opción B:** Crear un administrador automáticamente:
-       ```bash
-       # Asegúrate de configurar ADMIN_USERNAME, ADMIN_EMAIL y ADMIN_PASSWORD en .env
-       cd /ruta/completa/a/duelo-de-plumas
-       source venv/bin/activate
-       python create_admin.py
-       ```
-     * Ejecutar el script para inicializar los jueces de IA:
-     ```bash
-     cd /ruta/completa/a/duelo-de-plumas
-     source venv/bin/activate
-     python seed_ai_judges.py
-     ```
 
 9. **Verificación y Monitoreo:**
    * Verifica que la aplicación sea accesible en tu dominio

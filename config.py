@@ -19,5 +19,7 @@ class Config:
 # Configuration for the contest seeding script
 
 CONTEST_NAME = "Muestra"
+CONTEST_DESCRIPTION = "Un concurso de muestra inicial con textos variados."
+CONTEST_DURATION_DAYS = 30 # How many days the contest will be open
 EXAMPLES_DIR = "examples"
-OUTPUT_FILE = f"{CONTEST_NAME.lower()}_contest_data.json" 
+# OUTPUT_FILE = f"{CONTEST_NAME.lower()}_contest_data.json" # No longer needed 

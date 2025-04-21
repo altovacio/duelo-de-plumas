@@ -1,92 +1,64 @@
 {% extends "base.html" %}
 
+{# Macro for other templates to import #}
 {% macro contest_list(contests, status_title, is_judge_view=False) %}
     <section class="contest-section">
-        {% if status_title %}<h3>{{ status_title }}</h3>{% endif %}
+        {% if status_title %}<h3 class="section-title">{{ status_title }}</h3>{% endif %}
         {% if contests %}
             <ul class="contest-list">
                 {% for contest in contests %}
-                    <li {% if contest.contest_type == 'private' %}class="private-contest"{% endif %}>
-                        {# Link differs for judges viewing their assigned list #}
-                        {% if is_judge_view %}
-                            <h4><a href="{{ url_for('contest.list_submissions', contest_id=contest.id) }}">{{ contest.title }}</a></h4>
-                        {% else %}
-                            <h4><a href="{{ url_for('contest.detail', contest_id=contest.id) }}">{{ contest.title }}
-                            {% if contest.contest_type == 'private' %}<span class="private-badge">Privado</span>{% endif %}
-                            </h4>
-                        {% endif %}
-                        <p class="contest-meta">
-                            {% if not is_judge_view %}
-                            Tipo: {{ contest.contest_type.capitalize() }} |
-                            {% endif %}
-                            {% if contest.status == 'open' %}
-                                Fecha Límite: {{ contest.end_date.strftime('%d/%m/%Y %H:%M') }} UTC
-                            {% elif contest.status == 'evaluation' %}
+                    <li class="contest-item {% if contest.contest_type == 'private' %}private-contest{% endif %}">
+                        <div class="contest-header">
+                            <h4 class="contest-title">
                                 {% if is_judge_view %}
-                                    <strong class="text-warning">Evaluación Requerida</strong> (Finalizó: {{ contest.end_date.strftime('%d/%m/%Y') }})
+                                <a href="{{ url_for('contest.list_submissions', contest_id=contest.id) }}">{{ contest.title }}</a>
                                 {% else %}
-                                    Evaluación en progreso (Finalizó: {{ contest.end_date.strftime('%d/%m/%Y') }})
+                                <a href="{{ url_for('contest.detail', contest_id=contest.id) }}">{{ contest.title }}</a>
                                 {% endif %}
-                            {% else %}
-                                Finalizado: {{ contest.end_date.strftime('%d/%m/%Y') }}
-                            {% endif %}
-                        </p>
-                        {% if not is_judge_view %}
-                        <div class="contest-description-preview markdown-content">
-                            {{ contest.description|truncate(150)|markdown|safe }}
+                                {% if contest.contest_type == 'private' %}<span class="private-badge">Privado</span>{% endif %}
+                            </h4>
                         </div>
-                        {# Display winner info for closed contests #}
-                        {% if contest.status == 'closed' %}
+                        <div class="contest-meta">
+                            <span class="meta-date">📅 Finalizado: {{ contest.end_date.strftime('%d/%m/%Y') }}</span>
+                        </div>
+                        
+                        {% if not is_judge_view and contest.status == 'closed' %}
                             {% set ranked_submissions = contest.submissions.filter(Submission.final_rank != None).order_by(Submission.final_rank.asc(), Submission.total_points.desc()).all() %}
                             {% if ranked_submissions %}
-                                <div class="winners-list">
-                                <strong>Resultados:</strong>
-                                {% set current_rank = 0 %}
-                                {% for sub in ranked_submissions %}
-                                    {# Only show top ranks, e.g., 1, 2, 3, 4(HM) #}
-                                    {% if sub.final_rank <= 4 %}
-                                        {% if sub.final_rank != current_rank %}
-                                            {% if current_rank != 0 %}</ul>{% endif %}
-                                            {% set current_rank = sub.final_rank %}
-                                            <strong>
-                                            {% if current_rank == 1 %}1er Lugar:{% elif current_rank == 2 %}2do Lugar:{% elif current_rank == 3 %}3er Lugar:{% elif current_rank == 4 %}Mención Honorífica:{% endif %}
-                                            </strong>
-                                            <ul>
-                                        {% endif %}
-                                        <li>"{{ sub.title }}" por {{ sub.author_name }} ({{ sub.total_points }} pts)</li>
-                                    {% endif %}
-                                {% endfor %}
-                                {% if current_rank != 0 %}</ul>{% endif %} {# Close last ul if needed #}
+                                <div class="contest-results">
+                                    {% for rank in [1, 2, 3] %}
+                                        {% for sub in ranked_submissions %}
+                                            {% if sub.final_rank == rank %}
+                                                {% if rank == 1 %}
+                                                    <div class="result-item">
+                                                        <span class="rank">1er Lugar:</span> 
+                                                        <span class="submission-title">"{{ sub.title }}"</span> 
+                                                        <span class="submission-author">por {{ sub.author_name }}</span>
+                                                    </div>
+                                                {% elif rank == 2 %}
+                                                    <div class="result-item">
+                                                        <span class="rank">2do Lugar:</span> 
+                                                        <span class="submission-title">"{{ sub.title }}"</span> 
+                                                        <span class="submission-author">por {{ sub.author_name }}</span>
+                                                    </div>
+                                                {% elif rank == 3 %}
+                                                    <div class="result-item">
+                                                        <span class="rank">3er Lugar:</span> 
+                                                        <span class="submission-title">"{{ sub.title }}"</span> 
+                                                        <span class="submission-author">por {{ sub.author_name }}</span>
+                                                    </div>
+                                                {% endif %}
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endfor %}
                                 </div>
-                            {% else %}
-                                <p><em>Resultados no disponibles.</em></p>
                             {% endif %}
-                        {% endif %}
                         {% endif %}
                     </li>
                 {% endfor %}
             </ul>
-            <style>
-                .private-contest {
-                    border-left: 3px solid #8e44ad;
-                    padding-left: 10px;
-                }
-                .private-badge {
-                    background-color: #8e44ad;
-                    color: white;
-                    font-size: 0.7em;
-                    padding: 2px 6px;
-                    border-radius: 3px;
-                    margin-left: 8px;
-                    vertical-align: middle;
-                }
-                .markdown-content {
-                    white-space: normal;
-                    word-wrap: break-word;
-                }
-            </style>
         {% else %}
-            <p>No hay concursos en esta categoría.</p>
+            <p class="no-contests">No hay concursos en esta categoría.</p>
         {% endif %}
     </section>
 {% endmacro %}
@@ -94,22 +66,139 @@
 {% block title %}{{ title }} - Duelo de Plumas{% endblock %}
 
 {% block content %}
-    <h2>{{ title }}</h2>
+    <div class="contests-container">
+        <h2 class="page-title">{{ title }}</h2>
 
-    {# Section for assigned evaluations (Judges only) #}
-    {% if current_user.is_authenticated and current_user.role == 'judge' %}
-        <div class="judge-evaluation-section">
-            <h3>Mis Evaluaciones Pendientes</h3>
-            {{ contest_list(judge_assigned_evaluations, None, is_judge_view=True) }} {# Call macro without title, set judge view flag #}
-        </div>
-        <hr>
-    {% endif %}
+        {# Section for assigned evaluations (Judges only) #}
+        {% if current_user.is_authenticated and current_user.role == 'judge' %}
+            <div class="judge-evaluation-section">
+                <h3 class="section-title">Mis Evaluaciones Pendientes</h3>
+                {% if judge_assigned_evaluations %}
+                    <ul class="contest-list">
+                        {% for contest in judge_assigned_evaluations %}
+                            <li class="contest-item {% if contest.contest_type == 'private' %}private-contest{% endif %}">
+                                <div class="contest-header">
+                                    <h4 class="contest-title">
+                                        <a href="{{ url_for('contest.list_submissions', contest_id=contest.id) }}">{{ contest.title }}</a>
+                                        {% if contest.contest_type == 'private' %}<span class="private-badge">Privado</span>{% endif %}
+                                    </h4>
+                                </div>
+                                <div class="contest-meta">
+                                    <span class="meta-date">⏰ Evaluación requerida (Finalizó: {{ contest.end_date.strftime('%d/%m/%Y') }})</span>
+                                </div>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="no-contests">No tienes evaluaciones pendientes.</p>
+                {% endif %}
+            </div>
+            <hr class="section-divider">
+        {% endif %}
 
-    {# Public contest sections #}
-    {{ contest_list(contests_open, 'Concursos Abiertos') }}
-    <hr>
-    {{ contest_list(contests_evaluation, 'Concursos en Evaluación') }}
-    <hr>
-    {{ contest_list(contests_closed, 'Concursos Finalizados') }}
-
+        {# Open contests section #}
+        <section class="contest-section">
+            <h3 class="section-title">Concursos Abiertos</h3>
+            {% if contests_open %}
+                <ul class="contest-list">
+                    {% for contest in contests_open %}
+                        <li class="contest-item {% if contest.contest_type == 'private' %}private-contest{% endif %}">
+                            <div class="contest-header">
+                                <h4 class="contest-title">
+                                    <a href="{{ url_for('contest.detail', contest_id=contest.id) }}">{{ contest.title }}</a>
+                                    {% if contest.contest_type == 'private' %}<span class="private-badge">Privado</span>{% endif %}
+                                </h4>
+                            </div>
+                            <div class="contest-meta">
+                                <span class="meta-date">📅 Fecha Límite: {{ contest.end_date.strftime('%d/%m/%Y %H:%M') }} UTC</span>
+                            </div>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="no-contests">No hay concursos abiertos actualmente.</p>
+            {% endif %}
+        </section>
+        <hr class="section-divider">
+        
+        {# Evaluation contests section #}
+        <section class="contest-section">
+            <h3 class="section-title">Concursos en Evaluación</h3>
+            {% if contests_evaluation %}
+                <ul class="contest-list">
+                    {% for contest in contests_evaluation %}
+                        <li class="contest-item {% if contest.contest_type == 'private' %}private-contest{% endif %}">
+                            <div class="contest-header">
+                                <h4 class="contest-title">
+                                    <a href="{{ url_for('contest.detail', contest_id=contest.id) }}">{{ contest.title }}</a>
+                                    {% if contest.contest_type == 'private' %}<span class="private-badge">Privado</span>{% endif %}
+                                </h4>
+                            </div>
+                            <div class="contest-meta">
+                                <span class="meta-date">⏳ Evaluación en progreso (Finalizó: {{ contest.end_date.strftime('%d/%m/%Y') }})</span>
+                            </div>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="no-contests">No hay concursos en evaluación actualmente.</p>
+            {% endif %}
+        </section>
+        <hr class="section-divider">
+        
+        {# Closed contests section #}
+        <section class="contest-section">
+            <h3 class="section-title">Concursos Finalizados</h3>
+            {% if contests_closed %}
+                <ul class="contest-list">
+                    {% for contest in contests_closed %}
+                        <li class="contest-item {% if contest.contest_type == 'private' %}private-contest{% endif %}">
+                            <div class="contest-header">
+                                <h4 class="contest-title">
+                                    <a href="{{ url_for('contest.detail', contest_id=contest.id) }}">{{ contest.title }}</a>
+                                    {% if contest.contest_type == 'private' %}<span class="private-badge">Privado</span>{% endif %}
+                                </h4>
+                            </div>
+                            <div class="contest-meta">
+                                <span class="meta-date">📅 Finalizado: {{ contest.end_date.strftime('%d/%m/%Y') }}</span>
+                            </div>
+                            
+                            {% set ranked_submissions = contest.submissions.filter(Submission.final_rank != None).order_by(Submission.final_rank.asc(), Submission.total_points.desc()).all() %}
+                            {% if ranked_submissions %}
+                                <div class="contest-results">
+                                    {% for rank in [1, 2, 3] %}
+                                        {% for sub in ranked_submissions %}
+                                            {% if sub.final_rank == rank %}
+                                                {% if rank == 1 %}
+                                                    <div class="result-item">
+                                                        <span class="rank">1er Lugar:</span> 
+                                                        <span class="submission-title">"{{ sub.title }}"</span> 
+                                                        <span class="submission-author">por {{ sub.author_name }}</span>
+                                                    </div>
+                                                {% elif rank == 2 %}
+                                                    <div class="result-item">
+                                                        <span class="rank">2do Lugar:</span> 
+                                                        <span class="submission-title">"{{ sub.title }}"</span> 
+                                                        <span class="submission-author">por {{ sub.author_name }}</span>
+                                                    </div>
+                                                {% elif rank == 3 %}
+                                                    <div class="result-item">
+                                                        <span class="rank">3er Lugar:</span> 
+                                                        <span class="submission-title">"{{ sub.title }}"</span> 
+                                                        <span class="submission-author">por {{ sub.author_name }}</span>
+                                                    </div>
+                                                {% endif %}
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="no-contests">No hay concursos finalizados.</p>
+            {% endif %}
+        </section>
+    </div>
 {% endblock %} 

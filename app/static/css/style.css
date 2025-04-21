@@ -311,4 +311,200 @@ form .cancel-button:hover {
     header nav li {
         margin-bottom: 5px;
     }
+}
+
+/* Contests List Layout - Simple Version */
+.contests-container {
+    padding: 20px 0;
+    max-width: 960px;
+    margin: 0 auto;
+}
+
+.page-title {
+    margin-bottom: 25px;
+    color: #333;
+    font-weight: 500;
+}
+
+.section-divider {
+    border: none;
+    border-top: 1px solid #eee;
+    margin: 30px 0;
+}
+
+.contest-section {
+    margin-bottom: 25px;
+}
+
+.section-title {
+    margin-bottom: 20px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #eee;
+    color: #444;
+}
+
+.no-contests {
+    color: #777;
+    font-style: italic;
+    padding: 10px 0;
+}
+
+/* Contest List */
+.contest-list {
+    list-style-type: disc;
+    padding-left: 25px;
+    margin-bottom: 20px;
+}
+
+.contest-item {
+    margin-bottom: 25px;
+    padding-left: 5px;
+}
+
+/* Private contest styling */
+.private-contest {
+    position: relative;
+}
+
+.contest-header {
+    margin-bottom: 5px;
+}
+
+.contest-title {
+    margin: 0;
+    font-size: 1.2em;
+    display: inline;
+}
+
+.contest-title a {
+    color: #333;
+    text-decoration: none;
+}
+
+.contest-title a:hover {
+    text-decoration: underline;
+}
+
+.private-badge {
+    background-color: #8e44ad;
+    color: white;
+    font-size: 0.7em;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+.contest-meta {
+    margin: 5px 0 10px 0;
+    color: #555;
+    font-size: 0.9em;
+}
+
+.meta-date {
+    color: #666;
+}
+
+/* Contest Results */
+.contest-results {
+    margin-top: 8px;
+    margin-left: 20px;
+}
+
+.result-item {
+    margin-bottom: 5px;
+}
+
+.rank {
+    font-weight: 500;
+    color: #444;
+}
+
+.submission-title {
+    font-style: italic;
+}
+
+.submission-author {
+    color: #555;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    .contests-container {
+        padding: 15px;
+    }
+}
+
+/* Status Indicators */
+.status-open::before {
+    background: linear-gradient(to right, #27ae60, transparent);
+}
+
+.status-evaluation::before {
+    background: linear-gradient(to right, #f39c12, transparent);
+}
+
+.status-closed::before {
+    background: linear-gradient(to right, #3498db, transparent);
+}
+
+.status-indicator {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.9em;
+    font-weight: 500;
+}
+
+.status-indicator.open {
+    background-color: rgba(39, 174, 96, 0.1);
+    color: #27ae60;
+}
+
+.status-indicator.open::before {
+    content: "📅 ";
+}
+
+.status-indicator.evaluation {
+    background-color: rgba(243, 156, 18, 0.1);
+    color: #f39c12;
+}
+
+.status-indicator.evaluation::before {
+    content: "⏳ ";
+}
+
+.status-indicator.evaluation.judge {
+    background-color: rgba(243, 156, 18, 0.2);
+    font-weight: 600;
+}
+
+.status-indicator.evaluation.judge::before {
+    content: "🔍 ";
+}
+
+.status-indicator.closed {
+    background-color: rgba(52, 152, 219, 0.1);
+    color: #3498db;
+}
+
+.status-indicator.closed::before {
+    content: "🏁 ";
+}
+
+.contest-type {
+    color: #666;
+}
+
+/* Judge card special styling */
+.judge-card {
+    background-color: #fffbf0;
+}
+
+@media (max-width: 768px) {
+    .status-indicator {
+        display: inline-block;
+        padding: 2px 6px;
+        font-size: 0.85em;
+    }
 } 

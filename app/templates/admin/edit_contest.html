@@ -3,22 +3,6 @@
 {% block title %}{{ title }} - Duelo de Plumas{% endblock %}
 
 {% block content %}
-    <!-- Include Quill.js (open-source MIT licensed rich text editor) -->
-    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
-    <script type="text/javascript" src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
-    
-    <!-- Include custom CSS for this page -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/edit_contest.css') }}">
-    
-    <!-- Include configuration file first -->
-    <script type="text/javascript" src="{{ url_for('static', filename='js/form_config.js') }}"></script>
-    
-    <!-- Include QuillEditor component -->
-    <script type="text/javascript" src="{{ url_for('static', filename='js/components/quill_editor.js') }}"></script>
-    
-    <!-- Include custom JavaScript for this page -->
-    <script type="text/javascript" src="{{ url_for('static', filename='js/edit_contest.js') }}"></script>
-    
     <h2>{{ title }}</h2>
     <div class="form-container">
         {# Use form_action variable passed from route #}
@@ -201,9 +185,6 @@
                                         <p class="no-judges">No hay jueces humanos disponibles</p>
                                     {% endif %}
                                 </div>
-                                <div class="judge-actions">
-                                    <a href="{{ url_for('admin.add_judge') }}" target="_blank" class="add-judge-btn">+ Agregar Juez Humano</a>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -211,9 +192,34 @@
             </div>
             
             <div class="form-actions">
-                {{ form.submit(class="submit-btn") }} 
-                <a href="{{ url_for('admin.list_contests') }}" class="cancel-link">Cancelar</a>
+                <button type="submit" class="btn primary-btn">Guardar Concurso</button>
+                <a href="{{ url_for('admin.list_contests') }}" class="btn secondary-btn">Cancelar</a>
             </div>
         </form>
     </div>
+{% endblock %}
+
+{% block scripts %}
+    {{ super() }}
+    
+    <!-- Include Quill library -->
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
+    
+    <!-- Include form configuration -->
+    <script src="{{ url_for('static', filename='js/form_config.js') }}"></script>
+    
+    <!-- Include our Quill components -->
+    <link href="{{ url_for('static', filename='css/quill_editor.css') }}" rel="stylesheet">
+    <script src="{{ url_for('static', filename='js/components/quill_editor.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/components/quill_config.js') }}"></script>
+    
+    <!-- Include character counter script -->
+    <script src="{{ url_for('static', filename='js/contest_editor.js') }}"></script>
+    
+    <!-- Include custom JavaScript for this page -->
+    <script src="{{ url_for('static', filename='js/edit_contest.js') }}"></script>
+    
+    <!-- Add custom styling -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/edit_contest.css') }}">
 {% endblock %} 

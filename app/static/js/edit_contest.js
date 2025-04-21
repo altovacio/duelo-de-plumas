@@ -1,15 +1,49 @@
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize Quill rich text editor using our custom component
+    // Initialize Quill rich text editor using our modular Quill system
     let quillEditor = null;
     const quillContainer = document.getElementById('quill-editor');
     const textArea = document.getElementById('description_textarea');
     
     if (quillContainer && textArea) {
-        // Create a new QuillEditor instance
-        quillEditor = new QuillEditor({
-            container: quillContainer,
-            textarea: textArea
-        });
+        // Check if ModularQuillEditor and QuillConfig are available
+        if (typeof ModularQuillEditor !== 'undefined' && typeof QuillConfig !== 'undefined') {
+            // Use the QuillConfig to initialize the editor with contest mode
+            quillEditor = QuillConfig.initialize('contest', 'quill-editor', 'description_textarea');
+        } else {
+            // Fallback for backwards compatibility
+            console.warn('Modular Quill system not found, using direct Quill initialization');
+            
+            // Initialize Quill directly
+            quillEditor = new Quill('#quill-editor', {
+                theme: 'snow',
+                placeholder: 'Describe el concurso aquí...',
+                modules: {
+                    toolbar: [
+                        ['bold', 'italic', 'underline', 'strike'],
+                        ['blockquote', 'code-block'],
+                        [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                        [{ 'script': 'sub'}, { 'script': 'super' }],
+                        [{ 'indent': '-1'}, { 'indent': '+1' }],
+                        [{ 'size': ['small', false, 'large', 'huge'] }],
+                        [{ 'color': [] }, { 'background': [] }],
+                        [{ 'font': [] }],
+                        [{ 'align': [] }],
+                        ['clean']
+                    ]
+                }
+            });
+            
+            // Set initial content
+            if (textArea.value) {
+                quillEditor.root.innerHTML = textArea.value;
+            }
+            
+            // Update hidden textarea on text change
+            quillEditor.on('text-change', function() {
+                textArea.value = quillEditor.root.innerHTML;
+            });
+        }
     }
     
     // Password visibility toggle

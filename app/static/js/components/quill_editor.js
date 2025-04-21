@@ -1,139 +1,215 @@
 /**
- * QuillEditor - A reusable rich text editor component
- * This component wraps Quill.js to provide a consistent interface
- * for rich text editing throughout the application.
+ * ModularQuillEditor - A reusable Quill rich text editor component
+ * 
+ * This component can be used for both user submissions and judge comments
+ * with configurable toolbar options and settings.
  */
-class QuillEditor {
+class ModularQuillEditor {
     /**
-     * Creates a new QuillEditor instance
+     * Create a new ModularQuillEditor instance
      * @param {Object} options - Configuration options
-     * @param {HTMLElement|string} options.container - The container element or its ID
-     * @param {HTMLElement|string} options.textarea - The textarea element or its ID to sync with
+     * @param {string|HTMLElement} options.container - The container element or selector
+     * @param {string|HTMLElement} options.hiddenInput - The hidden input element or selector to store content
+     * @param {Object} options.toolbarOptions - Custom toolbar options (optional)
+     * @param {Object} options.quillOptions - Additional Quill options (optional)
+     * @param {Function} options.onTextChange - Callback for text-change event (optional)
+     * @param {string} options.placeholder - Placeholder text (optional)
+     * @param {string} options.mode - 'submission', 'comment', or 'contest' to use preset configurations
+     * @param {number} options.maxLength - Maximum text length (optional)
      */
     constructor(options) {
-        // Get container element
+        this.options = options;
         this.container = typeof options.container === 'string' 
-            ? document.getElementById(options.container) 
+            ? document.querySelector(options.container) 
             : options.container;
         
-        // Get textarea element
-        this.textarea = typeof options.textarea === 'string' 
-            ? document.getElementById(options.textarea) 
-            : options.textarea;
+        this.hiddenInput = typeof options.hiddenInput === 'string' 
+            ? document.querySelector(options.hiddenInput) 
+            : options.hiddenInput;
         
-        // Store form reference
-        this.form = this.textarea ? this.textarea.closest('form') : null;
-        
-        // Initialize Quill instance
-        this._initQuill();
-        
-        // Set initial content if textarea has value
-        if (this.textarea && this.textarea.value) {
-            this.quill.root.innerHTML = this.textarea.value;
-        }
-    }
-    
-    /**
-     * Initializes the Quill editor instance
-     * @private
-     */
-    _initQuill() {
         if (!this.container) {
-            console.error('QuillEditor: Container element not found');
+            console.error('ModularQuillEditor: Container element not found');
             return;
         }
         
-        // Create Quill instance with default config
-        this.quill = new Quill(this.container, {
-            theme: 'snow',
+        if (!this.hiddenInput) {
+            console.error('ModularQuillEditor: Hidden input element not found');
+            return;
+        }
+        
+        // Set default toolbar options based on mode
+        let defaultToolbarOptions;
+        if (options.mode === 'submission') {
+            defaultToolbarOptions = [
+                ['bold', 'italic', 'underline', 'strike'],
+                ['blockquote', 'code-block'],
+                [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                [{ 'script': 'sub'}, { 'script': 'super' }],
+                [{ 'indent': '-1'}, { 'indent': '+1' }],
+                [{ 'size': ['small', false, 'large', 'huge'] }],
+                [{ 'color': [] }, { 'background': [] }],
+                [{ 'font': [] }],
+                [{ 'align': [] }],
+                ['clean']
+            ];
+        } else if (options.mode === 'contest') {
+            // Same toolbar as submission for contest descriptions
+            defaultToolbarOptions = [
+                ['bold', 'italic', 'underline', 'strike'],
+                ['blockquote', 'code-block'],
+                [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                [{ 'script': 'sub'}, { 'script': 'super' }],
+                [{ 'indent': '-1'}, { 'indent': '+1' }],
+                [{ 'size': ['small', false, 'large', 'huge'] }],
+                [{ 'color': [] }, { 'background': [] }],
+                [{ 'font': [] }],
+                [{ 'align': [] }],
+                ['clean']
+            ];
+        } else if (options.mode === 'comment') {
+            // Simpler toolbar for comments
+            defaultToolbarOptions = [
+                ['bold', 'italic', 'underline', 'strike'],
+                ['blockquote'],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                [{ 'color': [] }],
+                ['clean']
+            ];
+        } else {
+            // Basic default toolbar
+            defaultToolbarOptions = [
+                ['bold', 'italic', 'underline'],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                ['clean']
+            ];
+        }
+        
+        const toolbarOptions = options.toolbarOptions || defaultToolbarOptions;
+        
+        // Set default Quill options
+        const defaultQuillOptions = {
             modules: {
-                toolbar: [
-                    // Basic formatting
-                    ['bold', 'italic', 'underline', 'strike'],
-                    
-                    // Alignment
-                    [{ 'align': ['', 'center', 'right', 'justify'] }],
-                    
-                    // Quote format
-                    ['blockquote'],
-                    
-                    // Lists
-                    [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-                    
-                    // Headers
-                    [{ 'header': [1, 2, 3, false] }],
-                    
-                    // Clean formatting
-                    ['clean']
-                ]
+                toolbar: toolbarOptions
             },
-            placeholder: typeof FormConfig !== 'undefined' && FormConfig.richTextEditor ? 
-                FormConfig.richTextEditor.placeholder : 'Escribe aquí...'
-        });
+            theme: 'snow',
+            placeholder: options.placeholder || 'Escribe aquí...'
+        };
+        
+        // Merge default options with user options
+        const quillOptions = { ...defaultQuillOptions, ...(options.quillOptions || {}) };
+        
+        // Initialize Quill
+        this.quill = new Quill(this.container, quillOptions);
+        
+        // Set initial content if hidden input has value
+        if (this.hiddenInput.value) {
+            try {
+                // Try to parse as delta if it starts with '{"ops":'
+                if (this.hiddenInput.value.trim().startsWith('{"ops":')) {
+                    const delta = JSON.parse(this.hiddenInput.value);
+                    this.quill.setContents(delta);
+                } else {
+                    // Otherwise set as HTML
+                    this.quill.root.innerHTML = this.hiddenInput.value;
+                }
+            } catch (e) {
+                console.error('Error setting initial Quill content:', e);
+                // Fallback: set as text
+                this.quill.setText(this.hiddenInput.value);
+            }
+        }
+        
+        // Set up max length if specified
+        this.maxLength = options.maxLength || null;
         
         // Set up event listeners
-        if (this.form && this.textarea) {
-            this.form.addEventListener('submit', () => {
-                this.textarea.value = this.quill.root.innerHTML;
-            });
-        }
+        this.setupEventListeners();
     }
     
     /**
-     * Gets the Quill instance
-     * @returns {Quill} - The Quill instance
+     * Set up event listeners for the editor
      */
-    getInstance() {
+    setupEventListeners() {
+        // Update hidden input on text-change
+        this.quill.on('text-change', () => {
+            // Check max length if specified
+            if (this.maxLength) {
+                const text = this.quill.getText();
+                if (text.length > this.maxLength) {
+                    // Truncate content if too long
+                    const delta = this.quill.getContents();
+                    this.quill.setText(text.slice(0, this.maxLength));
+                    return;
+                }
+            }
+            
+            // Update hidden input with HTML content
+            this.hiddenInput.value = this.quill.root.innerHTML;
+            
+            // Call user callback if provided
+            if (typeof this.options.onTextChange === 'function') {
+                this.options.onTextChange(this.quill.getContents(), this.quill.root.innerHTML);
+            }
+        });
+    }
+    
+    /**
+     * Get the Quill instance
+     * @returns {Quill} The Quill instance
+     */
+    getQuill() {
         return this.quill;
     }
     
     /**
-     * Gets the current content
-     * @returns {string} - The HTML content
+     * Get the editor's content as HTML
+     * @returns {string} HTML content
      */
-    getContent() {
-        return this.quill ? this.quill.root.innerHTML : '';
+    getHTML() {
+        return this.quill.root.innerHTML;
     }
     
     /**
-     * Sets the content
-     * @param {string} html - The HTML content to set
+     * Get the editor's content as text
+     * @returns {string} Text content
      */
-    setContent(html) {
-        if (this.quill) {
-            this.quill.root.innerHTML = html;
-        }
+    getText() {
+        return this.quill.getText();
     }
     
     /**
-     * Syncs editor content to the associated textarea
+     * Get the editor's content as a Delta object
+     * @returns {Object} Delta object
      */
-    syncToTextarea() {
-        if (this.textarea && this.quill) {
-            this.textarea.value = this.quill.root.innerHTML;
-        }
+    getContents() {
+        return this.quill.getContents();
     }
     
     /**
-     * Enables the editor
+     * Set the editor's content as HTML
+     * @param {string} html - HTML content
      */
-    enable() {
-        if (this.quill) {
-            this.quill.enable();
-        }
+    setHTML(html) {
+        this.quill.root.innerHTML = html;
+        this.hiddenInput.value = html;
     }
     
     /**
-     * Disables the editor
+     * Set the editor's content as text
+     * @param {string} text - Text content
      */
-    disable() {
-        if (this.quill) {
-            this.quill.disable();
-        }
+    setText(text) {
+        this.quill.setText(text);
+        this.hiddenInput.value = this.quill.root.innerHTML;
     }
-}
-
-// Export the QuillEditor class for module usage
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = QuillEditor;
+    
+    /**
+     * Clear the editor's content
+     */
+    clear() {
+        this.quill.setText('');
+        this.hiddenInput.value = '';
+    }
 } 

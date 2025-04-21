@@ -1,0 +1,162 @@
+/**
+ * Quill Editor Styles for Duelo de Plumas
+ * 
+ * Custom styles for the Quill rich text editor component with a
+ * literary aesthetic suitable for the contest platform.
+ */
+
+/* Main container for Quill editor with literary styling */
+.quill-editor-container {
+    margin-bottom: 1.5rem;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    background-color: #fcfcfc;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    font-family: 'Georgia', serif;
+}
+
+/* Custom styling for the Snow theme toolbar */
+.quill-editor-container .ql-toolbar.ql-snow {
+    border-color: #e0e0e0;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+    background-color: #f8f8f8;
+    padding: 0.6rem;
+}
+
+/* Custom styling for the editor area */
+.quill-editor-container .ql-container.ql-snow {
+    border-color: #e0e0e0;
+    border-bottom-left-radius: 4px;
+    border-bottom-right-radius: 4px;
+    background-color: #ffffff;
+    font-family: 'Georgia', serif;
+    font-size: 1rem;
+    line-height: 1.6;
+}
+
+/* Editor area height settings */
+.quill-editor-container.submission .ql-container.ql-snow {
+    height: 400px;
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.quill-editor-container.contest .ql-container.ql-snow {
+    height: 300px;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.quill-editor-container.comment .ql-container.ql-snow {
+    height: 150px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+/* Make the contest editor look more professional */
+.rich-text-editor {
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    margin-bottom: 1.5rem;
+}
+
+.rich-text-editor .ql-container {
+    height: 300px;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+/* Custom styling for toolbar buttons */
+.quill-editor-container .ql-toolbar.ql-snow .ql-formats {
+    margin-right: 12px;
+}
+
+.quill-editor-container .ql-toolbar.ql-snow button {
+    color: #444;
+    transition: color 0.2s, background-color 0.2s;
+}
+
+.quill-editor-container .ql-toolbar.ql-snow button:hover {
+    color: #222;
+    background-color: #eeeeee;
+}
+
+.quill-editor-container .ql-toolbar.ql-snow button.ql-active,
+.quill-editor-container .ql-toolbar.ql-snow .ql-picker-label.ql-active,
+.quill-editor-container .ql-toolbar.ql-snow .ql-picker-item.ql-selected {
+    color: #6a6a6a;
+}
+
+/* Typography within the editor */
+.quill-editor-container .ql-container.ql-snow .ql-editor {
+    padding: 1rem;
+}
+
+.quill-editor-container .ql-container.ql-snow .ql-editor h1,
+.quill-editor-container .ql-container.ql-snow .ql-editor h2,
+.quill-editor-container .ql-container.ql-snow .ql-editor h3 {
+    font-family: 'Georgia', serif;
+    margin-bottom: 0.75rem;
+    font-weight: 600;
+}
+
+.quill-editor-container .ql-container.ql-snow .ql-editor h1 {
+    font-size: 1.8rem;
+}
+
+.quill-editor-container .ql-container.ql-snow .ql-editor h2 {
+    font-size: 1.5rem;
+}
+
+.quill-editor-container .ql-container.ql-snow .ql-editor p {
+    margin-bottom: 1rem;
+}
+
+.quill-editor-container .ql-container.ql-snow .ql-editor blockquote {
+    border-left: 4px solid #ccc;
+    padding-left: 16px;
+    margin-left: 0;
+    margin-right: 0;
+    font-style: italic;
+    color: #555;
+}
+
+/* Character counter styles */
+.quill-char-counter {
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+    color: #666;
+    text-align: right;
+    font-family: Arial, sans-serif;
+}
+
+.quill-char-counter.near-limit {
+    color: #e07c00;
+}
+
+.quill-char-counter.at-limit {
+    color: #cc0000;
+    font-weight: bold;
+}
+
+/* Focus states */
+.quill-editor-container .ql-container.ql-snow:focus-within {
+    box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.15);
+}
+
+/* Error state */
+.quill-editor-container.has-error {
+    border-color: #cc0000;
+}
+
+.quill-editor-container.has-error .ql-toolbar.ql-snow,
+.quill-editor-container.has-error .ql-container.ql-snow {
+    border-color: #cc0000;
+}
+
+/* Placeholder styling */
+.quill-editor-container .ql-container.ql-snow .ql-editor.ql-blank::before {
+    font-style: italic;
+    color: #aaa;
+} 

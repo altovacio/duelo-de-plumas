@@ -33,15 +33,20 @@
                             <td>
                                 <button type="button" onclick="toggleText('sub-text-{{ loop.index }}')">Mostrar/Ocultar Texto</button>
                                 <div id="sub-text-{{ loop.index }}" class="submission-text-inline" style="display:none; margin-top: 10px; border: 1px solid #eee; padding: 10px; max-height: 300px; overflow-y: auto; background-color: #f9f9f9;">
-                                    <pre>{{ submission.text_content if submission else 'Error' }}</pre>
+                                    <!-- Display HTML content safely -->
+                                    {{ submission.text_content | safe if submission else 'Error' }}
                                 </div>
                             </td>
                             <td>{{ sub_form.place() }}</td>
                             <td>
-                                <textarea id="{{ sub_form.comment.id }}" name="{{ sub_form.comment.name }}" rows="2" class="evaluation-comment">{{ sub_form.comment.data or '' }}</textarea>
-                                {% for error in sub_form.comment.errors %}
-                                    <span style="color: red;">[{{ error }}]</span>
-                                {% endfor %}
+                                <!-- Create a container for the editor with a data attribute for the comment ID -->
+                                <div class="comment-editor-container" data-comment-id="{{ loop.index }}">
+                                    <!-- The textarea will be hidden and used as the form field -->
+                                    <textarea id="comment-{{ loop.index }}" name="{{ sub_form.comment.name }}" rows="2" class="evaluation-comment">{{ sub_form.comment.data or '' }}</textarea>
+                                    {% for error in sub_form.comment.errors %}
+                                        <span style="color: red;">[{{ error }}]</span>
+                                    {% endfor %}
+                                </div>
                             </td>
                         </tr>
                     {% endfor %}
@@ -66,4 +71,18 @@
         }
     </script>
 
+{% endblock %}
+
+{% block scripts %}
+    {{ super() }}
+    
+    <!-- Include Quill library -->
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
+    
+    <!-- Include our Quill components -->
+    <link href="{{ url_for('static', filename='css/quill_editor.css') }}" rel="stylesheet">
+    <script src="{{ url_for('static', filename='js/components/quill_editor.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/components/quill_config.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/judge_comment.js') }}"></script>
 {% endblock %} 

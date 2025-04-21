@@ -12,6 +12,7 @@ Sitio web minimalista para la gestión y participación en concursos literarios.
 *   Visualización de Resultados y Textos Enviados en Concursos Cerrados.
 *   Registro de Administrador (primer usuario) y Jueces.
 *   Jueces de IA con personalidades distintas para evaluar textos automáticamente.
+*   Soporte para formato Markdown en descripciones de concursos y textos de participantes.
 
 ## Flujos de Usuario
 
@@ -19,17 +20,18 @@ Sitio web minimalista para la gestión y participación en concursos literarios.
 
 1.  **Ver Inicio (`/`):** Ve la introducción, una lista de concursos públicos activos y una lista de concursos recién finalizados (con ganadores).
 2.  **Ver Concursos (`/contests`):** Ve listas de concursos públicos agrupados por estado: Abiertos, En Evaluación, Finalizados (con ganadores).
-3.  **Ver Detalles de Concurso (`/contest/<id>`):** Ve la descripción, estado y fecha límite de un concurso específico.
+3.  **Ver Detalles de Concurso (`/contest/<id>`):** Ve la descripción, estado y fecha límite de un concurso específico. La descripción ahora se renderiza con formato Markdown.
 4.  **Enviar Texto (si el concurso está Abierto):**
     *   Accede a los detalles del concurso (`/contest/<id>`).
     *   Rellena el formulario con Nombre de Autor, Título del Texto y el Contenido.
+    *   El campo de contenido cuenta con un editor Markdown para dar formato al texto.
     *   Envía el formulario.
     *   Ve un mensaje de confirmación.
 5.  **Ver Resultados (si el concurso está Cerrado):**
     *   Accede a los detalles del concurso (`/contest/<id>`).
     *   Ve la lista de envíos ordenada por ranking.
     *   Ve los puntos totales de cada envío.
-    *   Ve el texto completo de cada envío.
+    *   Ve el texto completo de cada envío con formato Markdown.
     *   Ve los comentarios (si existen) dejados por los jueces para cada envío.
 
 ### Juez
@@ -50,7 +52,7 @@ Sitio web minimalista para la gestión y participación en concursos literarios.
 5.  **Evaluar Concurso (`/contest/<id>/evaluate`):**
     *   Desde la lista de envíos, hace clic en "Registrar mi Ranking" o "Editar mi Ranking".
     *   Ve una tabla con todos los envíos del concurso.
-    *   Puede hacer clic en "Mostrar/Ocultar Texto" para leer cada envío.
+    *   Puede hacer clic en "Mostrar/Ocultar Texto" para leer cada envío con formato Markdown.
     *   Asigna lugares (1º, 2º, 3º, M. Hon.) usando los desplegables, respetando las reglas de asignación.
     *   Escribe comentarios específicos para cada envío (opcional).
     *   Guarda el ranking.
@@ -75,6 +77,7 @@ Sitio web minimalista para la gestión y participación en concursos literarios.
     *   Puede hacer clic en "+ Crear Nuevo Concurso".
 5.  **Crear/Editar Concurso (`/admin/contests/create`, `/admin/contests/<id>/edit`):**
     *   Rellena/modifica los detalles del concurso (título, descripción, fecha límite, estado, tipo, contraseña si es privado, número de jueces requeridos).
+    *   La descripción del concurso utiliza un editor Markdown para dar formato al texto.
     *   Selecciona/deselecciona jueces de la lista "Jueces Asignados".
     *   (Opcional) Hace clic en "(+ Agregar Nuevo Juez)" para abrir la página de creación de jueces en una nueva pestaña.
     *   Guarda los cambios.
@@ -313,6 +316,7 @@ Sitio web minimalista para la gestión y participación en concursos literarios.
     *   Review the text display mechanism in the evaluation form (currently inline, was previously a toggle) for usability.
     *   Standardize confirmation messages and redirects.
     *   Improve visual design and responsiveness.
+    *   ✅ Add Markdown support for contest descriptions and submission texts.
 *   **Testing:**
     *   Implement unit tests for models and core logic (e.g., `calculate_contest_results`).
     *   Implement integration tests for user flows (submission, evaluation, admin actions).

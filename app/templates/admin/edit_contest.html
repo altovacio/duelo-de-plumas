@@ -51,27 +51,37 @@
             <div class="form-section">
                 <h3 class="form-section-title">Configuración del Concurso</h3>
                 
-                <div class="field-required">
+                <div class="field-required date-field-container">
                     {{ form.end_date.label }}
-                    {{ form.end_date(type="datetime-local", value=form.end_date.data.strftime('%Y-%m-%dT%H:%M') if form.end_date.data else '', required=true) }}
+                    {{ form.end_date(type="datetime-local", value=form.end_date.data.strftime('%Y-%m-%dT%H:%M') if form.end_date.data else '', required=true, class="date-input") }}
                     {% for error in form.end_date.errors %}
                         <span class="error-message">{{ error }}</span>
                     {% endfor %}
                 </div>
                 
-                <div class="field-required">
-                    {{ form.contest_type.label }}
-                    {{ form.contest_type(required=true) }}
+                <div class="field-required contest-type-selector">
+                    <div class="selector-label">{{ form.contest_type.label }}</div>
+                    <div class="selector-buttons">
+                        {% for value, label in form.contest_type.choices %}
+                            <label class="selector-option {% if form.contest_type.data == value %}selected{% endif %}" for="contest_type-{{ value }}">
+                                <input type="radio" name="contest_type" id="contest_type-{{ value }}" value="{{ value }}" 
+                                      {% if form.contest_type.data == value %}checked{% endif %}>
+                                <span>{{ label }}</span>
+                            </label>
+                        {% endfor %}
+                    </div>
                     {% for error in form.contest_type.errors %}
                         <span class="error-message">{{ error }}</span>
                     {% endfor %}
                 </div>
                 
                 <div id="password-field" style="display: {{ 'block' if form.contest_type.data == 'private' else 'none' }};">
-                    <div class="password-field-container">
-                        {{ form.contest_password.label }}
-                        {{ form.contest_password(size=32, placeholder='Comparte esta contraseña con participantes y jueces') }}
-                        <button type="button" class="password-toggle">👁️</button>
+                    <label for="contest_password" class="form-label">{{ form.contest_password.label.text }}</label>
+                    <div class="input-group">
+                        {{ form.contest_password(size=32, type="password", placeholder='Comparte esta contraseña con participantes y jueces', class="form-control", id="contest_password") }}
+                        <button type="button" id="toggle-password" class="btn btn-outline-secondary">
+                            <i class="eye-icon">👁️</i>
+                        </button>
                     </div>
                     <small class="text-muted">La contraseña se necesita para que participantes y jueces accedan al concurso.</small>
                     {% for error in form.contest_password.errors %}
@@ -283,6 +293,110 @@
             font-weight: bold;
         }
         
+        /* Date field styling */
+        .date-field-container {
+            margin-bottom: 1rem;
+        }
+        
+        .date-input {
+            max-width: 230px;
+            padding: 0.5rem;
+            border: 1px solid #ccd4e0;
+            border-radius: 4px;
+        }
+        
+        /* Contest type selector styling */
+        .contest-type-selector {
+            margin-bottom: 1rem;
+        }
+        
+        .selector-label {
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+        
+        .selector-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .selector-option {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 120px;
+            padding: 0.5rem 1rem;
+            border: 1px solid #ccd4e0;
+            border-radius: 4px;
+            background-color: #fff;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+        
+        .selector-option input {
+            position: absolute;
+            opacity: 0;
+            cursor: pointer;
+        }
+        
+        .selector-option.selected {
+            background-color: #ebf5ff;
+            border-color: #3498db;
+            color: #2980b9;
+            font-weight: bold;
+        }
+        
+        /* Password field styling */
+        .input-group {
+            display: flex;
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            margin-bottom: 0.5rem;
+        }
+        
+        .input-group .form-control {
+            flex: 1 1 auto;
+            width: 1%;
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+            border-right: none;
+            height: 38px;
+            box-sizing: border-box;
+        }
+        
+        .input-group .btn {
+            padding: 0 0.75rem;
+            border: 1px solid #ccd4e0;
+            border-radius: 0 4px 4px 0;
+            background-color: #f8f9fa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 38px;
+            box-sizing: border-box;
+            min-width: 42px;
+        }
+        
+        .input-group .btn:hover {
+            background-color: #e9ecef;
+        }
+        
+        .eye-icon {
+            font-style: normal;
+            display: inline-block;
+            font-size: 18px;
+            line-height: 1;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+        }
+        
         /* Number input styling */
         .judge-number-selector {
             display: flex;
@@ -316,16 +430,46 @@
             });
             
             // Handle showing/hiding password field based on contest type
-            const contestTypeSelect = document.querySelector('#contest_type');
+            const contestTypeRadios = document.querySelectorAll('input[name="contest_type"]');
             const passwordField = document.querySelector('#password-field');
             
-            if (contestTypeSelect && passwordField) {
-                // Initially set based on current value
-                passwordField.style.display = contestTypeSelect.value === 'private' ? 'block' : 'none';
-                
-                // Update when changed
-                contestTypeSelect.addEventListener('change', function() {
+            contestTypeRadios.forEach(radio => {
+                radio.addEventListener('change', function() {
                     passwordField.style.display = this.value === 'private' ? 'block' : 'none';
+                    
+                    // Update selector option styling
+                    document.querySelectorAll('.selector-option').forEach(opt => {
+                        if (opt.contains(this)) {
+                            opt.classList.add('selected');
+                        } else if (opt.querySelector('input[name="contest_type"]')) {
+                            opt.classList.remove('selected');
+                        }
+                    });
+                });
+            });
+            
+            // Handle password visibility toggle - directly access elements
+            const passwordToggle = document.querySelector('#toggle-password');
+            const passwordInput = document.querySelector('#contest_password');
+            
+            console.log('Password toggle:', passwordToggle);
+            console.log('Password input:', passwordInput);
+            
+            if (passwordToggle && passwordInput) {
+                console.log('Setting up password toggle event listener');
+                
+                passwordToggle.addEventListener('click', function(e) {
+                    console.log('Password toggle clicked');
+                    e.preventDefault();
+                    const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                    passwordInput.setAttribute('type', type);
+                    
+                    const eyeIcon = this.querySelector('.eye-icon');
+                    if (eyeIcon) {
+                        eyeIcon.textContent = type === 'password' ? '👁️' : '🔒';
+                    }
+                    
+                    console.log('Password type set to:', type);
                 });
             }
             

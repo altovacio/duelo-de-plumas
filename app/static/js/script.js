@@ -3,16 +3,35 @@ console.log("Duelo de Plumas script loaded.");
 
 // Form validation and UI enhancements
 document.addEventListener('DOMContentLoaded', function() {
-    // Password visibility toggle
-    const passwordToggles = document.querySelectorAll('.password-toggle');
-    passwordToggles.forEach(toggle => {
-        toggle.addEventListener('click', function() {
-            const passwordField = this.previousElementSibling;
-            const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
-            passwordField.setAttribute('type', type);
-            this.textContent = type === 'password' ? '👁️' : '🔒';
+    // Password visibility toggle (except in edit_contest.html which has its own implementation)
+    const isEditContestPage = document.querySelector('#password-field .password-toggle') !== null;
+    
+    if (!isEditContestPage) {
+        const passwordToggles = document.querySelectorAll('.password-toggle');
+        passwordToggles.forEach(toggle => {
+            toggle.addEventListener('click', function() {
+                // Find the password field - either the previous sibling or inside the same container
+                let passwordField;
+                
+                if (this.previousElementSibling && this.previousElementSibling.type === 'password') {
+                    // Direct previous sibling
+                    passwordField = this.previousElementSibling;
+                } else {
+                    // Look for password input in the same container
+                    const container = this.closest('.password-field-container');
+                    if (container) {
+                        passwordField = container.querySelector('input[type="password"], input[type="text"][name*="password"]');
+                    }
+                }
+                
+                if (passwordField) {
+                    const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
+                    passwordField.setAttribute('type', type);
+                    this.textContent = type === 'password' ? '👁️' : '🔒';
+                }
+            });
         });
-    });
+    }
 
     // Highlight required fields
     const requiredInputs = document.querySelectorAll('input[required], textarea[required], select[required]');

@@ -14,9 +14,9 @@
                 <div class="status-label">{{ form.status.label }}</div>
                 <div class="status-buttons">
                     {% for value, label in form.status.choices %}
-                        <label class="status-option {% if form.status.data == value %}selected{% endif %}" for="status-{{ value }}">
+                        <label class="status-option {% if form.status.data == value or (form.status.data is none and value == 'open') %}selected{% endif %}" for="status-{{ value }}">
                             <input type="radio" name="status" id="status-{{ value }}" value="{{ value }}" 
-                                  {% if form.status.data == value %}checked{% endif %}>
+                                  {% if form.status.data == value or (form.status.data is none and value == 'open') %}checked{% endif %}>
                             <span>{{ label }}</span>
                         </label>
                     {% endfor %}
@@ -75,7 +75,7 @@
                     {% endfor %}
                 </div>
                 
-                <div id="password-field" style="display: {{ 'block' if form.contest_type.data == 'private' else 'none' }};">
+                <div id="password-field" class="{{ 'password-field-visible' if form.contest_type.data == 'private' else 'password-field-hidden' }}">
                     <label for="contest_password" class="form-label">{{ form.contest_password.label.text }}</label>
                     <div class="input-group">
                         {{ form.contest_password(size=32, type="password", placeholder='Comparte esta contraseña con participantes y jueces', class="form-control", id="contest_password") }}
@@ -349,6 +349,13 @@
         }
         
         /* Password field styling */
+        .password-field-hidden {
+            display: none;
+        }
+        .password-field-visible {
+            display: block;
+        }
+
         .input-group {
             display: flex;
             position: relative;
@@ -435,7 +442,7 @@
             
             contestTypeRadios.forEach(radio => {
                 radio.addEventListener('change', function() {
-                    passwordField.style.display = this.value === 'private' ? 'block' : 'none';
+                    passwordField.classList.toggle('password-field-visible', this.value === 'private');
                     
                     // Update selector option styling
                     document.querySelectorAll('.selector-option').forEach(opt => {

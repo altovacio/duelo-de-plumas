@@ -105,12 +105,25 @@ def create_contest():
             flash(f'Error al crear el concurso: {str(e)}', 'danger')
     
     # GET or form validation failure
+    judge_model_map = {}
+    if request.method == 'POST': # If form validation failed, repopulate map from form data
+        assigned_judge_ids = request.form.getlist('judges')
+        for judge_id_str in assigned_judge_ids:
+            try:
+                judge_id = int(judge_id_str)
+                model = request.form.get(f'judge_model_{judge_id}')
+                if model:
+                    judge_model_map[judge_id] = model
+            except ValueError:
+                continue # Ignore non-integer judge IDs if any
+
     available_models = [m for m in AI_MODELS_RAW if m.get('available', True)]
     return render_template('admin/edit_contest.html', 
                          title='Crear Concurso', 
                          form=form, 
                          form_action=url_for('admin.create_contest'),
                          judge_is_ai=is_ai_judge,
+                         judge_model_map=judge_model_map,
                          ai_models=available_models)
 
 @bp.route('/contests/<int:contest_id>/edit', methods=['GET', 'POST'])
@@ -211,6 +224,20 @@ def edit_contest(contest_id):
             flash(f'Error al actualizar el concurso: {str(e)}', 'danger')
     
     # If validation failed or GET request
+    # Reconstruct judge_model_map from form if POST request failed validation
+    # Otherwise, use the map populated from DB in the GET request block
+    if request.method == 'POST' and not form.validate_on_submit():
+        judge_model_map = {} # Reset and rebuild from form
+        assigned_judge_ids = request.form.getlist('judges')
+        for judge_id_str in assigned_judge_ids:
+            try:
+                judge_id = int(judge_id_str)
+                model = request.form.get(f'judge_model_{judge_id}')
+                if model:
+                    judge_model_map[judge_id] = model
+            except ValueError:
+                continue # Ignore non-integer judge IDs
+
     available_models = [m for m in AI_MODELS_RAW if m.get('available', True)]
     return render_template('admin/edit_contest.html',
                          title=f'Editar Concurso: {contest.title}',

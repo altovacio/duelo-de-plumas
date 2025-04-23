@@ -128,6 +128,84 @@ Sitio web minimalista para la gestión y participación en concursos literarios.
    * Creará un concurso de ejemplo ("Muestra") con textos del directorio `/examples`.
 8. Ejecutar la aplicación para usarla: `python run.py`
 
+## Configuración Inicial del Servidor VPS (Ubuntu 24.04)
+
+Si estás configurando un nuevo VPS Ubuntu 24.04 desde cero, sigue estos pasos iniciales antes de desplegar la aplicación.
+
+### Conexión Inicial y Seguridad Básica
+
+1.  **Conexión inicial:**
+    ```bash
+    ssh root@your_host_ip
+    ```
+    Ingresa la contraseña inicial cuando se te solicite.
+
+2.  **Actualizar el sistema:**
+    ```bash
+    apt update && apt upgrade -y
+    ```
+
+3.  **Crear un usuario no-root:** Es más seguro operar con un usuario con privilegios `sudo`.
+    ```bash
+    adduser yourusername
+    usermod -aG sudo yourusername
+    ```
+    Reemplaza `yourusername` con el nombre de usuario deseado.
+
+4.  **Configurar autenticación por clave SSH (Recomendado):**
+    *   En tu **máquina local**, genera una clave si no tienes una:
+        ```bash
+        # Usa ed25519 para mayor seguridad
+        ssh-keygen -t ed25519 
+        ```
+        (Acepta las ubicaciones por defecto y opcionalmente añade una passphrase).
+    *   Copia tu clave pública al servidor:
+        ```bash
+        ssh-copy-id yourusername@your_host_ip
+        ```
+    *   Ahora deberías poder conectar como tu nuevo usuario sin contraseña:
+        ```bash
+        ssh yourusername@your_host_ip
+        ```
+
+5.  **Asegurar la configuración SSH:** Edita el archivo de configuración SSH en el servidor.
+    ```bash
+    sudo nano /etc/ssh/sshd_config
+    ```
+    Realiza (o verifica) estos cambios para mayor seguridad:
+    *   Cambia el puerto por defecto (obfuscación):
+        `Port 2299` # Cambia 2299 por otro puerto no estándar si lo deseas.
+    *   Deshabilita el login de root:
+        `PermitRootLogin no`
+    *   Deshabilita la autenticación por contraseña (si la clave SSH funciona):
+        `PasswordAuthentication no`
+    *   Asegúrate de que `PubkeyAuthentication` esté en `yes`.
+
+    Guarda el archivo (Ctrl+X, luego Y, luego Enter en `nano`) y reinicia el servicio SSH para aplicar los cambios:
+    ```bash
+    sudo systemctl restart ssh.service
+    ```
+    **Importante:** ¡Asegúrate de que puedes conectar con el nuevo puerto (`ssh -p 2299 yourusername@your_host_ip`) *antes* de desconectar tu sesión actual! Si algo falla, puedes revertir los cambios en `sshd_config`.
+
+### Configuración del Firewall (UFW)
+
+6.  **Instalar y configurar UFW:**
+    ```bash
+    sudo apt install ufw
+    # Permite el nuevo puerto SSH (¡MUY IMPORTANTE!)
+    sudo ufw allow 2299/tcp # Usa el puerto que configuraste en sshd_config
+    # Permite tráfico web estándar
+    sudo ufw allow http 
+    sudo ufw allow https
+    # Habilita el firewall
+    sudo ufw enable 
+    # Verifica el estado
+    sudo ufw status verbose
+    ```
+    Esto establece reglas básicas. Asegúrate de abrir otros puertos si tu aplicación los necesita.
+
+Con estos pasos, tu servidor tiene una configuración base más segura. Ahora puedes proceder con el despliegue específico de la aplicación Duelo de Plumas.
+
 ## Despliegue a Producción
 
 1. **Preparación del Servidor:**
@@ -141,6 +219,11 @@ Sitio web minimalista para la gestión y participación en concursos literarios.
    # Clonar el repositorio
    git clone https://github.com/tu-usuario/duelo-de-plumas.git
    cd duelo-de-plumas
+   # Nota sobre estructura de directorios para múltiples sitios:
+   # Si planeas alojar múltiples sitios, es una buena práctica clonar
+   # la aplicación dentro de una estructura como /var/www/tu-dominio.com/app
+   # Asegúrate de que el usuario que ejecutará la aplicación (p. ej., www-data)
+   # tenga los permisos adecuados: sudo chown -R www-data:www-data /var/www/tu-dominio.com && sudo chmod -R 755 /var/www/tu-dominio.com
    
    # Crear entorno virtual
    python -m venv venv

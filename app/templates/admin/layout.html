@@ -5,6 +5,7 @@
 {% block content %}
     <h2>{% block admin_heading %}Panel de Administración{% endblock %}</h2>
     
+    {% if request.path != url_for('admin.ai_evaluation_costs') %}
     <div class="admin-nav-container mb-4">
         <ul class="nav nav-pills nav-fill gap-2 p-1 small bg-white rounded-5 shadow-sm">
             <li class="nav-item">
@@ -21,6 +22,7 @@
             </li>
         </ul>
     </div>
+    {% endif %}
     
     {% block admin_content %}{% endblock %}
 {% endblock %} 

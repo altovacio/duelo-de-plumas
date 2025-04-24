@@ -1,5 +1,7 @@
 import markdown
 from flask import Blueprint, current_app
+from datetime import datetime
+import locale
 
 # Create a blueprint for filters
 filters_bp = Blueprint('filters', __name__)
@@ -26,4 +28,35 @@ def markdown_filter(text):
         ]
         
         return markdown.markdown(text, extensions=extensions)
-    return "" 
+    return ""
+
+@filters_bp.app_template_filter('human_date')
+def human_date_filter(date, with_time=False):
+    """
+    Format a date in a human-readable format.
+    
+    Parameters:
+    date (datetime): The date to format
+    with_time (bool): Whether to include the time
+    
+    Returns:
+    str: A formatted date string
+    """
+    if not date:
+        return ""
+    
+    try:
+        # Set locale to Spanish
+        locale.setlocale(locale.LC_TIME, 'es_ES.UTF-8')
+    except locale.Error:
+        # Fallback if Spanish locale is not available
+        try:
+            locale.setlocale(locale.LC_TIME, 'es_ES')
+        except locale.Error:
+            pass
+    
+    # Format based on whether we want time included
+    if with_time:
+        return date.strftime('%d de %B de %Y - %H:%M')
+    else:
+        return date.strftime('%d de %B de %Y') 

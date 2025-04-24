@@ -18,14 +18,36 @@
                                 {% if contest.contest_type == 'private' %}<span class="private-badge">Privado</span>{% endif %}
                             </h4>
                         </div>
+                        
+                        {# Add contest description - new section #}
+                        <div class="contest-description">
+                            {% if contest.description %}
+                                {{ contest.description|truncate(150) }}
+                            {% else %}
+                                <em>No hay descripción disponible para este concurso.</em>
+                            {% endif %}
+                        </div>
+                        
                         <div class="contest-meta">
                             {% if contest.status == 'open' %}
-                                <span class="meta-date">📅 Fecha Límite: {{ contest.end_date.strftime('%d/%m/%Y %H:%M') }} UTC</span>
+                                <span class="meta-date">📅 Fecha Límite: {{ contest.end_date|human_date(with_time=True) }}</span>
                             {% elif contest.status == 'evaluation' %}
-                                <span class="meta-date">⏳ Evaluación en progreso (Finalizó: {{ contest.end_date.strftime('%d/%m/%Y') }})</span>
+                                <span class="meta-date">⏳ Evaluación en progreso (Finalizó: {{ contest.end_date|human_date }})</span>
                              {% elif contest.status == 'closed' %}
-                                <span class="meta-date">📅 Finalizado: {{ contest.end_date.strftime('%d/%m/%Y') }}</span>
+                                <span class="meta-date">📅 Finalizado: {{ contest.end_date|human_date }}</span>
                             {% endif %}
+                            
+                            {# Add contest statistics - new section #}
+                            <div class="meta-stats">
+                                <span class="meta-stat">
+                                    <i class="fas fa-users"></i> {{ contest.submissions.count() }} participantes
+                                </span>
+                                {% if contest.word_limit %}
+                                <span class="meta-stat">
+                                    <i class="fas fa-align-left"></i> Límite: {{ contest.word_limit }} palabras
+                                </span>
+                                {% endif %}
+                            </div>
                         </div>
                         
                         {# Only show results for PUBLIC closed contests #}
@@ -65,7 +87,7 @@
                 {% endfor %}
             </ul>
         {% else %}
-            <p class="no-contests">No hay concursos abiertos actualmente.</p>
+            <p class="no-contests">No hay concursos {{ status_title|lower }} actualmente.</p>
         {% endif %}
     </section>
 {% endmacro %}
@@ -90,8 +112,28 @@
                                         {% if contest.contest_type == 'private' %}<span class="private-badge">Privado</span>{% endif %}
                                     </h4>
                                 </div>
+                                
+                                <div class="contest-description">
+                                    {% if contest.description %}
+                                        {{ contest.description|truncate(150) }}
+                                    {% else %}
+                                        <em>No hay descripción disponible para este concurso.</em>
+                                    {% endif %}
+                                </div>
+                                
                                 <div class="contest-meta">
-                                    <span class="meta-date">⏰ Evaluación requerida (Finalizó: {{ contest.end_date.strftime('%d/%m/%Y') }})</span>
+                                    <span class="meta-date">⏰ Evaluación requerida (Finalizó: {{ contest.end_date|human_date }})</span>
+                                    
+                                    <div class="meta-stats">
+                                        <span class="meta-stat">
+                                            <i class="fas fa-users"></i> {{ contest.submissions.count() }} participantes
+                                        </span>
+                                        {% if contest.word_limit %}
+                                        <span class="meta-stat">
+                                            <i class="fas fa-align-left"></i> Límite: {{ contest.word_limit }} palabras
+                                        </span>
+                                        {% endif %}
+                                    </div>
                                 </div>
                             </li>
                         {% endfor %}
@@ -103,112 +145,15 @@
             <hr class="section-divider">
         {% endif %}
 
-        {# Open contests section #}
-        <section class="contest-section">
-            <h3 class="section-title">Concursos Abiertos</h3>
-            {% if contests_open %}
-                <ul class="contest-list">
-                    {% for contest in contests_open %}
-                        <li class="contest-item {% if contest.contest_type == 'private' %}private-contest{% endif %}">
-                            <div class="contest-header">
-                                <h4 class="contest-title">
-                                    <a href="{{ url_for('contest.detail', contest_id=contest.id) }}">{{ contest.title }}</a>
-                                    {% if contest.contest_type == 'private' %}<span class="private-badge">Privado</span>{% endif %}
-                                </h4>
-                            </div>
-                            <div class="contest-meta">
-                                <span class="meta-date">📅 Fecha Límite: {{ contest.end_date.strftime('%d/%m/%Y %H:%M') }} UTC</span>
-                            </div>
-                        </li>
-                    {% endfor %}
-                </ul>
-            {% else %}
-                <p class="no-contests">No hay concursos abiertos actualmente.</p>
-            {% endif %}
-        </section>
+        {# Use the macro for contests instead of repeating the HTML #}
+        {{ contest_list(contests_open, 'Concursos Abiertos') }}
+        
         <hr class="section-divider">
         
-        {# Evaluation contests section #}
-        <section class="contest-section">
-            <h3 class="section-title">Concursos en Evaluación</h3>
-            {% if contests_evaluation %}
-                <ul class="contest-list">
-                    {% for contest in contests_evaluation %}
-                        <li class="contest-item {% if contest.contest_type == 'private' %}private-contest{% endif %}">
-                            <div class="contest-header">
-                                <h4 class="contest-title">
-                                    <a href="{{ url_for('contest.detail', contest_id=contest.id) }}">{{ contest.title }}</a>
-                                    {% if contest.contest_type == 'private' %}<span class="private-badge">Privado</span>{% endif %}
-                                </h4>
-                            </div>
-                            <div class="contest-meta">
-                                <span class="meta-date">⏳ Evaluación en progreso (Finalizó: {{ contest.end_date.strftime('%d/%m/%Y') }})</span>
-                            </div>
-                        </li>
-                    {% endfor %}
-                </ul>
-            {% else %}
-                <p class="no-contests">No hay concursos en evaluación actualmente.</p>
-            {% endif %}
-        </section>
+        {{ contest_list(contests_evaluation, 'Concursos en Evaluación') }}
+        
         <hr class="section-divider">
         
-        {# Closed contests section #}
-        <section class="contest-section">
-            <h3 class="section-title">Concursos Finalizados</h3>
-            {% if contests_closed %}
-                <ul class="contest-list">
-                    {% for contest in contests_closed %}
-                        <li class="contest-item {% if contest.contest_type == 'private' %}private-contest{% endif %}">
-                            <div class="contest-header">
-                                <h4 class="contest-title">
-                                    <a href="{{ url_for('contest.detail', contest_id=contest.id) }}">{{ contest.title }}</a>
-                                    {% if contest.contest_type == 'private' %}<span class="private-badge">Privado</span>{% endif %}
-                                </h4>
-                            </div>
-                            <div class="contest-meta">
-                                <span class="meta-date">📅 Finalizado: {{ contest.end_date.strftime('%d/%m/%Y') }}</span>
-                            </div>
-                            
-                            {# Only show results for PUBLIC closed contests #}
-                            {% if contest.contest_type == 'public' %}
-                                {% set ranked_submissions = contest.submissions.filter(Submission.final_rank != None).order_by(Submission.final_rank.asc(), Submission.total_points.desc()).all() %}
-                                {% if ranked_submissions %}
-                                    <div class="contest-results">
-                                        {% for rank in [1, 2, 3] %}
-                                            {% for sub in ranked_submissions %}
-                                                {% if sub.final_rank == rank %}
-                                                    {% if rank == 1 %}
-                                                        <div class="result-item">
-                                                            <span class="rank">1er Lugar:</span> 
-                                                            <span class="submission-title">"{{ sub.title }}"</span> 
-                                                            <span class="submission-author">por {{ sub.author_name }}</span>
-                                                        </div>
-                                                    {% elif rank == 2 %}
-                                                        <div class="result-item">
-                                                            <span class="rank">2do Lugar:</span> 
-                                                            <span class="submission-title">"{{ sub.title }}"</span> 
-                                                            <span class="submission-author">por {{ sub.author_name }}</span>
-                                                        </div>
-                                                    {% elif rank == 3 %}
-                                                        <div class="result-item">
-                                                            <span class="rank">3er Lugar:</span> 
-                                                            <span class="submission-title">"{{ sub.title }}"</span> 
-                                                            <span class="submission-author">por {{ sub.author_name }}</span>
-                                                        </div>
-                                                    {% endif %}
-                                                {% endif %}
-                                            {% endfor %}
-                                        {% endfor %}
-                                    </div>
-                                {% endif %}
-                            {% endif %}
-                        </li>
-                    {% endfor %}
-                </ul>
-            {% else %}
-                <p class="no-contests">No hay concursos finalizados.</p>
-            {% endif %}
-        </section>
+        {{ contest_list(contests_closed, 'Concursos Finalizados') }}
     </div>
 {% endblock %} 

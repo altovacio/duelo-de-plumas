@@ -11,29 +11,29 @@
 }
 .judge-box {
     flex: 1;
-    border: 1px solid #dee2e6;
-    border-radius: 5px;
+    border: 1px solid #e0d8c9;
+    border-radius: 4px;
     padding: 15px;
 }
 .ai-judges {
-    background-color: #f8f4ff;
+    background-color: #f5f2ec;
 }
 .ai-judges h4 {
-    color: #8e44ad;
+    color: #a07d41;
     margin-top: 0;
     margin-bottom: 15px;
     padding-bottom: 8px;
-    border-bottom: 1px solid #e5d8f0;
+    border-bottom: 1px solid #e6dcc9;
 }
 .human-judges {
-    background-color: #f5f9ff;
+    background-color: #f2f5ec;
 }
 .human-judges h4 {
-    color: #3498db;
+    color: #5e6b4c;
     margin-top: 0;
     margin-bottom: 15px;
     padding-bottom: 8px;
-    border-bottom: 1px solid #d4e5f7;
+    border-bottom: 1px solid #dce6d0;
 }
 .judges-list {
     max-height: 300px;
@@ -42,7 +42,7 @@
 }
 .judge-item {
     padding: 8px 0;
-    border-bottom: 1px dotted #eee;
+    border-bottom: 1px dotted #e0d8c9;
 }
 .judge-item:last-child {
     border-bottom: none;
@@ -57,11 +57,11 @@
 }
 .judge-actions {
     padding-top: 10px;
-    border-top: 1px solid #dee2e6;
+    border-top: 1px solid #e0d8c9;
     text-align: center;
 }
 .no-judges {
-    color: #6c757d;
+    color: #665e54;
     font-style: italic;
     text-align: center;
     padding: 15px 0;
@@ -69,25 +69,29 @@
 .small-link {
     font-size: 13px;
     text-decoration: none;
+    color: #5e6b4c;
+}
+.small-link:hover {
+    color: #44513a;
 }
 .judge-search {
     width: 100%;
     padding: 8px;
     margin-bottom: 10px;
-    border: 1px solid #ddd;
+    border: 1px solid #e0d8c9;
     border-radius: 4px;
 }
 .ai-model-selector {
     margin-top: 8px;
     margin-left: 25px;
     padding: 8px;
-    background-color: #f8f8ff;
+    background-color: #f7f5f0;
     border-radius: 4px;
-    border: 1px solid #e5e5f7;
+    border: 1px solid #e0d8c9;
 }
 .add-judge-btn {
     margin-top: 8px;
-    background-color: #8e44ad;
+    background-color: #a07d41;
     color: white;
     border: none;
     padding: 6px 10px;
@@ -96,7 +100,7 @@
     font-size: 14px;
 }
 .human-add-btn {
-    background-color: #3498db;
+    background-color: #5e6b4c;
     margin-left: 25px;
 }
 .add-judge-btn:hover {
@@ -104,17 +108,17 @@
 }
 .selected-judges {
     margin-bottom: 20px;
-    border: 1px solid #dee2e6;
-    border-radius: 5px;
+    border: 1px solid #e0d8c9;
+    border-radius: 4px;
     padding: 15px;
-    background-color: #fffaf0;
+    background-color: #f9f7f3;
 }
 .selected-judges h4 {
-    color: #d35400;
+    color: #a3423c;
     margin-top: 0;
     margin-bottom: 15px;
     padding-bottom: 8px;
-    border-bottom: 1px solid #f7e5d4;
+    border-bottom: 1px solid #ead8d5;
 }
 .selected-judges-list {
     display: flex;
@@ -126,37 +130,37 @@
     display: flex;
     align-items: center;
     background-color: #fff;
-    border: 1px solid #eee;
+    border: 1px solid #e0d8c9;
     border-radius: 20px;
     padding: 5px 12px;
     font-size: 14px;
 }
 .selected-judge-item.ai {
-    background-color: #f8f4ff;
-    border-color: #e5d8f0;
+    background-color: #f5f2ec;
+    border-color: #e6dcc9;
 }
 .selected-judge-item.human {
-    background-color: #f5f9ff;
-    border-color: #d4e5f7;
+    background-color: #f2f5ec;
+    border-color: #dce6d0;
 }
 .selected-judge-item .model-name {
     font-size: 12px;
-    color: #8e44ad;
+    color: #a07d41;
     margin-left: 5px;
 }
 .remove-judge {
     background: none;
     border: none;
-    color: #999;
+    color: #665e54;
     margin-left: 8px;
     cursor: pointer;
     font-size: 16px;
 }
 .remove-judge:hover {
-    color: #d9534f;
+    color: #a3423c;
 }
 .no-judges-selected {
-    color: #6c757d;
+    color: #665e54;
     font-style: italic;
     text-align: center;
     padding: 15px 0;

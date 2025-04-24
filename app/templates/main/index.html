@@ -25,9 +25,30 @@
                                     {% if contest.contest_type == 'private' %}<span class="private-badge">Privado</span>{% endif %}
                                 </h4>
                             </div>
-                             <div class="contest-meta">
-                                <span class="meta-date">⏰ Evaluación requerida (Finalizó: {{ contest.end_date.strftime('%d/%m/%Y') }})</span>
+                            
+                            <div class="contest-description">
+                                {% if contest.description %}
+                                    {{ contest.description|truncate(150) }}
+                                {% else %}
+                                    <em>No hay descripción disponible para este concurso.</em>
+                                {% endif %}
                             </div>
+                             
+                            <div class="contest-meta">
+                                <span class="meta-date">⏰ Evaluación requerida (Finalizó: {{ contest.end_date|human_date }})</span>
+                                
+                                <div class="meta-stats">
+                                    <span class="meta-stat">
+                                        <i class="fas fa-users"></i> {{ contest.submissions.count() }} participantes
+                                    </span>
+                                    {% if contest.word_limit %}
+                                    <span class="meta-stat">
+                                        <i class="fas fa-align-left"></i> Límite: {{ contest.word_limit }} palabras
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
                             {# Add link to evaluation page #}
                             <a href="{{ url_for('contest.evaluate_contest', contest_id=contest.id) }}" class="button button-small">Evaluar Ahora</a>
                         </li>
@@ -50,29 +71,35 @@
                                     {% if contest.contest_type == 'private' %}<span class="private-badge">Privado</span>{% endif %}
                                 </h4>
                             </div>
-                            <div class="contest-meta">
-                                <span class="meta-date">Estado: {{ contest.status }} | Fin: {{ contest.end_date.strftime('%d/%m/%Y') }}</span>
+                            
+                            <div class="contest-description">
+                                {% if contest.description %}
+                                    {{ contest.description|truncate(150) }}
+                                {% else %}
+                                    <em>No hay descripción disponible para este concurso.</em>
+                                {% endif %}
                             </div>
+                            
+                            <div class="contest-meta">
+                                <span class="meta-date">Estado: {{ contest.status }} | Fin: {{ contest.end_date|human_date }}</span>
+                                
+                                <div class="meta-stats">
+                                    <span class="meta-stat">
+                                        <i class="fas fa-users"></i> {{ contest.submissions.count() }} participantes
+                                    </span>
+                                    {% if contest.word_limit %}
+                                    <span class="meta-stat">
+                                        <i class="fas fa-align-left"></i> Límite: {{ contest.word_limit }} palabras
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
                             <a href="{{ url_for('contest.list_submissions', contest_id=contest.id) }}" class="button button-small button-ai">Ejecutar Evaluación de IA</a>
                         </li>
                     {% endfor %}
                 </ul>
             </section>
-            <style>
-                .ai-pending h3 {
-                    color: #8e44ad;
-                }
-                .ai-pending h3 i {
-                    margin-right: 8px;
-                }
-                .button-ai {
-                    background-color: #8e44ad;
-                    color: white;
-                }
-                .button-ai:hover {
-                    background-color: #9b59b6;
-                }
-            </style>
             <hr class="section-divider">
         {% endif %}
 
@@ -82,13 +109,11 @@
         <hr class="section-divider">
 
         {# Use the macro for recently closed contests #}
-        {# Note: The route currently fetches all closed contests, but the macro handles displaying results only for public ones #}
-        {# We pass only the first 3 closed contests for brevity on the index page #}
-        {{ contest_list(closed_contests[:3], 'Concursos Recién Finalizados') }}
+        {{ contest_list(closed_contests[:3], 'Concursos Finalizados Recientemente') }}
         
         {# Link to the main contests page if there are more closed contests than shown #}
         {% if closed_contests|length > 3 %}
-            <p style="text-align: right;"><a href="{{ url_for('main.list_contests') }}">Ver todos los concursos finalizados...</a></p>
+            <p style="text-align: right;"><a href="{{ url_for('main.list_contests') }}" class="button button-small">Ver todos los concursos finalizados</a></p>
         {% endif %}
     
     </div> {# End contests-container #}

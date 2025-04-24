@@ -27,9 +27,7 @@
                         <td>{{ submission.submission_date.strftime('%Y-%m-%d %H:%M') }}</td>
                         <td class="actions-cell">
                             <button type="button" class="view-full-text-btn button button-small" 
-                                    data-fulltext="{{ submission.text_content | markdown | safe }}" 
-                                    data-title="{{ submission.title }}" 
-                                    data-author="{{ submission.author_name }}">
+                                    data-submission-id="{{ submission.id }}">
                                     Ver Texto
                             </button>
                             
@@ -45,6 +43,19 @@
                 {% endfor %}
             </tbody>
         </table>
+        
+        {# Hidden data for JavaScript to read #}
+        <script type="application/json" id="submission-data">
+            {
+                {% for submission in submissions %}
+                    "{{ submission.id }}": {
+                        "title": {{ submission.title|tojson|safe }},
+                        "author": {{ submission.author_name|tojson|safe }},
+                        "content": {{ submission.text_content|markdown|tojson|safe }}
+                    }{% if not loop.last %},{% endif %}
+                {% endfor %}
+            }
+        </script>
     {% else %}
         <p>Todavía no hay envíos para este concurso.</p>
     {% endif %}
@@ -147,17 +158,31 @@
             return;
         }
 
+        // Get submission data from the hidden JSON script tag
+        let submissionData = {};
+        try {
+            const dataElement = document.getElementById('submission-data');
+            if (dataElement) {
+                submissionData = JSON.parse(dataElement.textContent);
+            }
+        } catch (error) {
+            console.error('Error parsing submission data:', error);
+        }
+
         document.querySelectorAll('.view-full-text-btn').forEach(button => {
             button.addEventListener('click', function() {
-                const fullText = this.getAttribute('data-fulltext');
-                const title = this.getAttribute('data-title');
-                const author = this.getAttribute('data-author');
+                const submissionId = this.getAttribute('data-submission-id');
+                const data = submissionData[submissionId];
                 
-                modalTitle.textContent = title;
-                modalAuthor.textContent = 'por ' + author;
-                modalText.innerHTML = fullText; // Render pre-formatted markdown
-                modal.style.display = 'flex';
-                document.body.style.overflow = 'hidden'; // Prevent background scroll
+                if (data) {
+                    modalTitle.textContent = data.title;
+                    modalAuthor.textContent = 'por ' + data.author;
+                    modalText.innerHTML = data.content; // Render pre-formatted markdown
+                    modal.style.display = 'flex';
+                    document.body.style.overflow = 'hidden'; // Prevent background scroll
+                } else {
+                    console.error('Submission data not found for ID:', submissionId);
+                }
             });
         });
 

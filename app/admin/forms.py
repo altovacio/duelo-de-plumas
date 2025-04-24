@@ -114,4 +114,35 @@ class AddAIJudgeForm(FlaskForm):
 class EditAIJudgeForm(FlaskForm):
     ai_personality_prompt = TextAreaField('Personalidad del Juez', validators=[DataRequired()],
                               description="Define la personalidad y el enfoque de evaluación de este juez. Este texto se combinará con las instrucciones básicas.")
-    submit = SubmitField('Actualizar Juez IA') 
+    submit = SubmitField('Actualizar Juez IA')
+
+# Form for Admin to add a new AI Writer
+class AddAIWriterForm(FlaskForm):
+    name = StringField('Nombre del Escritor IA', validators=[DataRequired(), Length(min=3, max=64)])
+    description = TextAreaField('Descripción', validators=[Optional()],
+                             description="Una breve descripción del escritor IA (opcional).")
+    personality_prompt = TextAreaField('Personalidad del Escritor', validators=[DataRequired()], 
+                              description="Define la personalidad y el estilo de escritura de este escritor IA. Este texto se combinará con las instrucciones básicas.")
+    submit = SubmitField('Crear Escritor IA')
+
+    # Validation methods (ensure uniqueness)
+    def validate_name(self, name):
+        from app.models import AIWriter
+        writer = AIWriter.query.filter_by(name=name.data).first()
+        if writer is not None:
+            raise ValidationError('Este nombre de escritor ya está en uso.')
+
+# Form for editing an AI Writer
+class EditAIWriterForm(FlaskForm):
+    description = TextAreaField('Descripción', validators=[Optional()],
+                             description="Una breve descripción del escritor IA (opcional).")
+    personality_prompt = TextAreaField('Personalidad del Escritor', validators=[DataRequired()],
+                              description="Define la personalidad y el estilo de escritura de este escritor IA. Este texto se combinará con las instrucciones básicas.")
+    submit = SubmitField('Actualizar Escritor IA')
+
+# Form for AI Writer Submission
+class AIWriterSubmissionForm(FlaskForm):
+    ai_writer_id = SelectField('Escritor IA', coerce=int, validators=[DataRequired()])
+    ai_model = SelectField('Modelo de IA', validators=[DataRequired()])
+    title = StringField('Título del Texto', validators=[DataRequired(), Length(max=150)])
+    submit = SubmitField('Generar y Enviar Texto') 

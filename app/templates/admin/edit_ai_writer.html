@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Duelo de Plumas{% endblock %}
+
+{% block content %}
+    <h2>{{ title }}: {{ writer.name }}</h2>
+    <p>Edita la configuración del escritor de IA.</p>
+    
+    <form method="post" class="styled-form">
+        {{ form.hidden_tag() }}
+        
+        <div class="form-group">
+            <label>Nombre del Escritor</label>
+            <input type="text" class="form-control" value="{{ writer.name }}" disabled>
+            <small class="form-text text-muted">El nombre no se puede cambiar una vez creado.</small>
+        </div>
+        
+        <div class="form-group">
+            {{ form.description.label }}
+            {% if form.description.description %}
+                <small class="form-text text-muted">{{ form.description.description }}</small>
+            {% endif %}
+            {{ form.description(class="form-control", rows=3) }}
+            {% for error in form.description.errors %}
+                <span class="error-message">{{ error }}</span>
+            {% endfor %}
+        </div>
+        
+        <div class="form-group">
+            {{ form.personality_prompt.label }}
+            {% if form.personality_prompt.description %}
+                <small class="form-text text-muted">{{ form.personality_prompt.description }}</small>
+            {% endif %}
+            {{ form.personality_prompt(class="form-control", rows=10) }}
+            {% for error in form.personality_prompt.errors %}
+                <span class="error-message">{{ error }}</span>
+            {% endfor %}
+        </div>
+        
+        <div class="form-actions">
+            <a href="{{ url_for('admin.list_ai_writers') }}" class="button button-secondary">Cancelar</a>
+            {{ form.submit(class="button") }}
+        </div>
+    </form>
+{% endblock %} 

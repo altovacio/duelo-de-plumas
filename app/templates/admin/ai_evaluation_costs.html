@@ -2,7 +2,7 @@
 
 {% block admin_title %}AI Evaluation Costs{% endblock %}
 
-{% block admin_heading %}Costos de Evaluaciones IA{% endblock %}
+{% block admin_heading %}Costos de Usos de IA{% endblock %}
 
 {% block admin_content %}
 <div class="container-fluid p-0">
@@ -10,8 +10,12 @@
         <div class="col-md-4">
             <div class="card shadow-sm">
                 <div class="card-body">
-                    <h5 class="card-title">Total Cost</h5>
+                    <h5 class="card-title">Costo Total</h5>
                     <h2 class="text-primary">${{ "%.2f"|format(total_cost) }}</h2>
+                    <div class="small text-muted">
+                        Jueces: ${{ "%.2f"|format(judge_cost) }} | 
+                        Escritores: ${{ "%.2f"|format(writer_cost) }}
+                    </div>
                 </div>
             </div>
         </div>
@@ -35,48 +39,110 @@
     
     <div class="card shadow-sm mb-4">
         <div class="card-body">
-            <h5 class="card-title mb-4">Cost Breakdown by Model</h5>
+            <h5 class="card-title mb-4">Desglose de Costos por Modelo</h5>
             <canvas id="costChart" width="400" height="200"></canvas>
         </div>
     </div>
     
-    <div class="card shadow-sm">
-        <div class="card-body">
-            <h5 class="card-title mb-3">AI Evaluations</h5>
-            <div class="table-responsive">
-                <table class="table table-striped">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Judge</th>
-                            <th>Model</th>
-                            <th>Prompt Tokens</th>
-                            <th>Completion Tokens</th>
-                            <th>Cost</th>
-                            <th>Date</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for eval in evaluations %}
-                        <tr>
-                            <td>{{ eval.id }}</td>
-                            <td>{{ eval.judge.username }}</td>
-                            <td>{{ eval.ai_model }}</td>
-                            <td>{{ eval.prompt_tokens }}</td>
-                            <td>{{ eval.completion_tokens }}</td>
-                            <td>${{ "%.4f"|format(eval.cost) }}</td>
-                            <td>{{ eval.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
-                            <td>
-                                <a href="{{ url_for('admin.view_ai_evaluation', evaluation_id=eval.id) }}" 
-                                   class="btn btn-sm btn-info">
-                                    Ver Detalles
-                                </a>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+    <!-- Tabs for Judge Evaluations and Writer Requests -->
+    <ul class="nav nav-tabs mb-3" id="costTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="judges-tab" data-bs-toggle="tab" data-bs-target="#judges-content" type="button" role="tab" aria-controls="judges-content" aria-selected="true">
+                Evaluaciones de Jueces (${{ "%.2f"|format(judge_cost) }})
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="writers-tab" data-bs-toggle="tab" data-bs-target="#writers-content" type="button" role="tab" aria-controls="writers-content" aria-selected="false">
+                Textos de Escritores (${{ "%.2f"|format(writer_cost) }})
+            </button>
+        </li>
+    </ul>
+    
+    <div class="tab-content" id="costTabsContent">
+        <!-- Judge Evaluations Tab -->
+        <div class="tab-pane fade show active" id="judges-content" role="tabpanel" aria-labelledby="judges-tab">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Evaluaciones de Jueces IA</h5>
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Juez</th>
+                                    <th>Modelo</th>
+                                    <th>Prompt Tokens</th>
+                                    <th>Completion Tokens</th>
+                                    <th>Costo</th>
+                                    <th>Fecha</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for eval in judge_evaluations %}
+                                <tr>
+                                    <td>{{ eval.id }}</td>
+                                    <td>{{ eval.judge.username }}</td>
+                                    <td>{{ eval.ai_model }}</td>
+                                    <td>{{ eval.prompt_tokens }}</td>
+                                    <td>{{ eval.completion_tokens }}</td>
+                                    <td>${{ "%.4f"|format(eval.cost) }}</td>
+                                    <td>{{ eval.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+                                    <td>
+                                        <a href="{{ url_for('admin.view_ai_evaluation', evaluation_id=eval.id) }}" 
+                                           class="btn btn-sm btn-info">
+                                            Ver Detalles
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Writer Requests Tab -->
+        <div class="tab-pane fade" id="writers-content" role="tabpanel" aria-labelledby="writers-tab">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Textos Generados por Escritores IA</h5>
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Escritor</th>
+                                    <th>Concurso</th>
+                                    <th>Modelo</th>
+                                    <th>Prompt Tokens</th>
+                                    <th>Completion Tokens</th>
+                                    <th>Costo</th>
+                                    <th>Fecha</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for req in writer_requests %}
+                                <tr>
+                                    <td>{{ req.id }}</td>
+                                    <td>{{ req.ai_writer.name }}</td>
+                                    <td>
+                                        <a href="{{ url_for('contest.detail', contest_id=req.contest_id) }}">
+                                            {{ req.contest.title }}
+                                        </a>
+                                    </td>
+                                    <td>{{ req.ai_model }}</td>
+                                    <td>{{ req.prompt_tokens }}</td>
+                                    <td>{{ req.completion_tokens }}</td>
+                                    <td>${{ "%.4f"|format(req.cost) }}</td>
+                                    <td>{{ req.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

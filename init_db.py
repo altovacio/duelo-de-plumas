@@ -26,6 +26,13 @@ except ImportError:
     def create_ai_judges(): print("Skipping AI judges seeding...") # Placeholder
 
 try:
+    # Import seed_ai_writers.py function
+    from seed_ai_writers import create_ai_writers
+except ImportError:
+    print("Warning: Could not import 'seed_ai_writers'. Skipping AI writers seeding.")
+    def create_ai_writers(): print("Skipping AI writers seeding...") # Placeholder
+
+try:
     from seed_contest import run_seeding as run_seed_contest
 except ImportError:
     print("Error: Could not import 'seed_contest'. Cannot seed contest data.")
@@ -48,7 +55,13 @@ def initialize_database():
     except Exception as e:
         print(f"Error during AI judges seeding: {e}")
 
-    print("\nStep 3: Seeding Contest Data...")
+    print("\nStep 3: Seeding AI Writers...")
+    try:
+        create_ai_writers()
+    except Exception as e:
+        print(f"Error during AI writers seeding: {e}")
+
+    print("\nStep 4: Seeding Contest Data...")
     try:
         run_seed_contest()
     except Exception as e:

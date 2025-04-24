@@ -2,12 +2,13 @@ from flask import render_template, flash, redirect, url_for, request, abort, ses
 from flask_login import login_required, current_user
 from app import db
 from app.admin import bp
-from app.admin.forms import ContestForm, AddJudgeForm, AddAIJudgeForm, EditAIJudgeForm, ResetContestPasswordForm
-from app.models import Contest, Submission, User, Vote, AIEvaluation, contest_judges
+from app.admin.forms import ContestForm, AddJudgeForm, AddAIJudgeForm, EditAIJudgeForm, ResetContestPasswordForm, AddAIWriterForm, EditAIWriterForm
+from app.models import Contest, Submission, User, Vote, AIEvaluation, contest_judges, AIWriter, AIWritingRequest
 from app.decorators import admin_required
 from app.config.ai_judge_params import AI_MODELS, AI_MODELS_RAW
 from datetime import datetime, timezone
 from sqlalchemy.exc import SQLAlchemyError
+from app.services.ai_writer_service import generate_text
 
 @bp.route('/')
 @login_required
@@ -496,27 +497,53 @@ def delete_ai_judge(judge_id):
 @login_required
 @admin_required
 def ai_evaluation_costs():
-    """Display the costs of AI evaluations"""
-    evaluations = AIEvaluation.query.order_by(AIEvaluation.timestamp.desc()).all()
+    """Display the costs of AI evaluations and AI writing"""
+    # Get AI judge evaluations
+    judge_evaluations = AIEvaluation.query.order_by(AIEvaluation.timestamp.desc()).all()
     
-    total_cost = sum(eval.cost for eval in evaluations) if evaluations else 0
-    total_prompt_tokens = sum(eval.prompt_tokens for eval in evaluations) if evaluations else 0
-    total_completion_tokens = sum(eval.completion_tokens for eval in evaluations) if evaluations else 0
+    # Get AI writer requests
+    writer_requests = AIWritingRequest.query.order_by(AIWritingRequest.timestamp.desc()).all()
     
-    # Calculate costs by model
+    # Calculate judge evaluation totals
+    judge_cost = sum(eval.cost for eval in judge_evaluations) if judge_evaluations else 0
+    judge_prompt_tokens = sum(eval.prompt_tokens for eval in judge_evaluations) if judge_evaluations else 0
+    judge_completion_tokens = sum(eval.completion_tokens for eval in judge_evaluations) if judge_evaluations else 0
+    
+    # Calculate writer request totals
+    writer_cost = sum(req.cost for req in writer_requests) if writer_requests else 0
+    writer_prompt_tokens = sum(req.prompt_tokens for req in writer_requests) if writer_requests else 0
+    writer_completion_tokens = sum(req.completion_tokens for req in writer_requests) if writer_requests else 0
+    
+    # Combined totals
+    total_cost = judge_cost + writer_cost
+    total_prompt_tokens = judge_prompt_tokens + writer_prompt_tokens
+    total_completion_tokens = judge_completion_tokens + writer_completion_tokens
+    
+    # Calculate costs by model for judges
     model_costs = {}
-    for eval in evaluations:
-        if eval.ai_model not in model_costs:
-            model_costs[eval.ai_model] = 0
-        model_costs[eval.ai_model] += eval.cost
+    for eval in judge_evaluations:
+        model_key = f"{eval.ai_model} (Juez)"
+        if model_key not in model_costs:
+            model_costs[model_key] = 0
+        model_costs[model_key] += eval.cost
+    
+    # Calculate costs by model for writers
+    for req in writer_requests:
+        model_key = f"{req.ai_model} (Escritor)"
+        if model_key not in model_costs:
+            model_costs[model_key] = 0
+        model_costs[model_key] += req.cost
     
     # Prepare data for chart - convert to JSON-ready lists
     model_names = list(model_costs.keys())
     model_costs_values = [model_costs[model] for model in model_names]
     
     return render_template('admin/ai_evaluation_costs.html', 
-                          evaluations=evaluations,
+                          judge_evaluations=judge_evaluations,
+                          writer_requests=writer_requests,
                           total_cost=total_cost,
+                          judge_cost=judge_cost,
+                          writer_cost=writer_cost,
                           total_prompt_tokens=total_prompt_tokens,
                           total_completion_tokens=total_completion_tokens,
                           model_names=model_names,
@@ -535,6 +562,145 @@ def view_ai_evaluation(evaluation_id):
     return render_template('admin/view_ai_evaluation.html',
                           title='Detalles de Evaluación de IA',
                           evaluation=evaluation)
+
+@bp.route('/users/ai_writers')
+@login_required
+@admin_required
+def list_ai_writers():
+    ai_writers = db.session.scalars(
+        db.select(AIWriter).order_by(AIWriter.name)
+    ).all()
+    return render_template('admin/list_ai_writers.html', title='Escritores de IA', ai_writers=ai_writers)
+
+@bp.route('/users/add_ai_writer', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def add_ai_writer():
+    form = AddAIWriterForm()
+    if form.validate_on_submit():
+        # Try creating the AI writer
+        try:
+            ai_writer = AIWriter(
+                name=form.name.data,
+                description=form.description.data,
+                personality_prompt=form.personality_prompt.data
+            )
+            db.session.add(ai_writer)
+            db.session.commit()
+            
+            flash(f'Escritor de IA "{ai_writer.name}" creado exitosamente.', 'success')
+            return redirect(url_for('admin.list_ai_writers'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error al crear escritor de IA: {e}', 'danger')
+    
+    return render_template('admin/add_ai_writer.html', title='Agregar Escritor de IA', form=form)
+
+@bp.route('/users/edit_ai_writer/<int:writer_id>', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def edit_ai_writer(writer_id):
+    ai_writer = db.session.get(AIWriter, writer_id)
+    if not ai_writer:
+        abort(404)
+    
+    form = EditAIWriterForm(obj=ai_writer)
+    
+    if form.validate_on_submit():
+        try:
+            # Update the AI writer
+            ai_writer.description = form.description.data
+            ai_writer.personality_prompt = form.personality_prompt.data
+            db.session.commit()
+            
+            flash(f'Escritor de IA "{ai_writer.name}" actualizado exitosamente.', 'success')
+            return redirect(url_for('admin.list_ai_writers'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error al actualizar escritor de IA: {e}', 'danger')
+    
+    return render_template('admin/edit_ai_writer.html', title='Editar Escritor de IA', form=form, writer=ai_writer)
+
+@bp.route('/users/delete_ai_writer/<int:writer_id>', methods=['POST'])
+@login_required
+@admin_required
+def delete_ai_writer(writer_id):
+    ai_writer = db.session.get(AIWriter, writer_id)
+    if not ai_writer:
+        abort(404)
+    
+    try:
+        # Check if the writer has been used for any submissions
+        submission_count = db.session.scalar(
+            db.select(db.func.count()).where(Submission.ai_writer_id == ai_writer.id)
+        )
+        
+        if submission_count > 0:
+            flash(f'No se puede eliminar el escritor porque ha generado {submission_count} textos.', 'danger')
+            return redirect(url_for('admin.list_ai_writers'))
+        
+        # Delete the writer
+        db.session.delete(ai_writer)
+        db.session.commit()
+        flash(f'Escritor de IA "{ai_writer.name}" eliminado exitosamente.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error al eliminar escritor de IA: {e}', 'danger')
+    
+    return redirect(url_for('admin.list_ai_writers'))
+
+@bp.route('/contests/<int:contest_id>/ai_submission', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def ai_writer_submission(contest_id):
+    from app.admin.forms import AIWriterSubmissionForm
+    
+    contest = db.session.get(Contest, contest_id)
+    if not contest:
+        abort(404)
+    
+    # Check if contest is open for submissions
+    if contest.status != 'open':
+        flash('Solo se pueden generar textos para concursos abiertos.', 'danger')
+        return redirect(url_for('admin.list_contests'))
+    
+    # Get all AI writers
+    ai_writers = db.session.scalars(db.select(AIWriter).order_by(AIWriter.name)).all()
+    
+    if not ai_writers:
+        flash('No hay escritores de IA disponibles. Por favor, cree al menos uno.', 'danger')
+        return redirect(url_for('admin.add_ai_writer'))
+    
+    # Initialize form
+    form = AIWriterSubmissionForm()
+    
+    # Populate select fields
+    form.ai_writer_id.choices = [(w.id, w.name) for w in ai_writers]
+    
+    # Get available AI models
+    available_models = [m for m in AI_MODELS_RAW if m.get('available', True)]
+    form.ai_model.choices = [(m['id'], m['name']) for m in available_models]
+    
+    if form.validate_on_submit():
+        result = generate_text(
+            contest_id=contest.id,
+            ai_writer_id=form.ai_writer_id.data,
+            model_id=form.ai_model.data,
+            title=form.title.data
+        )
+        
+        if result['success']:
+            flash(f'Texto generado y enviado exitosamente: {form.title.data}', 'success')
+            return redirect(url_for('contest.detail', contest_id=contest.id))
+        else:
+            flash(f'Error al generar texto: {result["message"]}', 'danger')
+    
+    return render_template(
+        'admin/ai_writer_submission.html',
+        title=f'Generar Texto con IA para {contest.title}',
+        form=form,
+        contest=contest
+    )
 
 # Add route for listing users later maybe
 # @bp.route('/users')

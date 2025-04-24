@@ -22,6 +22,13 @@
 
         {% if is_open %}
             <h3>Enviar tu Texto</h3>
+            
+            {% if current_user.is_authenticated and current_user.is_admin() %}
+                <div class="admin-actions">
+                    <p><a href="{{ url_for('admin.ai_writer_submission', contest_id=contest.id) }}" class="button">Generar Texto con IA</a></p>
+                </div>
+            {% endif %}
+            
             {% if current_user.is_authenticated or true %} {# Placeholder: Decide if login is required #}
                 <div class="form-container">
                     <form action="{{ url_for('contest.detail', contest_id=contest.id) }}" method="post" novalidate>
@@ -88,9 +95,7 @@
                                 {{ (submission.text_content[:300] + ('...' if submission.text_content|length > 300 else '')) | markdown | safe }}
                             </div>
                             <button type="button" class="view-full-text-btn button button-small" 
-                                    data-fulltext="{{ submission.text_content | markdown | safe }}"
-                                    data-title="{{ submission.title }}"
-                                    data-author="{{ submission.author_name }}">
+                                    data-submission-id="{{ submission.id }}">
                                 Leer Texto Completo
                             </button>
 
@@ -111,6 +116,19 @@
                         {% if not loop.last %}<hr class="submission-divider">{% endif %}
                     {% endfor %}
                 </div>
+                
+                {# Hidden data for JavaScript to read #}
+                <script type="application/json" id="submission-data">
+                    {
+                        {% for submission in submissions_list %}
+                            "{{ submission.id }}": {
+                                "title": {{ submission.title|tojson|safe }},
+                                "author": {{ submission.author_name|tojson|safe }},
+                                "content": {{ submission.text_content|markdown|tojson|safe }}
+                            }{% if not loop.last %},{% endif %}
+                        {% endfor %}
+                    }
+                </script>
             {% else %}
                 <p>No hubo envíos para este concurso.</p>
             {% endif %}
@@ -227,21 +245,35 @@
     document.addEventListener('DOMContentLoaded', function() {
         const modal = document.getElementById('text-modal');
         const modalTitle = document.getElementById('modal-title');
-        const modalAuthor = document.getElementById('modal-author'); // Get author element
+        const modalAuthor = document.getElementById('modal-author'); 
         const modalText = document.getElementById('modal-text');
         const closeBtn = modal.querySelector('.modal-close-btn');
 
+        // Get submission data from the hidden JSON script tag
+        let submissionData = {};
+        try {
+            const dataElement = document.getElementById('submission-data');
+            if (dataElement) {
+                submissionData = JSON.parse(dataElement.textContent);
+            }
+        } catch (error) {
+            console.error('Error parsing submission data:', error);
+        }
+
         document.querySelectorAll('.view-full-text-btn').forEach(button => {
             button.addEventListener('click', function() {
-                const fullText = this.getAttribute('data-fulltext');
-                const title = this.getAttribute('data-title');
-                const author = this.getAttribute('data-author'); // Get author
+                const submissionId = this.getAttribute('data-submission-id');
+                const data = submissionData[submissionId];
                 
-                modalTitle.textContent = title;
-                modalAuthor.textContent = 'por ' + author; // Set author text
-                modalText.innerHTML = fullText; // Render pre-formatted markdown
-                modal.style.display = 'flex';
-                document.body.style.overflow = 'hidden'; // Prevent background scroll when modal is open
+                if (data) {
+                    modalTitle.textContent = data.title;
+                    modalAuthor.textContent = 'por ' + data.author;
+                    modalText.innerHTML = data.content; // Render pre-formatted markdown
+                    modal.style.display = 'flex';
+                    document.body.style.overflow = 'hidden'; // Prevent background scroll
+                } else {
+                    console.error('Submission data not found for ID:', submissionId);
+                }
             });
         });
 

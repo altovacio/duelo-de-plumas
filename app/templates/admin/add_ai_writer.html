@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Duelo de Plumas{% endblock %}
+
+{% block content %}
+    <h2>{{ title }}</h2>
+    <p>Crea un nuevo escritor de IA para generar textos para concursos.</p>
+    
+    <form method="post" class="styled-form">
+        {{ form.hidden_tag() }}
+        
+        <div class="form-group">
+            {{ form.name.label }}
+            {{ form.name(class="form-control") }}
+            {% for error in form.name.errors %}
+                <span class="error-message">{{ error }}</span>
+            {% endfor %}
+        </div>
+        
+        <div class="form-group">
+            {{ form.description.label }}
+            {% if form.description.description %}
+                <small class="form-text text-muted">{{ form.description.description }}</small>
+            {% endif %}
+            {{ form.description(class="form-control", rows=3) }}
+            {% for error in form.description.errors %}
+                <span class="error-message">{{ error }}</span>
+            {% endfor %}
+        </div>
+        
+        <div class="form-group">
+            {{ form.personality_prompt.label }}
+            {% if form.personality_prompt.description %}
+                <small class="form-text text-muted">{{ form.personality_prompt.description }}</small>
+            {% endif %}
+            {{ form.personality_prompt(class="form-control", rows=10) }}
+            {% for error in form.personality_prompt.errors %}
+                <span class="error-message">{{ error }}</span>
+            {% endfor %}
+        </div>
+        
+        <div class="form-actions">
+            <a href="{{ url_for('admin.list_ai_writers') }}" class="button button-secondary">Cancelar</a>
+            {{ form.submit(class="button") }}
+        </div>
+    </form>
+{% endblock %} 

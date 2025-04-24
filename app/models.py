@@ -87,6 +87,10 @@ class Submission(db.Model):
     # Fields for final results
     total_points = db.Column(db.Integer, default=0)
     final_rank = db.Column(db.Integer, nullable=True) # 1, 2, 3, 4 (HM), etc.
+    # Flag to indicate if this submission was created by an AI writer
+    is_ai_generated = db.Column(db.Boolean, default=False)
+    # Reference to the AI writer used (if any)
+    ai_writer_id = db.Column(db.Integer, db.ForeignKey('ai_writer.id'), nullable=True)
 
     def __repr__(self):
         return f'<Submission {self.title} by {self.author_name}>'
@@ -130,4 +134,38 @@ class AIEvaluation(db.Model):
     judge = db.relationship('User', backref='ai_evaluations')
     
     def __repr__(self):
-        return f'<AIEvaluation for Contest {self.contest_id} by Judge {self.judge_id}>' 
+        return f'<AIEvaluation for Contest {self.contest_id} by Judge {self.judge_id}>'
+
+class AIWriter(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(64), index=True, unique=True, nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    personality_prompt = db.Column(db.Text, nullable=False)  # Prompt defining the AI writer's persona/writing style
+    created_date = db.Column(db.DateTime, index=True, default=lambda: datetime.now(timezone.utc))
+    
+    # Relationship to submissions
+    submissions = db.relationship('Submission', backref='ai_writer', lazy='dynamic')
+    
+    def __repr__(self):
+        return f'<AIWriter {self.name}>'
+
+class AIWritingRequest(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    contest_id = db.Column(db.Integer, db.ForeignKey('contest.id'), nullable=False)
+    ai_writer_id = db.Column(db.Integer, db.ForeignKey('ai_writer.id'), nullable=False)
+    ai_model = db.Column(db.String(50), nullable=False)  # Record the specific model used
+    full_prompt = db.Column(db.Text, nullable=False)  # Store the complete prompt sent to the AI
+    response_text = db.Column(db.Text, nullable=False)  # Store the raw response from the AI
+    prompt_tokens = db.Column(db.Integer, nullable=False)  # Number of tokens in the prompt
+    completion_tokens = db.Column(db.Integer, nullable=False)  # Number of tokens in the response
+    cost = db.Column(db.Float, nullable=False)  # Cost in USD
+    submission_id = db.Column(db.Integer, db.ForeignKey('submission.id'), nullable=True)  # Link to the created submission
+    timestamp = db.Column(db.DateTime, index=True, default=lambda: datetime.now(timezone.utc))
+    
+    # Relationships
+    contest = db.relationship('Contest')
+    ai_writer = db.relationship('AIWriter')
+    submission = db.relationship('Submission')
+    
+    def __repr__(self):
+        return f'<AIWritingRequest for Contest {self.contest_id} by Writer {self.ai_writer.name}>' 

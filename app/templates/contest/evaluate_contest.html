@@ -32,8 +32,7 @@
                                     {{ (submission.text_content[:100] + '...' if submission.text_content|length > 100 else submission.text_content)|markdown|safe if submission else 'Error' }}
                                 </div>
                                 <button type="button" class="view-full-text-btn button-small" 
-                                        data-fulltext="{{ submission.text_content|markdown|safe if submission else '' }}"
-                                        data-title="{{ submission.title if submission else 'Error' }}">
+                                        data-submission-id="{{ submission.id if submission else '0' }}">
                                     Ver Texto Completo
                                 </button>
                             </td>
@@ -56,6 +55,18 @@
         </form>
     </div>
 
+    {# Hidden data for JavaScript to read #}
+    <script type="application/json" id="submission-data">
+        {
+            {% for submission in submissions %}
+                "{{ submission.id }}": {
+                    "title": {{ submission.title|tojson|safe }},
+                    "content": {{ submission.text_content|markdown|tojson|safe }}
+                }{% if not loop.last %},{% endif %}
+            {% endfor %}
+        }
+    </script>
+
     <div id="text-modal" class="modal-overlay" style="display: none;">
         <div class="modal-content">
             <button type="button" class="modal-close-btn">&times;</button>
@@ -73,14 +84,29 @@
         const modalText = document.getElementById('modal-text');
         const closeBtn = modal.querySelector('.modal-close-btn');
 
+        // Get submission data from the hidden JSON script tag
+        let submissionData = {};
+        try {
+            const dataElement = document.getElementById('submission-data');
+            if (dataElement) {
+                submissionData = JSON.parse(dataElement.textContent);
+            }
+        } catch (error) {
+            console.error('Error parsing submission data:', error);
+        }
+
         document.querySelectorAll('.view-full-text-btn').forEach(button => {
             button.addEventListener('click', function() {
-                const fullText = this.getAttribute('data-fulltext');
-                const title = this.getAttribute('data-title');
+                const submissionId = this.getAttribute('data-submission-id');
+                const data = submissionData[submissionId];
                 
-                modalTitle.textContent = title;
-                modalText.innerHTML = fullText;
-                modal.style.display = 'flex';
+                if (data) {
+                    modalTitle.textContent = data.title;
+                    modalText.innerHTML = data.content;
+                    modal.style.display = 'flex';
+                } else {
+                    console.error('Submission data not found for ID:', submissionId);
+                }
             });
         });
 

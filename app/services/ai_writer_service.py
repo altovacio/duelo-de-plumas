@@ -32,13 +32,16 @@ Por favor, crea un texto literario original que:
 1. Responda a la temática y descripción del concurso proporcionado
 2. Refleje tu estilo y personalidad como escritor
 3. Sea creativo, coherente y de calidad literaria
+4. Tenga una extensión adecuada para un concurso literario (mínimo 1500-2000 palabras para cuentos o relatos, salvo que la descripción del concurso sugiera otra cosa)
 
-El texto debe tener un título ya proporcionado y un cuerpo que constituya la obra principal.
+El texto debe tener un título ya proporcionado y un cuerpo que constituya la obra principal. Desarrolla personajes con profundidad, construye una trama completa con introducción, desarrollo y desenlace, y utiliza recursos literarios que enriquezcan la narrativa.
 </TAREA>
 
 <FORMATO_DE_RESPUESTA>
 Por favor, entrega tu texto creativo directamente, sin comentarios adicionales, explicaciones o metacomunicación.
 Simplemente escribe el texto creativo que será enviado al concurso.
+
+Si la descripción del concurso especifica límites de extensión, respétalos. De lo contrario, asegúrate de que tu texto tenga la extensión adecuada para el género literario correspondiente.
 </FORMATO_DE_RESPUESTA>
 """
 

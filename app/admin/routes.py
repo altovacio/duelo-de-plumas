@@ -681,6 +681,12 @@ def ai_writer_submission(contest_id):
     available_models = [m for m in AI_MODELS_RAW if m.get('available', True)]
     form.ai_model.choices = [(m['id'], m['name']) for m in available_models]
     
+    # Set default model to Claude 3.5 Haiku
+    if form.ai_model.data is None:
+        haiku_model = next((m['id'] for m in available_models if m['id'] == 'claude-3-5-haiku-latest'), None)
+        if haiku_model:
+            form.ai_model.data = haiku_model
+    
     if form.validate_on_submit():
         result = generate_text(
             contest_id=contest.id,
@@ -691,7 +697,8 @@ def ai_writer_submission(contest_id):
         
         if result['success']:
             flash(f'Texto generado y enviado exitosamente: {form.title.data}', 'success')
-            return redirect(url_for('contest.detail', contest_id=contest.id))
+            # Stay on the same page instead of redirecting
+            return redirect(url_for('admin.ai_writer_submission', contest_id=contest.id))
         else:
             flash(f'Error al generar texto: {result["message"]}', 'danger')
     

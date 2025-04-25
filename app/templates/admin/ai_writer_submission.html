@@ -13,6 +13,12 @@
         <p><strong>Finaliza:</strong> {{ contest.end_date.strftime('%d/%m/%Y %H:%M') }}</p>
     </div>
     
+    <div class="page-actions">
+        <a href="{{ url_for('contest.detail', contest_id=contest.id) }}" class="button button-secondary">
+            <i class="fas fa-arrow-left"></i> Volver al Concurso
+        </a>
+    </div>
+    
     <form method="post" class="styled-form">
         {{ form.hidden_tag() }}
         

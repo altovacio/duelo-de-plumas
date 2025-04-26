@@ -50,6 +50,9 @@
                             </div>
                         </div>
                         
+                        {# Add quill pen icon to each card #}
+                        <img src="{{ url_for('static', filename='images/quill-pen.svg') }}" alt="Quill Pen" class="card-quill">
+                        
                         {# Only show results for PUBLIC closed contests #}
                         {% if not is_judge_view and contest.status == 'closed' and contest.contest_type == 'public' %}
                             {% set ranked_submissions = contest.submissions.filter(Submission.final_rank != None).order_by(Submission.final_rank.asc(), Submission.total_points.desc()).all() %}
@@ -87,7 +90,7 @@
                 {% endfor %}
             </ul>
         {% else %}
-            <p class="no-contests">No hay concursos {{ status_title|lower }} actualmente.</p>
+            <p class="no-contests">No hay {{ status_title|lower }} actualmente.</p>
         {% endif %}
     </section>
 {% endmacro %}

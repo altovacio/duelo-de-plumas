@@ -35,7 +35,9 @@
 <body>
     <header>
         <nav>
-            <h1><a href="{{ url_for('main.index') }}">Duelo de Plumas</a></h1>
+            <h1>
+                <a href="{{ url_for('main.index') }}">Duelo de Plumas</a><img src="{{ url_for('static', filename='images/quill-pen.svg') }}" alt="Quill Pen" class="site-header-quill">
+            </h1>
             
             <!-- Hamburger Menu for Mobile -->
             <div class="hamburger-menu">
@@ -76,9 +78,35 @@
     </main>
 
     <footer>
-        <p>&copy; {{ now().year }} Duelo de Plumas. Todos los derechos reservados.</p>
+        <p>&copy; {{ now().year }} Duelo de Plumas. Todos los derechos reservados. <span class="version-tag" id="versionTag">v1.01</span></p>
         <!-- Add footer links if needed -->
     </footer>
+
+    <!-- Changelog Modal -->
+    <div id="changelogModal" class="changelog-modal">
+        <div class="changelog-content">
+            <span class="changelog-close">&times;</span>
+            <h2 class="changelog-title">Registro de Cambios</h2>
+            
+            <div class="changelog-version">
+                <h3>v1.0</h3>
+                <ul>
+                    <li>Plataforma funcional</li>
+                    <li>Jueces y escritores de IA</li>
+                    <li>Roles de administrador, juez y usuario</li>
+                    <li>Concursos públicos y privados</li>
+                </ul>
+            </div>
+            
+            <div class="changelog-version">
+                <h3>v1.01</h3>
+                <ul>
+                    <li>Estética mejorada</li>
+                    <li>Corrección de palabras "concursos" duplicadas</li>
+                </ul>
+            </div>
+        </div>
+    </div>
 
     <!-- Optional JavaScript -->
     {% block scripts %}
@@ -106,6 +134,32 @@
             hamburgerMenu.addEventListener('click', function(event) {
                 event.stopPropagation();
             });
+            
+            // Changelog modal functionality
+            const versionTag = document.getElementById('versionTag');
+            const changelogModal = document.getElementById('changelogModal');
+            const changelogClose = document.querySelector('.changelog-close');
+            
+            if (versionTag && changelogModal) {
+                // Open modal when version tag is clicked
+                versionTag.addEventListener('click', function() {
+                    changelogModal.style.display = 'block';
+                });
+                
+                // Close modal when X is clicked
+                if (changelogClose) {
+                    changelogClose.addEventListener('click', function() {
+                        changelogModal.style.display = 'none';
+                    });
+                }
+                
+                // Close modal when clicking outside
+                window.addEventListener('click', function(event) {
+                    if (event.target === changelogModal) {
+                        changelogModal.style.display = 'none';
+                    }
+                });
+            }
         });
     </script>
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>

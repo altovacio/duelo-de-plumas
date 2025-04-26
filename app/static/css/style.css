@@ -136,7 +136,25 @@ h4 {
 }
 
 /* Layout */
-header,
+header {
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 16px 24px;
+    background-color: #f7f5f0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    border-bottom: 1px solid #e0d8c9;
+}
+
+header nav {
+    max-width: 1120px;
+    margin: 0 auto;
+}
+
 main,
 footer {
     width: 100%;
@@ -147,14 +165,13 @@ footer {
 
 main {
     flex-grow: 1;
-    padding-top: 32px;
+    padding-top: 90px; /* Add padding to account for fixed header */
     padding-bottom: 48px;
 }
 
+/* Remove the header bottom margin and border since it's now fixed */
 header {
-    border-bottom: 1px solid #e0d8c9;
-    margin-bottom: 24px;
-    padding-bottom: 16px;
+    margin-bottom: 0;
 }
 
 footer {
@@ -223,6 +240,8 @@ header nav a:hover::after {
     height: 21px;
     cursor: pointer;
     z-index: 20;
+    position: relative;
+    top: -5px;
 }
 
 .hamburger-menu span {
@@ -563,8 +582,9 @@ textarea {
 .hero p {
     font-size: 1.2rem;
     color: #665e54;
-    max-width: 600px;
+    max-width: 700px;
     margin: 0 auto;
+    line-height: 1.6;
 }
 
 /* Buttons */
@@ -637,6 +657,13 @@ input[type="submit"]:hover {
     /* Show hamburger menu */
     .hamburger-menu {
         display: flex;
+    }
+    
+    /* Adjust header title layout for mobile */
+    header nav h1 {
+        display: flex;
+        align-items: center;
+        font-size: 1.5rem;
     }
     
     /* Hide the normal navigation */
@@ -927,4 +954,147 @@ input[type="submit"]:hover {
 
 /* Admin AI Evaluation Costs Page CSS removed - no longer needed */
 
-/* ... existing code ... */ 
+/* ... existing code ... */
+
+/* Quill Pen Styles */
+.site-header-quill {
+    width: 36px;
+    height: 36px;
+    margin-left: 8px;
+    vertical-align: middle;
+    display: inline-block;
+    transform-origin: center;
+    transition: transform 0.3s ease;
+}
+
+/* header nav h1:hover .site-header-quill {
+    transform: rotate(10deg);
+} */
+
+/* Version tag and changelog */
+.version-tag {
+    font-size: 0.75rem;
+    color: rgba(94, 107, 76, 0.7);
+    cursor: pointer;
+    transition: color 0.2s ease;
+    display: inline-block;
+    margin-left: 5px;
+}
+
+.version-tag:hover {
+    color: rgba(94, 107, 76, 1);
+    text-decoration: underline;
+}
+
+.changelog-modal {
+    display: none;
+    position: fixed;
+    z-index: 1001;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.changelog-content {
+    background-color: #fefefe;
+    margin: 15% auto;
+    padding: 20px;
+    border: 1px solid #e0d8c9;
+    border-radius: 5px;
+    width: 80%;
+    max-width: 600px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    position: relative;
+}
+
+.changelog-title {
+    color: #5e6b4c;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e0d8c9;
+}
+
+.changelog-version {
+    margin-bottom: 15px;
+}
+
+.changelog-version h3 {
+    color: #5e6b4c;
+    font-size: 1.2rem;
+    margin-bottom: 8px;
+}
+
+.changelog-version ul {
+    list-style-type: none;
+    padding-left: 20px;
+}
+
+.changelog-version ul li {
+    margin-bottom: 5px;
+    position: relative;
+}
+
+.changelog-version ul li::before {
+    content: "-";
+    position: absolute;
+    left: -15px;
+}
+
+.changelog-close {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    color: #665e54;
+    font-size: 24px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.changelog-close:hover {
+    color: #35302a;
+}
+
+.contest-item {
+    position: relative;
+}
+
+.card-quill {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 24px;
+    height: 24px;
+    opacity: 0.6;
+    transform-origin: bottom right;
+    transition: all 0.3s ease;
+}
+
+.contest-item:hover .card-quill {
+    transform: rotate(10deg) scale(1.2);
+    opacity: 1;
+}
+
+@keyframes quillWriting {
+    0% {
+        transform: rotate(0deg) translateX(0) translateY(0);
+    }
+    25% {
+        transform: rotate(5deg) translateX(-2px) translateY(2px);
+    }
+    50% {
+        transform: rotate(0deg) translateX(0) translateY(0);
+    }
+    75% {
+        transform: rotate(-5deg) translateX(2px) translateY(2px);
+    }
+    100% {
+        transform: rotate(0deg) translateX(0) translateY(0);
+    }
+}
+
+.contest-item:hover .card-quill {
+    animation: quillWriting 1s ease-in-out infinite;
+} 

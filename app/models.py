@@ -3,6 +3,9 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
 from app import db, login_manager # Import db and login_manager from app.py
 
+# Application version - central place to define it
+APP_VERSION = "v1.02"
+
 # Association table for Contest Judges (Many-to-Many)
 contest_judges = db.Table('contest_judges',
     db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True),
@@ -103,6 +106,7 @@ class Vote(db.Model):
     timestamp = db.Column(db.DateTime, index=True, default=lambda: datetime.now(timezone.utc))
     judge_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     submission_id = db.Column(db.Integer, db.ForeignKey('submission.id'), nullable=False)
+    app_version = db.Column(db.String(10), default=APP_VERSION)  # Track the app version when vote was cast
 
     # A judge assigns places *per contest*. This constraint is now handled in the evaluation form logic.
     # We still need a constraint that a judge can only have one vote *per place* per contest, or simply one set of rankings per contest.
@@ -129,6 +133,7 @@ class AIEvaluation(db.Model):
     completion_tokens = db.Column(db.Integer, nullable=False) # Number of tokens in the response
     cost = db.Column(db.Float, nullable=False) # Cost in USD
     timestamp = db.Column(db.DateTime, index=True, default=lambda: datetime.now(timezone.utc))
+    app_version = db.Column(db.String(10), default=APP_VERSION)  # Track the app version when evaluation occurred
     
     # Relationships
     judge = db.relationship('User', backref='ai_evaluations')
@@ -161,6 +166,7 @@ class AIWritingRequest(db.Model):
     cost = db.Column(db.Float, nullable=False)  # Cost in USD
     submission_id = db.Column(db.Integer, db.ForeignKey('submission.id'), nullable=True)  # Link to the created submission
     timestamp = db.Column(db.DateTime, index=True, default=lambda: datetime.now(timezone.utc))
+    app_version = db.Column(db.String(10), default=APP_VERSION)  # Track the app version when AI writing occurred
     
     # Relationships
     contest = db.relationship('Contest')

@@ -3,7 +3,7 @@ from flask_login import current_user, login_required # Added login_required
 from app import db
 from app.contest import bp
 from app.contest.forms import SubmissionForm, ContestEvaluationForm, SubmissionRankForm, ContestPasswordForm # Import ContestPasswordForm
-from app.models import Contest, Submission, Vote, User # Added User
+from app.models import Contest, Submission, Vote, User, AIWritingRequest # Added AIWritingRequest
 from datetime import datetime, timezone
 from app.decorators import judge_required # Import judge_required
 from sqlalchemy import func, distinct # Import func, distinct
@@ -35,6 +35,7 @@ def detail(contest_id):
     submissions_list = []
     votes_list = []
     votes_by_submission = {}
+    ai_writing_requests = {}
 
     if is_open:
         form = SubmissionForm()
@@ -72,6 +73,19 @@ def detail(contest_id):
             if vote.submission_id not in votes_by_submission:
                 votes_by_submission[vote.submission_id] = []
             votes_by_submission[vote.submission_id].append(vote)
+            
+        # Get AI writing requests information
+        if submissions_list:
+            ai_generated_submissions = [s.id for s in submissions_list if s.is_ai_generated]
+            if ai_generated_submissions:
+                writing_requests = db.session.scalars(
+                    db.select(AIWritingRequest)
+                    .where(AIWritingRequest.submission_id.in_(ai_generated_submissions))
+                ).all()
+                
+                for request in writing_requests:
+                    if request.submission_id:
+                        ai_writing_requests[request.submission_id] = request
 
     return render_template('contest/detail.html', 
                            title=contest.title, 
@@ -81,7 +95,8 @@ def detail(contest_id):
                            is_evaluation=is_evaluation, # Pass status flags
                            is_closed=is_closed,
                            submissions_list=submissions_list, # Pass results data
-                           votes_by_submission=votes_by_submission if is_closed else {} # Pass votes dict
+                           votes_by_submission=votes_by_submission if is_closed else {}, # Pass votes dict
+                           ai_writing_requests=ai_writing_requests # Pass AI writing requests
                           )
 
 # New route for entering password for private contests

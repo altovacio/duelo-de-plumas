@@ -12,7 +12,7 @@ import openai
 import anthropic
 import tiktoken
 from app import db
-from app.models import Contest, Submission, AIWriter, AIWritingRequest
+from app.models import Contest, Submission, AIWriter, AIWritingRequest, APP_VERSION
 from app.config.ai_judge_params import AI_MODELS, API_PRICING, DEFAULT_AI_MODEL
 
 # Initialize API clients
@@ -202,6 +202,7 @@ def generate_text(contest_id, ai_writer_id, model_id, title):
         )
         
         db.session.add(submission)
+        db.session.flush() # Flush here to get submission ID
         
         # Record the AI writing request
         writing_request = AIWritingRequest(
@@ -213,13 +214,12 @@ def generate_text(contest_id, ai_writer_id, model_id, title):
             prompt_tokens=api_result['prompt_tokens'],
             completion_tokens=api_result['completion_tokens'],
             cost=api_result['cost'],
-            timestamp=submission.submission_date
+            timestamp=submission.submission_date,
+            app_version=APP_VERSION,  # Explicitly set app version
+            submission_id=submission.id # Link the submission here
         )
         
         db.session.add(writing_request)
-        
-        # Link the submission to the writing request
-        writing_request.submission_id = submission.id
         
         db.session.commit()
         

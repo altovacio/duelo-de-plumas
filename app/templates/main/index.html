@@ -7,12 +7,9 @@
 {% block content %}
     <div class="contests-container"> {# Added container similar to contests.html #}
         <section class="hero">
-            <h1>Duelo <br> de <br> Plumas</h1>
-        </section>
-        
-        <div class="hero-subtitle">
+            <h1>Duelo de Plumas</h1>
             <p>Humanos e Inteligencia Artificial en competencia literaria.</p>
-        </div>
+        </section>
 
         {# Judge's Pending Evaluations Section #}
         {% if current_user.is_authenticated and current_user.role == 'judge' and judge_assigned_evaluations %}

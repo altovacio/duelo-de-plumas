@@ -1,4 +1,4 @@
-from flask import render_template, url_for, redirect, request, session
+from flask import render_template, url_for, redirect, request, session, jsonify
 from flask_login import current_user
 from app.main import bp
 from app.models import Contest, User, Submission, Vote # Import Vote
@@ -124,5 +124,39 @@ def list_contests():
                            contests_closed=contests_closed,
                            judge_assigned_evaluations=judge_assigned_evaluations,
                            Submission=Submission) # Pass Submission model
+
+# Hidden roadmap page - accessible via URL but not linked in navigation
+@bp.route('/roadmap')
+def roadmap():
+    # Load roadmap items from configuration file
+    from app.roadmap.config import get_roadmap_items
+    items = get_roadmap_items()
+    return render_template('main/roadmap.html', title='Roadmap', items=items)
+
+# API endpoints for the roadmap items
+@bp.route('/api/roadmap/items', methods=['GET'])
+def get_roadmap_items():
+    from app.roadmap.config import get_roadmap_items
+    return jsonify(get_roadmap_items())
+
+@bp.route('/api/roadmap/items', methods=['POST'])
+def update_roadmap_items():
+    from app.roadmap.config import update_roadmap_items
+    items = request.json
+    update_roadmap_items(items)
+    return jsonify({"success": True})
+
+@bp.route('/api/roadmap/item', methods=['POST'])
+def add_roadmap_item():
+    from app.roadmap.config import add_roadmap_item
+    item = request.json
+    add_roadmap_item(item)
+    return jsonify({"success": True})
+
+@bp.route('/api/roadmap/item/<int:item_id>', methods=['DELETE'])
+def delete_roadmap_item(item_id):
+    from app.roadmap.config import delete_roadmap_item
+    delete_roadmap_item(item_id)
+    return jsonify({"success": True})
 
 # Add other main routes here (e.g., about page) 

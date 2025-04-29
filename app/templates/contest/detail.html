@@ -88,7 +88,25 @@
                                 {% endif %}
                                 "{{ submission.title }}" por {{ submission.author_name }}
                                 <span class="points">({{ submission.total_points }} pts)</span>
+                                {% if submission.is_ai_generated %}
+                                    <span class="ai-badge">IA</span>
+                                {% endif %}
                             </h4>
+                            
+                            {# Submission Metadata - AI Generated? Version info? #}
+                            {% if submission.is_ai_generated %}
+                                <div class="submission-metadata">
+                                    <p class="ai-info">
+                                        Texto generado por IA
+                                        {% if submission.ai_writer %}
+                                            ({{ submission.ai_writer.name }})
+                                        {% endif %}
+                                        {% if ai_writing_requests and submission.id in ai_writing_requests %}
+                                            - Versión {{ ai_writing_requests[submission.id].app_version }}
+                                        {% endif %}
+                                    </p>
+                                </div>
+                            {% endif %}
                             
                             {# Submission Text Preview and Button #}
                             <div class="submission-text-preview markdown-content">
@@ -106,7 +124,13 @@
                                     <ul>
                                         {% for vote in votes_by_submission[submission.id] %}
                                             {% if vote.comment %}
-                                                <li><strong>{{ vote.judge.username }}:</strong> {{ vote.comment }}</li>
+                                                <li>
+                                                    <strong>{{ vote.judge.username }}{% if vote.judge.is_ai_judge() %} (IA){% endif %}:</strong> 
+                                                    {{ vote.comment }}
+                                                    {% if vote.app_version %}
+                                                        <span class="vote-version">Versión {{ vote.app_version }}</span>
+                                                    {% endif %}
+                                                </li>
                                             {% endif %}
                                         {% endfor %}
                                     </ul>
@@ -238,6 +262,11 @@
         #modal-text {
             margin-top: 15px;
         }
+
+        .submission-metadata { margin: 0.5em 0; font-size: 0.9em; color: #555; }
+        .ai-info { display: inline-flex; align-items: center; background-color: #f5f5f5; padding: 0.3em 0.6em; border-radius: 3px; }
+        .ai-badge { display: inline-block; background-color: #6c757d; color: white; font-size: 0.75em; padding: 0.2em 0.5em; border-radius: 3px; margin-left: 0.5em; font-weight: bold; }
+        .vote-version { font-size: 0.8em; color: #777; margin-left: 0.5em; }
     </style>
 
     {# Modal JavaScript #}

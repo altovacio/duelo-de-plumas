@@ -100,9 +100,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // Click handler for the entire board (event delegation)
     if (board) {
         board.addEventListener('click', (e) => {
-            // Handle delete button clicks
-            if (e.target.classList.contains('delete-btn')) {
-                const card = e.target.closest('.card');
+            // Find the closest ancestor element (itself or a parent) that is a delete button
+            const deleteButton = e.target.closest('.delete-btn');
+
+            // Handle delete button clicks robustly
+            if (deleteButton) { // Check if a delete button or its child icon was clicked
+                const card = deleteButton.closest('.card');
                 if (card) {
                     const itemId = parseInt(card.dataset.id);
                     deleteItem(itemId);
@@ -148,12 +151,19 @@ document.addEventListener('DOMContentLoaded', function() {
     // API functions
     function loadRoadmapItems() {
         fetch('/api/roadmap/items')
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(items => {
                 // Clear the current items
                 Object.values(columns).forEach(column => {
                     const container = column.querySelector('.cards-container');
-                    container.innerHTML = '';
+                    if (container) {
+                        container.innerHTML = '';
+                    }
                 });
                 
                 // Add the items to their respective columns
@@ -165,75 +175,133 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function updateItemStatus(itemId, newStatus) {
-        // First find the current item to get its text
-        fetch('/api/roadmap/items')
-            .then(response => response.json())
-            .then(items => {
-                const item = items.find(item => item.id === itemId);
-                if (item) {
-                    // Update the item's status
-                    item.status = newStatus;
-                    
-                    // Send the updated list to the server
-                    return fetch('/api/roadmap/items', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(items)
-                    });
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (!data.success) {
-                    console.error('Failed to update item status');
-                    loadRoadmapItems(); // Reload in case of error
-                }
-            })
-            .catch(error => {
-                console.error('Error updating item status:', error);
-                loadRoadmapItems(); // Reload in case of error
-            });
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        
+        fetch(`/api/roadmap/item/${itemId}/status`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({ status: newStatus })
+        })
+        .then(response => {
+            // Check if the response was successful (status code 200-299)
+            if (!response.ok) {
+                // Attempt to parse error response if JSON, otherwise use status text
+                return response.json().then(err => {
+                    throw new Error(err.error || `HTTP error! status: ${response.status}`);
+                }).catch(() => {
+                    // If response wasn't JSON, throw generic error
+                    throw new Error(`HTTP error! status: ${response.status} ${response.statusText}`);
+                });
+            }
+            return response.json(); // Assuming success response might have data
+        })
+        .then(data => {
+            if (!data.success) {
+                // This case might not be reached if errors are thrown above,
+                // but kept for robustness if backend sends {success: false} on 2xx status.
+                console.error('Failed to update item status (API indicated failure)');
+                // Optionally reload items here if needed, though the drop operation
+                // already visually moved the item. If the PUT failed, we might
+                // want to revert the visual change or show an error.
+                 alert('Failed to update item status. Please refresh.');
+                 loadRoadmapItems(); // Reload to ensure consistency after failure
+            }
+            // No need to reload on success, the item is already moved visually
+            // and the backend is now consistent.
+        })
+        .catch(error => {
+            console.error('Error updating item status:', error);
+            // Reload items to revert the visual change since the backend update failed
+            alert(`Error updating item: ${error.message}. Reverting change.`);
+            loadRoadmapItems();
+        });
     }
     
     function addNewItem(text) {
-        const newItem = {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        const newItemData = {
             text: text,
-            status: 'backlog' // New items start in backlog
+            status: 'backlog' // New items always start in backlog
         };
         
         fetch('/api/roadmap/item', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
             },
-            body: JSON.stringify(newItem)
+            body: JSON.stringify(newItemData)
         })
-        .then(response => response.json())
+        .then(response => {
+             if (!response.ok) {
+                return response.json().then(err => {
+                    throw new Error(err.error || `HTTP error! status: ${response.status}`);
+                }).catch(() => {
+                    throw new Error(`HTTP error! status: ${response.status} ${response.statusText}`);
+                });
+            }
+            return response.json();
+        })
         .then(data => {
-            if (data.success) {
-                loadRoadmapItems(); // Reload to get the new item with its ID
+            if (data.success && data.item) {
+                // Instead of adding directly, just reload the list to get the latest state
+                // addItemToDOM(data.item); // No longer needed
+                loadRoadmapItems(); 
+            } else {
+                 console.error('Failed to add new item (API indicated failure or missing item data)');
+                 alert('Failed to add item. Please try again.');
             }
         })
-        .catch(error => console.error('Error adding new item:', error));
+        .catch(error => {
+            console.error('Error adding new item:', error);
+            alert(`Error adding item: ${error.message}`);
+        });
     }
     
     function deleteItem(itemId) {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        
+        if (!confirm('Are you sure you want to delete this item?')) {
+            return; // Abort if user cancels confirmation
+        }
+        
         fetch(`/api/roadmap/item/${itemId}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: {
+                 'X-CSRFToken': csrfToken
+            }
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                 return response.json().then(err => {
+                    throw new Error(err.error || `HTTP error! status: ${response.status}`);
+                }).catch(() => {
+                    throw new Error(`HTTP error! status: ${response.status} ${response.statusText}`);
+                });
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
-                // Remove the item from the DOM
+                // Remove the item from the DOM immediately for responsiveness
                 const card = document.querySelector(`.card[data-id="${itemId}"]`);
                 if (card) {
                     card.remove();
                 }
+                // Optionally, could call loadRoadmapItems() here too for belt-and-suspenders,
+                // but removing directly is usually fine for deletes.
+            } else {
+                console.error('Failed to delete item (API indicated failure)');
+                alert('Failed to delete item. Please refresh and try again.');
             }
         })
-        .catch(error => console.error('Error deleting item:', error));
+        .catch(error => {
+            console.error('Error deleting item:', error);
+            alert(`Error deleting item: ${error.message}. Please refresh.`);
+        });
     }
     
     function addItemToDOM(item) {

@@ -4,6 +4,13 @@ from app.main import bp
 from app.models import Contest, User, Submission, Vote # Import Vote
 from app import db
 from datetime import datetime
+# Import specific functions from the refactored config
+from app.roadmap.config import (
+    get_roadmap_items as config_get_items,
+    add_roadmap_item as config_add_item,
+    delete_roadmap_item as config_delete_item,
+    update_single_item_status as config_update_status
+)
 
 @bp.route('/')
 @bp.route('/index')
@@ -128,35 +135,61 @@ def list_contests():
 # Hidden roadmap page - accessible via URL but not linked in navigation
 @bp.route('/roadmap')
 def roadmap():
-    # Load roadmap items from configuration file
-    from app.roadmap.config import get_roadmap_items
-    items = get_roadmap_items()
+    # Load roadmap items using the safe getter
+    items = config_get_items()
     return render_template('main/roadmap.html', title='Roadmap', items=items)
 
 # API endpoints for the roadmap items
 @bp.route('/api/roadmap/items', methods=['GET'])
-def get_roadmap_items():
-    from app.roadmap.config import get_roadmap_items
-    return jsonify(get_roadmap_items())
+def get_roadmap_items_api():
+    # Use the safe getter for the API as well
+    return jsonify(config_get_items())
 
-@bp.route('/api/roadmap/items', methods=['POST'])
-def update_roadmap_items():
-    from app.roadmap.config import update_roadmap_items
-    items = request.json
-    update_roadmap_items(items)
-    return jsonify({"success": True})
-
+# Route for adding a new item
 @bp.route('/api/roadmap/item', methods=['POST'])
-def add_roadmap_item():
-    from app.roadmap.config import add_roadmap_item
-    item = request.json
-    add_roadmap_item(item)
-    return jsonify({"success": True})
+def add_roadmap_item_api():
+    item_data = request.json
+    if not item_data or 'text' not in item_data:
+        return jsonify({"success": False, "error": "Missing item text"}), 400
+    
+    new_item = config_add_item(item_data)
+    # Return the full new item, including its ID, so the frontend can update
+    return jsonify({"success": True, "item": new_item}), 201 # 201 Created
 
+# Route for deleting an item
 @bp.route('/api/roadmap/item/<int:item_id>', methods=['DELETE'])
-def delete_roadmap_item(item_id):
-    from app.roadmap.config import delete_roadmap_item
-    delete_roadmap_item(item_id)
-    return jsonify({"success": True})
+def delete_roadmap_item_api(item_id):
+    deleted = config_delete_item(item_id)
+    if deleted:
+        return jsonify({"success": True})
+    else:
+        # Item not found or error during deletion
+        return jsonify({"success": False, "error": "Item not found or could not be deleted"}), 404
+
+# New route for updating item status
+@bp.route('/api/roadmap/item/<int:item_id>/status', methods=['PUT'])
+def update_roadmap_item_status_api(item_id):
+    data = None
+    try:
+        data = request.json
+    except Exception as e:
+        # Return a custom JSON error if parsing fails
+        return jsonify({"success": False, "error": f"Failed to parse JSON body: {e}"}), 400
+
+    if not data or 'status' not in data:
+        return jsonify({"success": False, "error": "Missing status field"}), 400
+
+    new_status = data['status']
+    # Basic validation for status
+    valid_statuses = {'backlog', 'in-progress', 'completed'}
+    if new_status not in valid_statuses:
+         return jsonify({"success": False, "error": f"Invalid status: {new_status}"}), 400
+
+    updated = config_update_status(item_id, new_status)
+    if updated:
+        return jsonify({"success": True})
+    else:
+        # Item not found or error during update
+        return jsonify({"success": False, "error": "Item not found or could not be updated"}), 404
 
 # Add other main routes here (e.g., about page) 

@@ -17,7 +17,7 @@
   {
     "id": 4,
     "text": "Improve date deadlines for contests",
-    "status": "backlog"
+    "status": "completed"
   },
   {
     "id": 5,
@@ -33,5 +33,10 @@
     "id": 7,
     "text": "Migrate to PostgreSQL?",
     "status": "backlog"
+  },
+  {
+    "id": 8,
+    "text": "Add creation and update dates. Change dates to MX time",
+    "status": "completed"
   }
 ]

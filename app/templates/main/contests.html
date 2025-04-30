@@ -153,6 +153,12 @@
         
         <hr class="section-divider">
         
+        {# --- New: Show Expired Open Contests if they exist --- #}
+        {% if contests_expired_open %}
+            {{ contest_list(contests_expired_open, 'Concursos Expirados (Pendientes de Evaluación)') }}
+            <hr class="section-divider">
+        {% endif %}
+        
         {{ contest_list(contests_evaluation, 'Concursos en Evaluación') }}
         
         <hr class="section-divider">

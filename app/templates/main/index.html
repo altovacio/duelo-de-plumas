@@ -102,6 +102,54 @@
             <hr class="section-divider">
         {% endif %}
 
+        {# Admin section for expired open contests #}
+        {% if current_user.is_authenticated and current_user.is_admin() and expired_open_contests %}
+            <section class="contest-section expired-open">
+                <h3 class="section-title"><i class="fas fa-hourglass-end"></i> Concursos Abiertos Expirados</h3>
+                <ul class="contest-list">
+                    {% for contest in expired_open_contests %}
+                        <li class="contest-item {% if contest.contest_type == 'private' %}private-contest{% endif %}">
+                            <div class="contest-header">
+                                <h4 class="contest-title">
+                                    <a href="{{ url_for('contest.detail', contest_id=contest.id) }}">{{ contest.title }}</a>
+                                    {% if contest.contest_type == 'private' %}<span class="private-badge">Privado</span>{% endif %}
+                                </h4>
+                            </div>
+                            
+                            <div class="contest-description">
+                                {% if contest.description %}
+                                    {{ contest.description|truncate(150) }}
+                                {% else %}
+                                    <em>No hay descripción disponible para este concurso.</em>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="contest-meta">
+                                <span class="meta-date">Estado: {{ contest.status.capitalize() }} | Fecha Límite: {{ contest.end_date|human_date(with_time=True) }}</span>
+                                
+                                <div class="meta-stats">
+                                    <span class="meta-stat">
+                                        <i class="fas fa-users"></i> {{ contest.submissions.count() }} participantes
+                                    </span>
+                                    {% if contest.word_limit %}
+                                    <span class="meta-stat">
+                                        <i class="fas fa-align-left"></i> Límite: {{ contest.word_limit }} palabras
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            {# Suggest button to change status (or link to admin list) #}
+                            {# Option 1: Direct status change (Requires a new route or reusing existing admin logic) #}
+                            {# Option 2: Link to the admin contest list where status can be changed #}
+                             <a href="{{ url_for('admin.list_contests') }}#contest-{{ contest.id }}" class="button button-small button-warning">Gestionar Estado</a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </section>
+            <hr class="section-divider">
+        {% endif %}
+
         {# Use the macro for active contests #}
         {{ contest_list(active_contests, 'Concursos Abiertos') }}
 
@@ -114,6 +162,5 @@
         {% if closed_contests|length > 3 %}
             <p style="text-align: right;"><a href="{{ url_for('main.list_contests') }}" class="button button-small">Ver todos los concursos finalizados</a></p>
         {% endif %}
-    
-    </div> {# End contests-container #}
+    </div>
 {% endblock %} 

@@ -3,7 +3,7 @@ from flask_login import current_user
 from app.main import bp
 from app.models import Contest, User, Submission, Vote # Import Vote
 from app import db
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import or_ # Import or_
 # Import specific functions from the refactored config
 from app.roadmap.config import (
@@ -16,13 +16,14 @@ from app.roadmap.config import (
 @bp.route('/')
 @bp.route('/index')
 def index():
-    current_time = datetime.utcnow()
+    current_time = datetime.utcnow() # Naive datetime
+    aware_current_time = datetime.now(timezone.utc) # Aware datetime for comparison
     
     # Build the base query for active contests - show ALL contests (public and private)
     # Include contests with no end date
     active_contests_query = db.select(Contest) \
         .where(Contest.status == 'open') \
-        .where(or_(Contest.end_date > current_time, Contest.end_date.is_(None))) \
+        .where(or_(Contest.end_date > aware_current_time, Contest.end_date.is_(None))) \
         .order_by(Contest.end_date.asc()) # Nulls likely first, which is ok
     
     # Fetch all contests - both public and private
@@ -45,9 +46,20 @@ def index():
             .order_by(Contest.end_date.asc()) # Nulls likely first
         ).all()
     
-    # Fetch contests requiring AI evaluations (for admins)
+    # Fetch contests requiring AI evaluations (for admins) and expired open contests
     pending_ai_evaluations = []
+    expired_open_contests = [] # Initialize list for expired open contests
     if current_user.is_authenticated and current_user.is_admin():
+        # --- Find Expired Open Contests ---
+        expired_open_contests = db.session.scalars(
+            db.select(Contest)
+            .where(Contest.status == 'open')
+            .where(Contest.end_date.is_not(None))
+            .where(Contest.end_date <= aware_current_time) # Compare with aware time
+            .order_by(Contest.end_date.asc())
+        ).all()
+
+        # --- Find Contests Pending AI Evaluation ---
         # Get contests in evaluation phase with assigned AI judges
         evaluation_contests = db.session.scalars(
             db.select(Contest)
@@ -86,19 +98,30 @@ def index():
                            closed_contests=closed_contests,
                            judge_assigned_evaluations=judge_assigned_evaluations,
                            pending_ai_evaluations=pending_ai_evaluations,
+                           expired_open_contests=expired_open_contests, # Pass the new list
                            Submission=Submission) # Pass Submission model
 
 # New Route for listing all contests by status
 @bp.route('/contests')
 def list_contests():
-    now = datetime.utcnow()
+    now = datetime.utcnow() # Naive
+    aware_now = datetime.now(timezone.utc) # Aware for comparisons
     
-    # Show ALL contests - both public and private
+    # Show ALL contests - both public and private (Still Open)
     contests_open = db.session.scalars(
         db.select(Contest)
         .where(Contest.status == 'open')
-        .where(or_(Contest.end_date > now, Contest.end_date.is_(None))) # Include contests with no end date
+        .where(or_(Contest.end_date > aware_now, Contest.end_date.is_(None))) # Compare with aware time
         .order_by(Contest.end_date.asc()) # Nulls likely first
+    ).all()
+    
+    # --- New: Fetch Expired Open Contests ---
+    contests_expired_open = db.session.scalars(
+        db.select(Contest)
+        .where(Contest.status == 'open')
+        .where(Contest.end_date.is_not(None))
+        .where(Contest.end_date <= aware_now) # Compare with aware time
+        .order_by(Contest.end_date.asc())
     ).all()
     
     # Show ALL contests in evaluation - both public and private
@@ -129,6 +152,7 @@ def list_contests():
     return render_template('main/contests.html', 
                            title='Concursos Literarios', 
                            contests_open=contests_open,
+                           contests_expired_open=contests_expired_open, # Pass the new list
                            contests_evaluation=contests_evaluation,
                            contests_closed=contests_closed,
                            judge_assigned_evaluations=judge_assigned_evaluations,

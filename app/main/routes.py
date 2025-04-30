@@ -98,8 +98,10 @@ def index():
                            closed_contests=closed_contests,
                            judge_assigned_evaluations=judge_assigned_evaluations,
                            pending_ai_evaluations=pending_ai_evaluations,
-                           expired_open_contests=expired_open_contests, # Pass the new list
-                           Submission=Submission) # Pass Submission model
+                           expired_open_contests=expired_open_contests, 
+                           Submission=Submission,
+                           aware_now=aware_current_time, # Pass aware time for macro
+                           timezone=timezone)          # Pass timezone object for macro
 
 # New Route for listing all contests by status
 @bp.route('/contests')
@@ -152,11 +154,13 @@ def list_contests():
     return render_template('main/contests.html', 
                            title='Concursos Literarios', 
                            contests_open=contests_open,
-                           contests_expired_open=contests_expired_open, # Pass the new list
+                           contests_expired_open=contests_expired_open, 
                            contests_evaluation=contests_evaluation,
                            contests_closed=contests_closed,
                            judge_assigned_evaluations=judge_assigned_evaluations,
-                           Submission=Submission) # Pass Submission model
+                           Submission=Submission,
+                           aware_now=aware_now,  # Pass aware time for macro
+                           timezone=timezone)   # Pass timezone object for macro
 
 # Hidden roadmap page - accessible via URL but not linked in navigation
 @bp.route('/roadmap')

@@ -151,12 +151,12 @@
         {% endif %}
 
         {# Use the macro for active contests #}
-        {{ contest_list(active_contests, 'Concursos Abiertos') }}
+        {{ contest_list(active_contests, 'Concursos Abiertos', now_aware=aware_now, timezone=timezone) }}
 
         <hr class="section-divider">
 
         {# Use the macro for recently closed contests #}
-        {{ contest_list(closed_contests[:3], 'Concursos Finalizados Recientemente') }}
+        {{ contest_list(closed_contests[:3], 'Concursos Finalizados Recientemente', now_aware=aware_now, timezone=timezone) }}
         
         {# Link to the main contests page if there are more closed contests than shown #}
         {% if closed_contests|length > 3 %}

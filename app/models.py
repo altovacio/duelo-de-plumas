@@ -58,6 +58,11 @@ class Contest(db.Model):
     contest_type = db.Column(db.String(10), default='public') # 'public', 'private'
     password_hash = db.Column(db.String(256), nullable=True) # Only if contest_type is 'private'
     required_judges = db.Column(db.Integer, default=1) # Number of judges needed to close evaluation
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    
     submissions = db.relationship('Submission', backref='contest', lazy='dynamic', cascade="all, delete-orphan")
     # Relationship for judges assigned to this contest
     judges = db.relationship('User', secondary=contest_judges,

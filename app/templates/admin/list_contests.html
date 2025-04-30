@@ -15,12 +15,14 @@
                     <th>Tipo</th>
                     <th>Jueces Asignados</th>
                     <th>Fecha Límite</th>
+                    <th>Creado</th>
+                    <th>Actualizado</th>
                     <th>Acciones</th>
                 </tr>
             </thead>
             <tbody>
                 {% for contest in contests %}
-                    <tr>
+                    <tr id="contest-{{ contest.id }}">
                         <td><a href="{{ url_for('contest.detail', contest_id=contest.id) }}" title="Ver concurso">{{ contest.title }}</a></td>
                         <td>
                             {# Form to change status #}
@@ -66,6 +68,9 @@
                                 <span class="text-muted">Indefinida</span>
                             {% endif %}
                         </td>
+                        {# Use strftime for consistent date format #}
+                        <td>{{ contest.created_at.strftime('%Y-%m-%d %H:%M') if contest.created_at else 'N/A' }}</td>
+                        <td>{{ contest.updated_at.strftime('%Y-%m-%d %H:%M') if contest.updated_at else 'N/A' }}</td>
                         <td class="actions-column">
                             <a href="{{ url_for('admin.edit_contest', contest_id=contest.id) }}" class="button-icon" title="Editar Concurso">✏️</a>
                             <a href="{{ url_for('admin.list_submissions', contest_id=contest.id) }}" class="button-icon" title="Ver Envíos">👁️</a>

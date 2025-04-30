@@ -9,9 +9,9 @@
             Estado: {{ contest.status.capitalize() }} | 
             Tipo: {{ contest.contest_type.capitalize() }} | 
             {% if not is_closed %}
-                {% if contest.end_date %}Fecha Límite: {{ contest.end_date.strftime('%d/%m/%Y %H:%M') }} UTC{% else %}Fecha Límite: Indefinida{% endif %}
+                {% if contest.end_date %}Fecha Límite: {{ contest.end_date | human_date(with_time=True) }}{% else %}Fecha Límite: Indefinida{% endif %}
             {% else %}
-                {% if contest.end_date %}Finalizado: {{ contest.end_date.strftime('%d/%m/%Y') }}{% else %}Finalizado (Fecha desconocida){% endif %}
+                {% if contest.end_date %}Finalizado: {{ contest.end_date | human_date }}{% else %}Finalizado (Fecha desconocida){% endif %}
             {% endif %}
         </p>
         <div class="contest-description markdown-content">
@@ -35,7 +35,7 @@
             {# Display expiration message if applicable #}
             {% if is_expired %}
                 <div class="alert alert-warning">
-                    <strong>¡Atención!</strong> Este concurso ha expirado (finalizó el {{ contest.end_date.strftime('%d/%m/%Y %H:%M') }} UTC).
+                    <strong>¡Atención!</strong> Este concurso ha expirado (finalizó el {{ contest.end_date | human_date(with_time=True) }}).
                     {% if current_user.is_authenticated and current_user.is_admin() %}
                          Como administrador, todavía puedes enviar textos.
                     {% else %}
@@ -185,7 +185,7 @@
              {# Fallback messages #}
              {% if is_open and is_expired %}
                  {# Specific message for non-admins viewing expired open contests #}
-                 <p>Este concurso ha expirado (finalizó el {{ contest.end_date.strftime('%d/%m/%Y %H:%M') }} UTC) y ya no acepta nuevos envíos.</p>
+                 <p>Este concurso ha expirado (finalizó el {{ contest.end_date | human_date(with_time=True) }}) y ya no acepta nuevos envíos.</p>
              {% else %}
                  {# Generic fallback for any other unexpected state #}
                  <p>El estado actual del concurso no permite envíos o visualización de resultados.</p>

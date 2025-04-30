@@ -111,7 +111,7 @@
                         <td>{{ "{:,}".format(eval.prompt_tokens) }}</td>
                         <td>{{ "{:,}".format(eval.completion_tokens) }}</td>
                         <td>${{ "%.4f"|format(eval.cost) }}</td>
-                        <td>{{ eval.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>{{ eval.timestamp | human_date(with_time=True) }}</td>
                         <td>
                             <a href="{{ url_for('admin.view_ai_evaluation', evaluation_id=eval.id) }}" 
                                class="button-small">
@@ -155,7 +155,7 @@
                         <td>{{ "{:,}".format(req.prompt_tokens) }}</td>
                         <td>{{ "{:,}".format(req.completion_tokens) }}</td>
                         <td>${{ "%.4f"|format(req.cost) }}</td>
-                        <td>{{ req.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>{{ req.timestamp | human_date(with_time=True) }}</td>
                         <td>
                             <button type="button" class="button-small" data-toggle="modal" data-target="#aiTextModal{{ req.id }}">
                                 Ver Texto

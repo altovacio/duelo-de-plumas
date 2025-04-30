@@ -24,7 +24,7 @@
                         <td>{{ submission.id }}</td>
                         <td>{{ submission.title }}</td>
                         <td>{{ submission.author_name }}</td>
-                        <td>{{ submission.submission_date.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>{{ submission.submission_date | human_date(with_time=True) }}</td>
                         <td class="actions-cell">
                             <button type="button" class="view-full-text-btn button button-small" 
                                     data-submission-id="{{ submission.id }}">

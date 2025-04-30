@@ -39,7 +39,7 @@
                 <div class="col-md-6">
                     <dl class="row">
                         <dt class="col-sm-4">Fecha:</dt>
-                        <dd class="col-sm-8">{{ evaluation.timestamp.strftime('%Y-%m-%d %H:%M') }}</dd>
+                        <dd class="col-sm-8">{{ evaluation.timestamp | human_date(with_time=True) }}</dd>
                         
                         <dt class="col-sm-4">Tokens Prompt:</dt>
                         <dd class="col-sm-8">{{ evaluation.prompt_tokens }}</dd>

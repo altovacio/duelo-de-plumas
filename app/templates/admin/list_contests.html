@@ -63,14 +63,14 @@
                         {# Compare with current_time_utc if end_date exists #}
                         <td {% if contest.end_date and contest.end_date.replace(tzinfo=timezone.utc) < current_time_utc %}class="date-past"{% endif %}>
                             {% if contest.end_date %}
-                                {{ contest.end_date.strftime('%Y-%m-%d %H:%M') }}
+                                {{ contest.end_date | human_date(with_time=True) }}
                             {% else %}
                                 <span class="text-muted">Indefinida</span>
                             {% endif %}
                         </td>
                         {# Use strftime for consistent date format #}
-                        <td>{{ contest.created_at.strftime('%Y-%m-%d %H:%M') if contest.created_at else 'N/A' }}</td>
-                        <td>{{ contest.updated_at.strftime('%Y-%m-%d %H:%M') if contest.updated_at else 'N/A' }}</td>
+                        <td>{{ contest.created_at | human_date(with_time=True) if contest.created_at else 'N/A' }}</td>
+                        <td>{{ contest.updated_at | human_date(with_time=True) if contest.updated_at else 'N/A' }}</td>
                         <td class="actions-column">
                             <a href="{{ url_for('admin.edit_contest', contest_id=contest.id) }}" class="button-icon" title="Editar Concurso">✏️</a>
                             <a href="{{ url_for('admin.list_submissions', contest_id=contest.id) }}" class="button-icon" title="Ver Envíos">👁️</a>

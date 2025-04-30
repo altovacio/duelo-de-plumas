@@ -10,7 +10,7 @@
         <h3>Información del Concurso</h3>
         <p><strong>Descripción:</strong> {{ contest.description or 'No hay descripción disponible.' }}</p>
         <p><strong>Estado:</strong> {{ contest.status }}</p>
-        <p><strong>Finaliza:</strong> {% if contest.end_date %}{{ contest.end_date.strftime('%d/%m/%Y %H:%M') }}{% else %}Indefinido{% endif %}</p>
+        <p><strong>Finaliza:</strong> {% if contest.end_date %}{{ contest.end_date | human_date(with_time=True) }}{% else %}Indefinido{% endif %}</p>
     </div>
     
     <div class="page-actions">

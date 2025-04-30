@@ -81,7 +81,7 @@
                     <tr>
                         <td>{{ submission.id }}</td>
                         <td>{{ submission.title }}</td>
-                        <td>{{ submission.submission_date.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>{{ submission.submission_date | human_date(with_time=True) }}</td>
                     </tr>
                 {% endfor %}
             </tbody>

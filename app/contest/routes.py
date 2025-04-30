@@ -4,7 +4,7 @@ from app import db
 from app.contest import bp
 from app.contest.forms import SubmissionForm, ContestEvaluationForm, SubmissionRankForm, ContestPasswordForm # Import ContestPasswordForm
 from app.models import Contest, Submission, Vote, User, AIWritingRequest # Added AIWritingRequest
-from datetime import datetime, timezone
+from datetime import datetime, timezone # Ensure timezone is imported
 from app.decorators import judge_required # Import judge_required
 from sqlalchemy import func, distinct # Import func, distinct
 from wtforms.validators import ValidationError # Need this for the except block
@@ -28,7 +28,14 @@ def detail(contest_id):
                 return redirect(url_for('contest.enter_password', contest_id=contest_id))
 
     form = None
-    is_open = (contest.status == 'open' and contest.end_date > datetime.utcnow())
+    # Use recommended now(timezone.utc) for offset-aware time
+    current_time_utc = datetime.now(timezone.utc)
+    is_open = (contest.status == 'open')
+    
+    # Make end_date aware before comparing (assuming stored as UTC)
+    is_expired = is_open and contest.end_date and contest.end_date.replace(tzinfo=timezone.utc) < current_time_utc
+    
+    can_submit = (is_open and not is_expired) or (is_open and is_expired and current_user.is_authenticated and current_user.is_admin())
     is_evaluation = (contest.status == 'evaluation')
     is_closed = (contest.status == 'closed')
     
@@ -37,7 +44,7 @@ def detail(contest_id):
     votes_by_submission = {}
     ai_writing_requests = {}
 
-    if is_open:
+    if can_submit: # Use the new condition
         form = SubmissionForm()
         if form.validate_on_submit():
             # Check if user is allowed to submit (e.g., login required? submission limits?)
@@ -53,6 +60,8 @@ def detail(contest_id):
             db.session.add(submission)
             db.session.commit()
             flash('Tu texto ha sido enviado exitosamente.', 'success')
+            if is_expired: # Add a note if admin submitted to expired contest
+                flash('Nota: Has enviado un texto a un concurso expirado.', 'warning')
             return redirect(url_for('contest.detail', contest_id=contest.id)) # Redirect to same page
 
     if is_closed:
@@ -91,12 +100,15 @@ def detail(contest_id):
                            title=contest.title, 
                            contest=contest, 
                            form=form, 
-                           is_open=is_open,
-                           is_evaluation=is_evaluation, # Pass status flags
+                           is_open=is_open, # Keep passing original is_open
+                           is_expired=is_expired, # Pass new flag
+                           can_submit=can_submit, # Pass new flag
+                           is_evaluation=is_evaluation,
                            is_closed=is_closed,
-                           submissions_list=submissions_list, # Pass results data
-                           votes_by_submission=votes_by_submission if is_closed else {}, # Pass votes dict
-                           ai_writing_requests=ai_writing_requests # Pass AI writing requests
+                           submissions_list=submissions_list,
+                           votes_by_submission=votes_by_submission if is_closed else {},
+                           ai_writing_requests=ai_writing_requests,
+                           current_time_utc=current_time_utc # Pass aware time
                           )
 
 # New route for entering password for private contests

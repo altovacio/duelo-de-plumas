@@ -1,12 +1,16 @@
 import os
 import sys
+import time # Import time for delay
 
 # Ensure the main project directory is in the Python path
 # Adjust the path depth ('..') if init_db.py is nested deeper
 project_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, project_dir)
 
-# --- Import your initialization scripts --- 
+# Import app and db AFTER setting path
+from app import create_app, db
+
+# --- Import your data seeding/initialization scripts --- 
 # Adjust these imports based on the actual structure and function names
 # in your scripts. These are placeholders.
 try:
@@ -39,35 +43,62 @@ except ImportError:
     # Exit if this crucial step fails
     sys.exit(1) 
 
-def initialize_database():
-    """Runs all the necessary steps to initialize the database."""
-    print("--- Starting Database Initialization ---")
+def initialize_database(app):
+    """Drops existing tables, creates new ones, and seeds initial data."""
+    with app.app_context():
+        print("--- Starting Database Initialization ---")
+        
+        # Determine DB path from config (assuming SQLite)
+        db_path = app.config['SQLALCHEMY_DATABASE_URI'].replace('sqlite:///', '')
+        if os.path.exists(db_path):
+            print(f"Deleting existing database: {db_path}")
+            try:
+                os.remove(db_path)
+                print("Existing database deleted.")
+                # Add a small delay to ensure file system releases the lock
+                time.sleep(0.5) 
+            except OSError as e:
+                print(f"Error deleting database file: {e}")
+                print("Please ensure no other process is using the database file.")
+                sys.exit(1)
+        else:
+            print("No existing database found.")
+        
+        print("\nStep 1: Creating database tables...")
+        try:
+            db.create_all()
+            print("Database tables created successfully.")
+        except Exception as e:
+            print(f"Error creating database tables: {e}")
+            sys.exit(1)
 
-    print("\nStep 1: Creating Admin User...")
-    try:
-        create_admin_user()
-    except Exception as e:
-        print(f"Error during admin creation: {e}")
+        print("\nStep 2: Creating Admin User...")
+        try:
+            create_admin_user()
+        except Exception as e:
+            print(f"Error during admin creation: {e}")
 
-    print("\nStep 2: Seeding AI Judges...")
-    try:
-        create_ai_judges()
-    except Exception as e:
-        print(f"Error during AI judges seeding: {e}")
+        print("\nStep 3: Seeding AI Judges...")
+        try:
+            create_ai_judges()
+        except Exception as e:
+            print(f"Error during AI judges seeding: {e}")
 
-    print("\nStep 3: Seeding AI Writers...")
-    try:
-        create_ai_writers()
-    except Exception as e:
-        print(f"Error during AI writers seeding: {e}")
+        print("\nStep 4: Seeding AI Writers...")
+        try:
+            create_ai_writers()
+        except Exception as e:
+            print(f"Error during AI writers seeding: {e}")
 
-    print("\nStep 4: Seeding Contest Data...")
-    try:
-        run_seed_contest()
-    except Exception as e:
-        print(f"Error during contest seeding: {e}")
+        print("\nStep 5: Seeding Contest Data...")
+        try:
+            run_seed_contest()
+        except Exception as e:
+            print(f"Error during contest seeding: {e}")
 
-    print("\n--- Database Initialization Complete ---")
+        print("\n--- Database Initialization Complete ---")
 
 if __name__ == "__main__":
-    initialize_database() 
+    # Create a Flask app instance to provide context
+    app_instance = create_app()
+    initialize_database(app_instance) 

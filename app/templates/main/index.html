@@ -34,7 +34,7 @@
                             </div>
                              
                             <div class="contest-meta">
-                                <span class="meta-date">⏰ Evaluación requerida (Finalizó: {{ contest.end_date|human_date }})</span>
+                                <span class="meta-date">⏰ Evaluación requerida ({% if contest.end_date %}Finalizó: {{ contest.end_date|human_date }}{% else %}Indefinido{% endif %})</span>
                                 
                                 <div class="meta-stats">
                                     <span class="meta-stat">
@@ -80,7 +80,7 @@
                             </div>
                             
                             <div class="contest-meta">
-                                <span class="meta-date">Estado: {{ contest.status }} | Fin: {{ contest.end_date|human_date }}</span>
+                                <span class="meta-date">Estado: {{ contest.status }} | {% if contest.end_date %}Fin: {{ contest.end_date|human_date }}{% else %}Fin: Indefinido{% endif %}</span>
                                 
                                 <div class="meta-stats">
                                     <span class="meta-stat">

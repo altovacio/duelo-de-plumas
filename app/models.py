@@ -53,7 +53,7 @@ class Contest(db.Model):
     title = db.Column(db.String(150), nullable=False)
     description = db.Column(db.Text, nullable=True)
     start_date = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
-    end_date = db.Column(db.DateTime, nullable=False)
+    end_date = db.Column(db.DateTime, nullable=True)
     status = db.Column(db.String(20), index=True, default='open') # 'open', 'evaluation', 'closed'
     contest_type = db.Column(db.String(10), default='public') # 'public', 'private'
     password_hash = db.Column(db.String(256), nullable=True) # Only if contest_type is 'private'

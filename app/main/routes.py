@@ -4,6 +4,7 @@ from app.main import bp
 from app.models import Contest, User, Submission, Vote # Import Vote
 from app import db
 from datetime import datetime
+from sqlalchemy import or_ # Import or_
 # Import specific functions from the refactored config
 from app.roadmap.config import (
     get_roadmap_items as config_get_items,
@@ -18,10 +19,11 @@ def index():
     current_time = datetime.utcnow()
     
     # Build the base query for active contests - show ALL contests (public and private)
+    # Include contests with no end date
     active_contests_query = db.select(Contest) \
         .where(Contest.status == 'open') \
-        .where(Contest.end_date > current_time) \
-        .order_by(Contest.end_date.asc())
+        .where(or_(Contest.end_date > current_time, Contest.end_date.is_(None))) \
+        .order_by(Contest.end_date.asc()) # Nulls likely first, which is ok
     
     # Fetch all contests - both public and private
     active_contests = db.session.scalars(active_contests_query).all()
@@ -30,7 +32,7 @@ def index():
     closed_contests = db.session.scalars(
         db.select(Contest)
         .where(Contest.status == 'closed')
-        .order_by(Contest.end_date.desc())
+        .order_by(Contest.end_date.desc()) # Nulls likely last here
     ).all()
 
     # Fetch pending evaluations for the current judge
@@ -40,7 +42,7 @@ def index():
             db.select(Contest)
             .where(Contest.status == 'evaluation')
             .where(Contest.judges.any(User.id == current_user.id))
-            .order_by(Contest.end_date.asc())
+            .order_by(Contest.end_date.asc()) # Nulls likely first
         ).all()
     
     # Fetch contests requiring AI evaluations (for admins)
@@ -95,22 +97,22 @@ def list_contests():
     contests_open = db.session.scalars(
         db.select(Contest)
         .where(Contest.status == 'open')
-        .where(Contest.end_date > now)
-        .order_by(Contest.end_date.asc())
+        .where(or_(Contest.end_date > now, Contest.end_date.is_(None))) # Include contests with no end date
+        .order_by(Contest.end_date.asc()) # Nulls likely first
     ).all()
     
     # Show ALL contests in evaluation - both public and private
     contests_evaluation = db.session.scalars(
         db.select(Contest)
         .where(Contest.status == 'evaluation')
-        .order_by(Contest.end_date.desc())
+        .order_by(Contest.end_date.desc()) # Nulls likely last
     ).all()
     
     # Show ALL closed contests - both public and private
     contests_closed = db.session.scalars(
         db.select(Contest)
         .where(Contest.status == 'closed')
-        .order_by(Contest.end_date.desc())
+        .order_by(Contest.end_date.desc()) # Nulls likely last
     ).all()
     
     # Judge specific list remains unchanged
@@ -121,7 +123,7 @@ def list_contests():
             db.select(Contest)
             .where(Contest.status == 'evaluation')
             .where(Contest.judges.any(User.id == current_user.id)) # Check relationship
-            .order_by(Contest.end_date.asc())
+            .order_by(Contest.end_date.asc()) # Nulls likely first
         ).all()
     
     return render_template('main/contests.html', 

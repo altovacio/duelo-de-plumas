@@ -9,9 +9,9 @@
             Estado: {{ contest.status.capitalize() }} | 
             Tipo: {{ contest.contest_type.capitalize() }} | 
             {% if not is_closed %}
-                Fecha Límite: {{ contest.end_date.strftime('%d/%m/%Y %H:%M') }} UTC
+                {% if contest.end_date %}Fecha Límite: {{ contest.end_date.strftime('%d/%m/%Y %H:%M') }} UTC{% else %}Fecha Límite: Indefinida{% endif %}
             {% else %}
-                Finalizado: {{ contest.end_date.strftime('%d/%m/%Y') }}
+                {% if contest.end_date %}Finalizado: {{ contest.end_date.strftime('%d/%m/%Y') }}{% else %}Finalizado (Fecha desconocida){% endif %}
             {% endif %}
         </p>
         <div class="contest-description markdown-content">
@@ -20,142 +20,176 @@
 
         <hr>
 
-        {% if is_open %}
-            <h3>Enviar tu Texto</h3>
+        {# Show submission block if user can submit OR if contest is in evaluation/closed #}
+        {% if can_submit or is_evaluation or is_closed %}
             
-            {% if current_user.is_authenticated and current_user.is_admin() %}
+            {# Title changes based on state #}
+            {% if can_submit %}
+                <h3>Enviar tu Texto</h3>
+            {% elif is_evaluation %}
+                <h3>Evaluación en Progreso</h3>
+            {% elif is_closed %}
+                <h3>Resultados Finales</h3>
+            {% endif %}
+
+            {# Display expiration message if applicable #}
+            {% if is_expired %}
+                <div class="alert alert-warning">
+                    <strong>¡Atención!</strong> Este concurso ha expirado (finalizó el {{ contest.end_date.strftime('%d/%m/%Y %H:%M') }} UTC).
+                    {% if current_user.is_authenticated and current_user.is_admin() %}
+                         Como administrador, todavía puedes enviar textos.
+                    {% else %}
+                         Ya no se aceptan nuevos envíos.
+                    {% endif %}
+                </div>
+            {% endif %}
+            
+            {# Admin: AI Submission Button (Show if admin can submit) #}
+            {% if can_submit and current_user.is_authenticated and current_user.is_admin() %}
                 <div class="admin-actions">
                     <p><a href="{{ url_for('admin.ai_writer_submission', contest_id=contest.id) }}" class="button">Generar Texto con IA</a></p>
                 </div>
             {% endif %}
             
-            {% if current_user.is_authenticated or true %} {# Placeholder: Decide if login is required #}
-                <div class="form-container">
-                    <form action="{{ url_for('contest.detail', contest_id=contest.id) }}" method="post" novalidate>
-                        {{ form.hidden_tag() }}
-                        <p>
-                            {{ form.author_name.label }}<br>
-                            {{ form.author_name(size=40) }}<br>
-                            {% for error in form.author_name.errors %}
-                                <span style="color: red;">[{{ error }}]</span>
-                            {% endfor %}
-                        </p>
-                        <p>
-                            {{ form.title.label }}<br>
-                            {{ form.title(size=60) }}<br>
-                            {% for error in form.title.errors %}
-                                <span style="color: red;">[{{ error }}]</span>
-                            {% endfor %}
-                        </p>
-                        <p>
-                            {{ form.text_content.label }}<br>
-                            {{ form.text_content(rows=15, cols=80, id="markdown-editor") }}<br>
-                            <small class="text-muted">Soporta formato Markdown para dar estilo al texto.</small><br>
-                            {% for error in form.text_content.errors %}
-                                <span style="color: red;">[{{ error }}]</span>
-                            {% endfor %}
-                        </p>
-                        <p>{{ form.submit() }}</p>
-                    </form>
-                </div>
-            {% else %}
-                <p>Debes <a href="{{ url_for('auth.login', next=request.url) }}">iniciar sesión</a> para enviar un texto.</p>
-            {% endif %}
-        {% elif is_evaluation %}
-            <h3>Evaluación en Progreso</h3>
-            <p>Las sumisiones para este concurso están cerradas. Los resultados se publicarán pronto.</p>
-            {# Add link for judges/admins to evaluate #}
-            {% if current_user.is_authenticated and (current_user.role == 'judge' or current_user.is_admin()) %}
-                <p><a href="{{ url_for('contest.list_submissions', contest_id=contest.id) }}" class="button">Evaluar Envíos</a></p>
-            {% endif %}
-        {% elif is_closed %}
-            <h3>Resultados Finales</h3>
-            {% if submissions_list %}
-                <div class="results-list">
-                    {% for submission in submissions_list %}
-                        <div class="submission-result-item {% if submission.final_rank %}ranked-submission rank-{{ submission.final_rank }}{% endif %}">
-                            <h4>
-                                {% if submission.final_rank == 1 %}
-                                    <span class="rank-badge">1º Lugar</span>
-                                {% elif submission.final_rank == 2 %}
-                                    <span class="rank-badge">2º Lugar</span>
-                                {% elif submission.final_rank == 3 %}
-                                    <span class="rank-badge">3º Lugar</span>
-                                {% elif submission.final_rank == 4 %}
-                                    <span class="rank-badge">M. Hon.</span>
-                                {% elif submission.final_rank %}
-                                    <span class="rank-badge">{{ submission.final_rank }}º</span>
-                                {% endif %}
-                                "{{ submission.title }}" por {{ submission.author_name }}
-                                <span class="points">({{ submission.total_points }} pts)</span>
-                                {% if submission.is_ai_generated %}
-                                    <span class="ai-badge">IA</span>
-                                {% endif %}
-                            </h4>
-                            
-                            {# Submission Metadata - AI Generated? Version info? #}
-                            {% if submission.is_ai_generated %}
-                                <div class="submission-metadata">
-                                    <p class="ai-info">
-                                        Texto generado por IA
-                                        {% if submission.ai_writer %}
-                                            ({{ submission.ai_writer.name }})
-                                        {% endif %}
-                                        {% if ai_writing_requests and submission.id in ai_writing_requests %}
-                                            - Versión {{ ai_writing_requests[submission.id].app_version }}
-                                        {% endif %}
-                                    </p>
-                                </div>
-                            {% endif %}
-                            
-                            {# Submission Text Preview and Button #}
-                            <div class="submission-text-preview markdown-content">
-                                {{ (submission.text_content[:300] + ('...' if submission.text_content|length > 300 else '')) | markdown | safe }}
-                            </div>
-                            <button type="button" class="view-full-text-btn button button-small" 
-                                    data-submission-id="{{ submission.id }}">
-                                Leer Texto Completo
-                            </button>
-
-                            {# Judge Comments #}
-                            {% if submission.id in votes_by_submission %}
-                                <div class="judge-comments">
-                                    <h5>Comentarios de los Jueces:</h5>
-                                    <ul>
-                                        {% for vote in votes_by_submission[submission.id] %}
-                                            {% if vote.comment %}
-                                                <li>
-                                                    <strong>{{ vote.judge.username }}{% if vote.judge.is_ai_judge() %} (IA){% endif %}:</strong> 
-                                                    {{ vote.comment }}
-                                                    {% if vote.app_version %}
-                                                        <span class="vote-version">Versión {{ vote.app_version }}</span>
-                                                    {% endif %}
-                                                </li>
-                                            {% endif %}
-                                        {% endfor %}
-                                    </ul>
-                                </div>
-                            {% endif %}
-                        </div>
-                        {% if not loop.last %}<hr class="submission-divider">{% endif %}
-                    {% endfor %}
-                </div>
-                
-                {# Hidden data for JavaScript to read #}
-                <script type="application/json" id="submission-data">
-                    {
+            {# Submission Form (Show only if user can submit) #}
+            {% if can_submit %}
+                {% if current_user.is_authenticated or true %} {# Placeholder: Decide if login is required #}
+                    <div class="form-container">
+                        <form action="{{ url_for('contest.detail', contest_id=contest.id) }}" method="post" novalidate>
+                            {{ form.hidden_tag() }}
+                            <p>
+                                {{ form.author_name.label }}<br>
+                                {{ form.author_name(size=40) }}<br>
+                                {% for error in form.author_name.errors %}
+                                    <span style="color: red;">[{{ error }}]</span>
+                                {% endfor %}
+                            </p>
+                            <p>
+                                {{ form.title.label }}<br>
+                                {{ form.title(size=60) }}<br>
+                                {% for error in form.title.errors %}
+                                    <span style="color: red;">[{{ error }}]</span>
+                                {% endfor %}
+                            </p>
+                            <p>
+                                {{ form.text_content.label }}<br>
+                                {{ form.text_content(rows=15, cols=80, id="markdown-editor") }}<br>
+                                <small class="text-muted">Soporta formato Markdown para dar estilo al texto.</small><br>
+                                {% for error in form.text_content.errors %}
+                                    <span style="color: red;">[{{ error }}]</span>
+                                {% endfor %}
+                            </p>
+                            <p>{{ form.submit() }}</p>
+                        </form>
+                    </div>
+                {% else %}
+                    <p>Debes <a href="{{ url_for('auth.login', next=request.url) }}">iniciar sesión</a> para enviar un texto.</p>
+                {% endif %}
+            {# Messages/Actions for Evaluation/Closed states #}
+            {% elif is_evaluation %}
+                <p>Las sumisiones para este concurso están cerradas. Los resultados se publicarán pronto.</p>
+                {# Add link for judges/admins to evaluate #}
+                {% if current_user.is_authenticated and (current_user.role == 'judge' or current_user.is_admin()) %}
+                    <p><a href="{{ url_for('contest.list_submissions', contest_id=contest.id) }}" class="button">Evaluar Envíos</a></p>
+                {% endif %}
+            {% elif is_closed %}
+                {# Results section goes here - moved inside the main conditional block #}
+                {% if submissions_list %}
+                    <div class="results-list">
                         {% for submission in submissions_list %}
-                            "{{ submission.id }}": {
-                                "title": {{ submission.title|tojson|safe }},
-                                "author": {{ submission.author_name|tojson|safe }},
-                                "content": {{ submission.text_content|markdown|tojson|safe }}
-                            }{% if not loop.last %},{% endif %}
+                            <div class="submission-result-item {% if submission.final_rank %}ranked-submission rank-{{ submission.final_rank }}{% endif %}">
+                                <h4>
+                                    {% if submission.final_rank == 1 %}
+                                        <span class="rank-badge">1º Lugar</span>
+                                    {% elif submission.final_rank == 2 %}
+                                        <span class="rank-badge">2º Lugar</span>
+                                    {% elif submission.final_rank == 3 %}
+                                        <span class="rank-badge">3º Lugar</span>
+                                    {% elif submission.final_rank == 4 %}
+                                        <span class="rank-badge">M. Hon.</span>
+                                    {% elif submission.final_rank %}
+                                        <span class="rank-badge">{{ submission.final_rank }}º</span>
+                                    {% endif %}
+                                    "{{ submission.title }}" por {{ submission.author_name }}
+                                    <span class="points">({{ submission.total_points }} pts)</span>
+                                    {% if submission.is_ai_generated %}
+                                        <span class="ai-badge">IA</span>
+                                    {% endif %}
+                                </h4>
+                                
+                                {# Submission Metadata - AI Generated? Version info? #}
+                                {% if submission.is_ai_generated %}
+                                    <div class="submission-metadata">
+                                        <p class="ai-info">
+                                            Texto generado por IA
+                                            {% if submission.ai_writer %}
+                                                ({{ submission.ai_writer.name }})
+                                            {% endif %}
+                                            {% if ai_writing_requests and submission.id in ai_writing_requests %}
+                                                - Versión {{ ai_writing_requests[submission.id].app_version }}
+                                            {% endif %}
+                                        </p>
+                                    </div>
+                                {% endif %}
+                                
+                                {# Submission Text Preview and Button #}
+                                <div class="submission-text-preview markdown-content">
+                                    {{ (submission.text_content[:300] + ('...' if submission.text_content|length > 300 else '')) | markdown | safe }}
+                                </div>
+                                <button type="button" class="view-full-text-btn button button-small" 
+                                        data-submission-id="{{ submission.id }}">
+                                    Leer Texto Completo
+                                </button>
+
+                                {# Judge Comments #}
+                                {% if submission.id in votes_by_submission %}
+                                    <div class="judge-comments">
+                                        <h5>Comentarios de los Jueces:</h5>
+                                        <ul>
+                                            {% for vote in votes_by_submission[submission.id] %}
+                                                {% if vote.comment %}
+                                                    <li>
+                                                        <strong>{{ vote.judge.username }}{% if vote.judge.is_ai_judge() %} (IA){% endif %}:</strong> 
+                                                        {{ vote.comment }}
+                                                        {% if vote.app_version %}
+                                                            <span class="vote-version">Versión {{ vote.app_version }}</span>
+                                                        {% endif %}
+                                                    </li>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            {% if not loop.last %}<hr class="submission-divider">{% endif %}
                         {% endfor %}
-                    }
-                </script>
-            {% else %}
-                <p>No hubo envíos para este concurso.</p>
+                    </div>
+                    
+                    {# Hidden data for JavaScript to read #}
+                    <script type="application/json" id="submission-data">
+                        {
+                            {% for submission in submissions_list %}
+                                "{{ submission.id }}": {
+                                    "title": {{ submission.title|tojson|safe }},
+                                    "author": {{ submission.author_name|tojson|safe }},
+                                    "content": {{ submission.text_content|markdown|tojson|safe }}
+                                }{% if not loop.last %},{% endif %}
+                            {% endfor %}
+                        }
+                    </script>
+                {% else %}
+                    <p>No hubo envíos para este concurso.</p>
+                {% endif %}
             {% endif %}
+        {% else %}
+             {# Fallback messages #}
+             {% if is_open and is_expired %}
+                 {# Specific message for non-admins viewing expired open contests #}
+                 <p>Este concurso ha expirado (finalizó el {{ contest.end_date.strftime('%d/%m/%Y %H:%M') }} UTC) y ya no acepta nuevos envíos.</p>
+             {% else %}
+                 {# Generic fallback for any other unexpected state #}
+                 <p>El estado actual del concurso no permite envíos o visualización de resultados.</p>
+             {% endif %}
         {% endif %}
     </article>
 

@@ -58,9 +58,13 @@
                                 <span class="text-muted">Ninguno</span>
                             {% endif %}
                         </td>
-                        {# Compare with current_time_utc #}
-                        <td {% if contest.end_date.replace(tzinfo=timezone.utc) < current_time_utc %}class="date-past"{% endif %}>
-                            {{ contest.end_date.strftime('%Y-%m-%d %H:%M') }}
+                        {# Compare with current_time_utc if end_date exists #}
+                        <td {% if contest.end_date and contest.end_date.replace(tzinfo=timezone.utc) < current_time_utc %}class="date-past"{% endif %}>
+                            {% if contest.end_date %}
+                                {{ contest.end_date.strftime('%Y-%m-%d %H:%M') }}
+                            {% else %}
+                                <span class="text-muted">Indefinida</span>
+                            {% endif %}
                         </td>
                         <td class="actions-column">
                             <a href="{{ url_for('admin.edit_contest', contest_id=contest.id) }}" class="button-icon" title="Editar Concurso">✏️</a>

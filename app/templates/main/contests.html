@@ -30,11 +30,11 @@
                         
                         <div class="contest-meta">
                             {% if contest.status == 'open' %}
-                                <span class="meta-date">📅 Fecha Límite: {{ contest.end_date|human_date(with_time=True) }}</span>
+                                <span class="meta-date">📅 {% if contest.end_date %}Fecha Límite: {{ contest.end_date|human_date(with_time=True) }}{% else %}Sin fecha límite{% endif %}</span>
                             {% elif contest.status == 'evaluation' %}
-                                <span class="meta-date">⏳ Evaluación en progreso (Finalizó: {{ contest.end_date|human_date }})</span>
+                                <span class="meta-date">⏳ Evaluación en progreso ({% if contest.end_date %}Finalizó: {{ contest.end_date|human_date }}{% else %}Indefinido{% endif %})</span>
                              {% elif contest.status == 'closed' %}
-                                <span class="meta-date">📅 Finalizado: {{ contest.end_date|human_date }}</span>
+                                <span class="meta-date">📅 {% if contest.end_date %}Finalizado: {{ contest.end_date|human_date }}{% else %}Finalizado (Fecha desconocida){% endif %}</span>
                             {% endif %}
                             
                             {# Add contest statistics - new section #}
@@ -125,7 +125,7 @@
                                 </div>
                                 
                                 <div class="contest-meta">
-                                    <span class="meta-date">⏰ Evaluación requerida (Finalizó: {{ contest.end_date|human_date }})</span>
+                                    <span class="meta-date">⏰ Evaluación requerida ({% if contest.end_date %}Finalizó: {{ contest.end_date|human_date }}{% else %}Indefinido{% endif %})</span>
                                     
                                     <div class="meta-stats">
                                         <span class="meta-stat">

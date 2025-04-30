@@ -22,6 +22,7 @@ def check_contests_command():
     expired_contests = db.session.scalars(
         db.select(Contest)
         .where(Contest.status == 'open')
+        .where(Contest.end_date.is_not(None))
         .where(Contest.end_date <= now)
     ).all()
     

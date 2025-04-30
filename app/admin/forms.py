@@ -14,7 +14,7 @@ class ContestForm(FlaskForm):
     title = StringField('Título del Concurso', validators=[DataRequired(), Length(max=150)])
     description = TextAreaField('Descripción', 
                                render_kw={"placeholder": "Describe el concurso con detalle. Puedes usar Markdown para dar formato al texto."})
-    end_date = DateTimeField('Fecha de Finalización', format='%Y-%m-%dT%H:%M', validators=[DataRequired()])
+    end_date = DateTimeField('Fecha de Finalización', format='%Y-%m-%dT%H:%M', validators=[Optional()])
     required_judges = IntegerField('Jueces Requeridos', 
                                   validators=[DataRequired(), NumberRange(min=1, max=9)],
                                   default=1)

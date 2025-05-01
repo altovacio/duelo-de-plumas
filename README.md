@@ -399,3 +399,61 @@ Con estos pasos, tu servidor tiene una configuración base más segura. Ahora pu
     *   Add detailed deployment instructions (e.g., using Gunicorn, Nginx, Docker).
 *   **Security:**
     *   Perform a security review (CSRF, XSS, SQL Injection, permissions).
+
+## Migraciones de Base de Datos (Alembic - v2)
+
+La versión 2 (FastAPI) de la aplicación utiliza Alembic para gestionar los cambios en el esquema de la base de datos. Los scripts de migración se encuentran en el directorio `v2/migrations/`.
+
+**Requisitos:**
+
+*   Asegúrate de tener Alembic instalado: `pip install alembic` (incluido en `requirements.txt`).
+*   Asegúrate de que tu archivo `.env` contenga la variable `DATABASE_URL` correcta para que Alembic pueda conectar con la base de datos.
+*   Activa el entorno virtual de la v2 (si tienes uno separado, por ejemplo `source venv2/bin/activate`).
+
+**Comandos Comunes:**
+
+1.  **Generar una nueva migración automáticamente:**
+    Después de realizar cambios en tus modelos SQLAlchemy en `v2/models.py`, ejecuta:
+    ```bash
+    alembic revision --autogenerate -m "Descripción breve de los cambios"
+    ```
+    *   Esto comparará tus modelos con el estado actual de la base de datos (según el historial de Alembic) y generará un nuevo script de migración en `v2/migrations/versions/`.
+    *   **Importante:** Revisa siempre el script generado para asegurarte de que refleja los cambios deseados correctamente.
+
+2.  **Aplicar las migraciones a la base de datos:**
+    Para actualizar el esquema de tu base de datos al último estado definido por las migraciones:
+    ```bash
+    alembic upgrade head
+    ```
+    *   `head` significa aplicar hasta la última migración disponible.
+    *   Puedes aplicar hasta una revisión específica usando su ID: `alembic upgrade <revision_id>`
+
+3.  **Revertir la última migración:**
+    ```bash
+    alembic downgrade -1
+    ```
+    *   `-1` significa bajar una versión. Puedes usar `-2` para bajar dos, o un ID de revisión específico para bajar hasta ese punto: `alembic downgrade <revision_id>`
+
+4.  **Ver el historial de migraciones:**
+    ```bash
+    alembic history
+    ```
+
+5.  **Ver el estado actual (qué migración está aplicada):**
+    ```bash
+    alembic current
+    ```
+
+6.  **Ver las migraciones pendientes de aplicar:**
+    ```bash
+    alembic heads
+    ```
+
+**Flujo de Trabajo Típico:**
+
+1.  Modifica tus modelos en `v2/models.py`.
+2.  Genera la migración: `alembic revision --autogenerate -m "Descripción"`
+3.  Revisa el script generado en `v2/migrations/versions/`.
+4.  Aplica la migración a tu base de datos de desarrollo: `alembic upgrade head`
+5.  Verifica que todo funciona como se espera.
+6.  Cuando despliegues a producción, ejecuta `alembic upgrade head` en el servidor de producción como parte del proceso de despliegue.

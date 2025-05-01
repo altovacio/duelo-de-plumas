@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from .fastapi_config import settings
 
 # Import routers
-from .routers import contest
+from .routers import contest, auth
 
 app = FastAPI(
     title=settings.APP_NAME, 
@@ -19,6 +19,7 @@ async def read_root():
     return {"message": f"Welcome to {settings.APP_NAME}"}
 
 # Include routers
+app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 app.include_router(contest.router, prefix="/contests", tags=["Contests"])
 # Example for auth router later:
 # from .routers import auth

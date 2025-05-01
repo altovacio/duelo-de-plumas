@@ -2,8 +2,8 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 # Use passlib for password hashing in the FastAPI version
-# from passlib.context import CryptContext
-# pwd_context = CryptContext(schemes=[\"bcrypt\"], deprecated=\"auto\")
+from passlib.context import CryptContext
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 from sqlalchemy import (
     Integer, String, Text, DateTime, ForeignKey, Boolean, Float, Table, Column, 
@@ -38,7 +38,7 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     username: Mapped[str] = mapped_column(String(64), index=True, unique=True, nullable=False)
     email: Mapped[str] = mapped_column(String(120), index=True, unique=True, nullable=False)
-    password_hash: Mapped[Optional[str]] = mapped_column(String(256), nullable=True) # Nullable? Should be False after creation normally
+    password_hash: Mapped[Optional[str]] = mapped_column(String(256), nullable=True) # Set nullable=False? Ensure it's always set on creation.
     role: Mapped[str] = mapped_column(String(10), index=True, default='judge') # 'admin', 'judge', 'user'
     judge_type: Mapped[str] = mapped_column(String(10), default='human') # 'human' or 'ai'
     ai_personality_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -51,12 +51,14 @@ class User(Base):
     )
     ai_evaluations: Mapped[List["AIEvaluation"]] = relationship(back_populates='judge') # Added back_populates
 
-    # --- Methods (To be adapted for passlib) ---
-    # def set_password(self, password):
-    #     self.password_hash = pwd_context.hash(password)
+    # --- Methods using passlib --- 
+    def set_password(self, password: str):
+        """Hashes the password and sets the password_hash field."""
+        self.password_hash = pwd_context.hash(password)
 
-    # def check_password(self, password):
-    #     return pwd_context.verify(password, self.password_hash)
+    def check_password(self, password: str) -> bool:
+        """Verifies a given password against the stored hash."""
+        return pwd_context.verify(password, self.password_hash)
 
     def is_admin(self) -> bool:
         return self.role == 'admin'
@@ -95,17 +97,19 @@ class Contest(Base):
     )
     ai_evaluations: Mapped[List["AIEvaluation"]] = relationship(back_populates='contest', cascade="all, delete-orphan")
 
-    # --- Methods (To be adapted for passlib) ---
-    # def set_password(self, password):
-    #     if self.contest_type == 'private':
-    #         self.password_hash = pwd_context.hash(password)
-    #     else:
-    #         self.password_hash = None
+    # --- Methods using passlib --- 
+    def set_password(self, password: str):
+        """Hashes the password and sets the password_hash field if contest is private."""
+        if self.contest_type == 'private':
+            self.password_hash = pwd_context.hash(password)
+        else:
+            self.password_hash = None
 
-    # def check_password(self, password):
-    #     if self.contest_type != 'private' or not self.password_hash:
-    #         return False
-    #     return pwd_context.verify(password, self.password_hash)
+    def check_password(self, password: str) -> bool:
+        """Verifies a given password against the stored hash if contest is private."""
+        if self.contest_type != 'private' or not self.password_hash:
+            return False
+        return pwd_context.verify(password, self.password_hash)
 
     def __repr__(self):
         return f'<Contest {self.title}>'

@@ -20,8 +20,9 @@ Jinja2>=3.1.0
 # Forms (for HTML forms)
 python-multipart>=0.0.9
 
-# Password Hashing
+# Authentication & Security
 passlib[bcrypt]>=1.7.4
+python-jose[cryptography]>=3.3.0 # For JWT handling
 
 # Environment Variables
 python-dotenv>=1.0.0

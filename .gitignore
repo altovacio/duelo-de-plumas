@@ -3,3 +3,4 @@ venv/
 *.pyc
 .env
 app.db
+venv2/

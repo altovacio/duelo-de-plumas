@@ -4,8 +4,8 @@ import anthropic
 from unittest.mock import patch, AsyncMock, MagicMock, PropertyMock
 
 # Assuming the service file is in v2/app/services/ai_services.py
-from v2.app.services.ai_services import call_ai_api, get_model_info # Need get_model_info for tests
-from v2.app.config.ai_params import AI_MODELS, API_PRICING # Need actual params for cost calc
+from backend.app.services.ai_services import call_ai_api, get_model_info # Need get_model_info for tests
+from backend.app.config.ai_params import AI_MODELS, API_PRICING # Need actual params for cost calc
 
 # Mark all tests in this module as asyncio
 pytestmark = pytest.mark.asyncio
@@ -13,8 +13,8 @@ pytestmark = pytest.mark.asyncio
 # --- Mock Data & Objects ---
 
 # Mock actual AI_MODELS/API_PRICING for realistic cost/token calc in tests
-@patch('v2.app.services.ai_services.AI_MODELS', AI_MODELS)
-@patch('v2.app.services.ai_services.API_PRICING', API_PRICING)
+@patch('backend.app.services.ai_services.AI_MODELS', AI_MODELS)
+@patch('backend.app.services.ai_services.API_PRICING', API_PRICING)
 async def test_call_ai_api_openai_success():
     # Setup nested mock structure for OpenAI
     mock_openai_client = AsyncMock(spec=openai.AsyncOpenAI)
@@ -54,9 +54,9 @@ async def test_call_ai_api_openai_success():
     assert result['cost'] > 0 # Check cost calculation happened
     assert result['error_message'] is None
 
-@patch('v2.app.services.ai_services.AI_MODELS', AI_MODELS)
-@patch('v2.app.services.ai_services.API_PRICING', API_PRICING)
-@patch('v2.app.services.ai_services.count_tokens', return_value=25) # Mock token counting
+@patch('backend.app.services.ai_services.AI_MODELS', AI_MODELS)
+@patch('backend.app.services.ai_services.API_PRICING', API_PRICING)
+@patch('backend.app.services.ai_services.count_tokens', return_value=25) # Mock token counting
 @pytest.mark.skip(reason="Complex async stream mocking issue") # Skip this test for now
 async def test_call_ai_api_anthropic_success(mock_count_tokens):
     # Setup nested mock structure for OpenAI (needed for assert_not_awaited)
@@ -128,8 +128,8 @@ async def test_call_ai_api_anthropic_success(mock_count_tokens):
     mock_count_tokens.assert_any_call(prompt, model_id)
     mock_count_tokens.assert_any_call("Anthropic response text", model_id)
 
-@patch('v2.app.services.ai_services.AI_MODELS', AI_MODELS)
-@patch('v2.app.services.ai_services.API_PRICING', API_PRICING)
+@patch('backend.app.services.ai_services.AI_MODELS', AI_MODELS)
+@patch('backend.app.services.ai_services.API_PRICING', API_PRICING)
 async def test_call_ai_api_openai_error():
     # Setup nested mock structure
     mock_openai_client = AsyncMock(spec=openai.AsyncOpenAI)
@@ -157,14 +157,14 @@ async def test_call_ai_api_openai_error():
     assert result['cost'] >= 0 # Cost might be > 0 if input tokens were counted
     assert result['error_message'] is not None
 
-@patch('v2.app.services.ai_services.AI_MODELS', AI_MODELS)
-@patch('v2.app.services.ai_services.API_PRICING', API_PRICING)
+@patch('backend.app.services.ai_services.AI_MODELS', AI_MODELS)
+@patch('backend.app.services.ai_services.API_PRICING', API_PRICING)
 async def test_call_ai_api_unsupported_provider():
     mock_openai_client = AsyncMock(spec=openai.AsyncOpenAI)
     mock_anthropic_client = AsyncMock(spec=anthropic.AsyncAnthropic)
     
     # Add a mock model with an unsupported provider to AI_MODELS for this test
-    with patch('v2.app.services.ai_services.AI_MODELS', AI_MODELS + [{
+    with patch('backend.app.services.ai_services.AI_MODELS', AI_MODELS + [{
         'id': 'unsupported-model', 'name': 'Unsupported', 'provider': 'xyz', 
         'max_tokens': 1000, 'api_name': 'xyz-api', 'available': True
     }]):
@@ -178,8 +178,8 @@ async def test_call_ai_api_unsupported_provider():
         assert "Unsupported AI provider: xyz" in result['error_message']
         assert result['cost'] >= 0
 
-@patch('v2.app.services.ai_services.AI_MODELS', AI_MODELS)
-@patch('v2.app.services.ai_services.API_PRICING', API_PRICING)
+@patch('backend.app.services.ai_services.AI_MODELS', AI_MODELS)
+@patch('backend.app.services.ai_services.API_PRICING', API_PRICING)
 async def test_call_ai_api_openai_client_none():
     # Pass None for the client
     mock_openai_client = None 
@@ -195,8 +195,8 @@ async def test_call_ai_api_openai_client_none():
     assert "OpenAI client not available" in result['error_message']
     assert result['cost'] >= 0
 
-@patch('v2.app.services.ai_services.AI_MODELS', AI_MODELS)
-@patch('v2.app.services.ai_services.API_PRICING', API_PRICING)
+@patch('backend.app.services.ai_services.AI_MODELS', AI_MODELS)
+@patch('backend.app.services.ai_services.API_PRICING', API_PRICING)
 async def test_call_ai_api_anthropic_client_none():
     mock_openai_client = AsyncMock(spec=openai.AsyncOpenAI)
     # Pass None for the client

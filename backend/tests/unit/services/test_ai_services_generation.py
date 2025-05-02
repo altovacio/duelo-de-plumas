@@ -38,7 +38,7 @@ class AIWritingRequest:
 #     pass
 
 # Import the actual function which will be patched in tests
-from v2.app.services.ai_services import generate_text
+from backend.app.services.ai_services import generate_text
 
 async def call_ai_api(prompt, model_id, temperature, openai_client, anthropic_client):
     # Real implementation will be mocked in tests
@@ -89,7 +89,7 @@ def mock_anthropic_client():
 # --- Test Cases for generate_text service --- 
 
 @pytest.mark.asyncio
-@patch('v2.app.services.ai_services.generate_text')  # Patch the entire function
+@patch('backend.app.services.ai_services.generate_text')  # Patch the entire function
 async def test_generate_text_success(
     mock_generate_text,
     mock_async_session, mock_openai_client, mock_anthropic_client
@@ -142,7 +142,7 @@ async def test_generate_text_success(
     )
 
 @pytest.mark.asyncio
-@patch('v2.app.services.ai_services.generate_text')  # Patch the entire function
+@patch('backend.app.services.ai_services.generate_text')  # Patch the entire function
 async def test_generate_text_contest_not_found(
     mock_generate_text, mock_async_session, mock_openai_client, mock_anthropic_client
 ):
@@ -188,7 +188,7 @@ async def test_generate_text_contest_not_found(
     )
 
 @pytest.mark.asyncio
-@patch('v2.app.services.ai_services.generate_text')  # Patch the entire function
+@patch('backend.app.services.ai_services.generate_text')  # Patch the entire function
 async def test_generate_text_ai_writer_not_found(
     mock_generate_text, mock_async_session, mock_openai_client, mock_anthropic_client
 ):
@@ -226,7 +226,7 @@ async def test_generate_text_ai_writer_not_found(
     mock_generate_text.assert_called_once()
 
 @pytest.mark.asyncio
-@patch('v2.app.services.ai_services.generate_text')  # Patch the entire function
+@patch('backend.app.services.ai_services.generate_text')  # Patch the entire function
 async def test_generate_text_contest_not_open(
     mock_generate_text, mock_async_session, mock_openai_client, mock_anthropic_client
 ):
@@ -264,7 +264,7 @@ async def test_generate_text_contest_not_open(
     mock_generate_text.assert_called_once()
 
 @pytest.mark.asyncio
-@patch('v2.app.services.ai_services.generate_text')  # Patch the entire function
+@patch('backend.app.services.ai_services.generate_text')  # Patch the entire function
 async def test_generate_text_api_error(
     mock_generate_text, mock_async_session, mock_openai_client, mock_anthropic_client
 ):
@@ -303,7 +303,7 @@ async def test_generate_text_api_error(
     mock_generate_text.assert_called_once()
 
 @pytest.mark.asyncio
-@patch('v2.app.services.ai_services.generate_text')  # Patch the entire function
+@patch('backend.app.services.ai_services.generate_text')  # Patch the entire function
 async def test_generate_text_database_error(
     mock_generate_text, mock_async_session, mock_openai_client, mock_anthropic_client
 ):

@@ -6,7 +6,7 @@ import openai
 import anthropic
 
 # Assuming the service file is in v2/app/services/ai_services.py
-from v2.app.services.ai_services import run_ai_evaluation
+from backend.app.services.ai_services import run_ai_evaluation
 
 # Mark all tests in this module as asyncio
 pytestmark = pytest.mark.asyncio
@@ -51,22 +51,22 @@ def mock_anthropic_client():
 def patch_models():
     # Patch model names with simple MagicMocks using nested with statements
     # Use create=True in case the import failed in the service module
-    with patch('v2.app.services.ai_services.Contest', MockContest, create=True):
-        with patch('v2.app.services.ai_services.User', MockUser, create=True):
-            with patch('v2.app.services.ai_services.Submission', MockSubmission, create=True):
-                with patch('v2.app.services.ai_services.Vote', MockVote, create=True):
-                    with patch('v2.app.services.ai_services.AIEvaluation', MockAIEvaluation, create=True):
-                        with patch('v2.app.services.ai_services.contest_judges', MockContestJudgesTable, create=True):
+    with patch('backend.app.services.ai_services.Contest', MockContest, create=True):
+        with patch('backend.app.services.ai_services.User', MockUser, create=True):
+            with patch('backend.app.services.ai_services.Submission', MockSubmission, create=True):
+                with patch('backend.app.services.ai_services.Vote', MockVote, create=True):
+                    with patch('backend.app.services.ai_services.AIEvaluation', MockAIEvaluation, create=True):
+                        with patch('backend.app.services.ai_services.contest_judges', MockContestJudgesTable, create=True):
                             yield # Allows tests to run with patches active
 
 # --- Tests for run_ai_evaluation --- 
 
 # Mock the SQLAlchemy query functions used within the service
-@patch('v2.app.services.ai_services.select', return_value=MagicMock()) 
-@patch('v2.app.services.ai_services.delete', return_value=MagicMock())
-@patch('v2.app.services.ai_services.construct_judge_prompt', return_value="Mock Prompt")
-@patch('v2.app.services.ai_services.call_ai_api')
-@patch('v2.app.services.ai_services.parse_ai_judge_response', return_value=[(101, 1, "Comment 1"), (102, 2, "Comment 2")])
+@patch('backend.app.services.ai_services.select', return_value=MagicMock()) 
+@patch('backend.app.services.ai_services.delete', return_value=MagicMock())
+@patch('backend.app.services.ai_services.construct_judge_prompt', return_value="Mock Prompt")
+@patch('backend.app.services.ai_services.call_ai_api')
+@patch('backend.app.services.ai_services.parse_ai_judge_response', return_value=[(101, 1, "Comment 1"), (102, 2, "Comment 2")])
 async def test_run_ai_evaluation_success(
     mock_parse, mock_call_api, mock_construct_prompt, mock_delete, mock_select,
     mock_session, mock_openai_client, mock_anthropic_client
@@ -142,11 +142,11 @@ async def test_run_ai_evaluation_success(
     assert MockVote.call_count == 2 # Check Vote class was instantiated twice
 
 # Patch query functions for the failure test too
-@patch('v2.app.services.ai_services.select', return_value=MagicMock()) 
-@patch('v2.app.services.ai_services.delete', return_value=MagicMock())
-@patch('v2.app.services.ai_services.construct_judge_prompt')
-@patch('v2.app.services.ai_services.call_ai_api')
-@patch('v2.app.services.ai_services.parse_ai_judge_response')
+@patch('backend.app.services.ai_services.select', return_value=MagicMock()) 
+@patch('backend.app.services.ai_services.delete', return_value=MagicMock())
+@patch('backend.app.services.ai_services.construct_judge_prompt')
+@patch('backend.app.services.ai_services.call_ai_api')
+@patch('backend.app.services.ai_services.parse_ai_judge_response')
 async def test_run_ai_evaluation_api_failure(
     mock_parse, mock_call_api, mock_construct_prompt, mock_delete, mock_select,
     mock_session, mock_openai_client, mock_anthropic_client

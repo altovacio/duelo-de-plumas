@@ -47,7 +47,7 @@ async def call_ai_api(prompt, model_id, temperature, openai_client, anthropic_cl
     pass
 
 # Import the actual function - will be mocked in tests
-from v2.app.services.ai_services import generate_text
+from backend.app.services.ai_services import generate_text
 
 # --- Test Cases for /ai/generate-text ---
 

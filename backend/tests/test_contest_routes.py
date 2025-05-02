@@ -7,7 +7,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timezone, timedelta
 
-from v2 import models, schemas
+from backend import models, schemas
 
 # Mark all tests in this module as async
 pytestmark = pytest.mark.asyncio

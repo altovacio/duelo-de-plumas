@@ -77,47 +77,49 @@ async def get_user_by_id(db: AsyncSession, user_id: int) -> Optional[models.User
 # --- Security Dependencies --- 
 
 async def get_current_user(
-    token: str = Depends(oauth2_scheme, use_cache=False), # Disable cache if needed
+    token: Optional[str] = Depends(oauth2_scheme, use_cache=False), # Now explicitly Optional
     db: AsyncSession = Depends(get_db_session)
-) -> Optional[models.User]: # Changed return type to Optional[User]
+) -> models.User: # Changed return type back to User (will raise exception on failure)
     """Dependency to get the current user from the JWT token.
-    
+
     Verifies token signature and expiry, fetches user from DB.
-    Returns the User object if valid, otherwise returns None.
+    Raises HTTPException if the token is invalid, missing, or user not found.
     """
-    print(f"Attempting to get current user from token: {token[:10]}...") # DEBUG
-    # REMOVED: Direct exception raising on token error
-    # credentials_exception = HTTPException(...)
-    if not token:
-        print("  No token provided.") # DEBUG
-        return None # Return None if no token is present
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials", # Consistent error message
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    # DEBUG: Check if token is received
+    token_preview = token[:10] + "..." if token else "None"
+    print(f"Attempting to get current user from token: {token_preview}") # DEBUG
+    
+    if token is None:
+        print("No token provided.") # DEBUG
+        raise credentials_exception # Raise the consistent exception
 
     try:
-        payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[settings.AUTH_ALGORITHM]
-        )
-        username: str = payload.get("sub")
-        print(f"  Token payload decoded. Username (sub): {username}") # DEBUG
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.AUTH_ALGORITHM])
+        username: Optional[str] = payload.get("sub")
         if username is None:
             print("  Error: Username (sub) not found in token.") # DEBUG
-            # raise credentials_exception
-            return None # Return None on invalid payload
+            raise credentials_exception # Raise exception
         token_data = schemas.TokenData(username=username)
     except (JWTError, ValidationError) as e:
         print(f"  Error decoding token: {e}") # DEBUG
-        # raise credentials_exception
-        return None # Return None on decode error
+        raise credentials_exception # Raise exception
 
-    # Fetch user from DB based on token subject (username or user_id)
-    print(f"  Fetching user from DB with username: {token_data.username}") # DEBUG
-    user = await get_user_by_username(db, token_data.username)
-    
+    # Fetch user from database using username from token
+    stmt = select(models.User).where(models.User.username == token_data.username)
+    result = await db.execute(stmt)
+    user = result.scalars().first()
+
     if user is None:
         print(f"  Error: User '{token_data.username}' not found in database.") # DEBUG
-        # raise credentials_exception
-        return None # Return None if user not found
+        raise credentials_exception # Raise exception
         
-    print(f"  User found: {user.username} (ID: {user.id})") # DEBUG
+    print(f"  Successfully authenticated user: {user.username} (ID: {user.id})") # DEBUG
     return user
 
 # New dependency for truly optional user retrieval

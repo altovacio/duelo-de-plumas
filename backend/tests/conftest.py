@@ -19,15 +19,15 @@ project_root = str(Path(__file__).parent.parent.parent)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-# Ensure we can import from v2
-if str(Path("v2")) not in sys.path:
-     sys.path.insert(0, str(Path("v2")))
+# Ensure we can import from backend
+if str(Path("backend")) not in sys.path:
+     sys.path.insert(0, str(Path("backend")))
      
 # Must import AFTER path modification
-from v2.main import app # Your FastAPI app instance
-from v2.database import Base, get_db_session # Import Base for metadata
-from v2.fastapi_config import settings as app_settings # Import your app settings
-from v2 import models # To create test data
+from backend.main import app # Your FastAPI app instance
+from backend.database import Base, get_db_session # Import Base for metadata
+from backend.fastapi_config import settings as app_settings # Import your app settings
+from backend import models # To create test data
 
 # Use an in-memory SQLite database for testing
 TEST_DATABASE_URL = "sqlite+aiosqlite:///./test_db.sqlite"

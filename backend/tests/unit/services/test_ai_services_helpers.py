@@ -4,7 +4,7 @@ import re
 
 # Assuming the service file is in v2/app/services/ai_services.py
 # Adjust the import path if your structure is different
-from v2.app.services.ai_services import (
+from backend.app.services.ai_services import (
     get_model_info,
     count_tokens,
     calculate_cost,
@@ -63,27 +63,27 @@ class MockSubmission:
 
 # --- Tests for get_model_info ---
 
-@patch('v2.app.services.ai_services.AI_MODELS', MOCK_AI_MODELS)
-@patch('v2.app.services.ai_services.DEFAULT_AI_MODEL_ID', MOCK_DEFAULT_AI_MODEL_ID)
+@patch('backend.app.services.ai_services.AI_MODELS', MOCK_AI_MODELS)
+@patch('backend.app.services.ai_services.DEFAULT_AI_MODEL_ID', MOCK_DEFAULT_AI_MODEL_ID)
 def test_get_model_info_found():
     model_info = get_model_info('test-model-2')
     assert model_info['id'] == 'test-model-2'
     assert model_info['name'] == 'Test Model 2'
 
-@patch('v2.app.services.ai_services.AI_MODELS', MOCK_AI_MODELS)
-@patch('v2.app.services.ai_services.DEFAULT_AI_MODEL_ID', MOCK_DEFAULT_AI_MODEL_ID)
+@patch('backend.app.services.ai_services.AI_MODELS', MOCK_AI_MODELS)
+@patch('backend.app.services.ai_services.DEFAULT_AI_MODEL_ID', MOCK_DEFAULT_AI_MODEL_ID)
 def test_get_model_info_not_found_uses_default():
     model_info = get_model_info('non-existent-model')
     assert model_info['id'] == MOCK_DEFAULT_AI_MODEL_ID
 
-@patch('v2.app.services.ai_services.AI_MODELS', [MOCK_AI_MODELS[1]]) # Only model 2 available
-@patch('v2.app.services.ai_services.DEFAULT_AI_MODEL_ID', 'test-model-1') # Default not available
+@patch('backend.app.services.ai_services.AI_MODELS', [MOCK_AI_MODELS[1]]) # Only model 2 available
+@patch('backend.app.services.ai_services.DEFAULT_AI_MODEL_ID', 'test-model-1') # Default not available
 def test_get_model_info_default_not_found_uses_first_available():
     model_info = get_model_info('non-existent-model')
     assert model_info['id'] == 'test-model-2' # Falls back to the only available one
 
-@patch('v2.app.services.ai_services.AI_MODELS', []) # No models available
-@patch('v2.app.services.ai_services.DEFAULT_AI_MODEL_ID', MOCK_DEFAULT_AI_MODEL_ID)
+@patch('backend.app.services.ai_services.AI_MODELS', []) # No models available
+@patch('backend.app.services.ai_services.DEFAULT_AI_MODEL_ID', MOCK_DEFAULT_AI_MODEL_ID)
 def test_get_model_info_no_models_available_raises_index_error():
      # If AI_MODELS is empty, accessing AI_MODELS[0] will raise IndexError
      with pytest.raises(IndexError):
@@ -98,9 +98,9 @@ class MockEncoding:
         # Simple mock: token count is number of words
         return text.split()
 
-@patch('v2.app.services.ai_services.tiktoken')
-@patch('v2.app.services.ai_services.AI_MODELS', MOCK_AI_MODELS)
-@patch('v2.app.services.ai_services.DEFAULT_AI_MODEL_ID', MOCK_DEFAULT_AI_MODEL_ID)
+@patch('backend.app.services.ai_services.tiktoken')
+@patch('backend.app.services.ai_services.AI_MODELS', MOCK_AI_MODELS)
+@patch('backend.app.services.ai_services.DEFAULT_AI_MODEL_ID', MOCK_DEFAULT_AI_MODEL_ID)
 def test_count_tokens_success(mock_tiktoken):
     mock_tiktoken.encoding_for_model.return_value = MockEncoding()
     text = "This is a test sentence."
@@ -108,9 +108,9 @@ def test_count_tokens_success(mock_tiktoken):
     mock_tiktoken.encoding_for_model.assert_called_with('api-model-1')
     assert tokens == 5 # "This", "is", "a", "test", "sentence."
 
-@patch('v2.app.services.ai_services.tiktoken')
-@patch('v2.app.services.ai_services.AI_MODELS', MOCK_AI_MODELS)
-@patch('v2.app.services.ai_services.DEFAULT_AI_MODEL_ID', MOCK_DEFAULT_AI_MODEL_ID)
+@patch('backend.app.services.ai_services.tiktoken')
+@patch('backend.app.services.ai_services.AI_MODELS', MOCK_AI_MODELS)
+@patch('backend.app.services.ai_services.DEFAULT_AI_MODEL_ID', MOCK_DEFAULT_AI_MODEL_ID)
 def test_count_tokens_encoding_key_error_falls_back_to_base(mock_tiktoken):
     mock_tiktoken.encoding_for_model.side_effect = KeyError("Model not found")
     mock_tiktoken.get_encoding.return_value = MockEncoding()
@@ -120,9 +120,9 @@ def test_count_tokens_encoding_key_error_falls_back_to_base(mock_tiktoken):
     mock_tiktoken.get_encoding.assert_called_with('cl100k_base')
     assert tokens == 2
 
-@patch('v2.app.services.ai_services.tiktoken')
-@patch('v2.app.services.ai_services.AI_MODELS', MOCK_AI_MODELS)
-@patch('v2.app.services.ai_services.DEFAULT_AI_MODEL_ID', MOCK_DEFAULT_AI_MODEL_ID)
+@patch('backend.app.services.ai_services.tiktoken')
+@patch('backend.app.services.ai_services.AI_MODELS', MOCK_AI_MODELS)
+@patch('backend.app.services.ai_services.DEFAULT_AI_MODEL_ID', MOCK_DEFAULT_AI_MODEL_ID)
 def test_count_tokens_all_encoding_errors_fall_back_to_chars(mock_tiktoken):
     mock_tiktoken.encoding_for_model.side_effect = KeyError("Model not found")
     mock_tiktoken.get_encoding.side_effect = KeyError("cl100k_base not found")
@@ -132,25 +132,25 @@ def test_count_tokens_all_encoding_errors_fall_back_to_chars(mock_tiktoken):
 
 # --- Tests for calculate_cost ---
 
-@patch('v2.app.services.ai_services.AI_MODELS', MOCK_AI_MODELS)
-@patch('v2.app.services.ai_services.API_PRICING', MOCK_API_PRICING)
-@patch('v2.app.services.ai_services.DEFAULT_AI_MODEL_ID', MOCK_DEFAULT_AI_MODEL_ID)
+@patch('backend.app.services.ai_services.AI_MODELS', MOCK_AI_MODELS)
+@patch('backend.app.services.ai_services.API_PRICING', MOCK_API_PRICING)
+@patch('backend.app.services.ai_services.DEFAULT_AI_MODEL_ID', MOCK_DEFAULT_AI_MODEL_ID)
 def test_calculate_cost_success():
     cost = calculate_cost('test-model-1', 1000, 2000) # 1k input, 2k output
     # Expected: (1000/1000 * 0.01) + (2000/1000 * 0.02) = 0.01 + 0.04 = 0.05
     assert cost == pytest.approx(0.05)
 
-@patch('v2.app.services.ai_services.AI_MODELS', MOCK_AI_MODELS)
-@patch('v2.app.services.ai_services.API_PRICING', MOCK_API_PRICING)
-@patch('v2.app.services.ai_services.DEFAULT_AI_MODEL_ID', MOCK_DEFAULT_AI_MODEL_ID)
+@patch('backend.app.services.ai_services.AI_MODELS', MOCK_AI_MODELS)
+@patch('backend.app.services.ai_services.API_PRICING', MOCK_API_PRICING)
+@patch('backend.app.services.ai_services.DEFAULT_AI_MODEL_ID', MOCK_DEFAULT_AI_MODEL_ID)
 def test_calculate_cost_model_not_in_pricing():
     cost = calculate_cost('model-not-in-pricing', 1000, 1000)
      # Falls back to default model 'test-model-1'
     assert cost == pytest.approx(0.01 + 0.02) 
 
-@patch('v2.app.services.ai_services.AI_MODELS', MOCK_AI_MODELS)
-@patch('v2.app.services.ai_services.API_PRICING', {}) # Empty pricing
-@patch('v2.app.services.ai_services.DEFAULT_AI_MODEL_ID', MOCK_DEFAULT_AI_MODEL_ID)
+@patch('backend.app.services.ai_services.AI_MODELS', MOCK_AI_MODELS)
+@patch('backend.app.services.ai_services.API_PRICING', {}) # Empty pricing
+@patch('backend.app.services.ai_services.DEFAULT_AI_MODEL_ID', MOCK_DEFAULT_AI_MODEL_ID)
 def test_calculate_cost_no_pricing_info():
     cost = calculate_cost('test-model-1', 1000, 1000)
     assert cost == 0.0
@@ -178,7 +178,7 @@ def test_format_submissions_text_empty():
 
 # --- Tests for construct_judge_prompt ---
 
-@patch('v2.app.services.ai_services.BASE_JUDGE_INSTRUCTION_PROMPT', "Judge Instruction")
+@patch('backend.app.services.ai_services.BASE_JUDGE_INSTRUCTION_PROMPT', "Judge Instruction")
 def test_construct_judge_prompt():
     contest = MockContest(title="Judging Contest")
     judge = MockUser(ai_personality_prompt="Strict Personality")
@@ -208,7 +208,7 @@ Text 5
 
 # --- Tests for construct_writer_prompt ---
 
-@patch('v2.app.services.ai_services.BASE_WRITER_INSTRUCTION_PROMPT', "Writer Instruction")
+@patch('backend.app.services.ai_services.BASE_WRITER_INSTRUCTION_PROMPT', "Writer Instruction")
 def test_construct_writer_prompt():
     contest = MockContest(title="Writing Contest", description=None)
     writer = MockAIWriter(personality_prompt="Creative Style")

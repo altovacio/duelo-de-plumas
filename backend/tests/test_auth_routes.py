@@ -6,7 +6,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Import models if needed to check data, though often checking response is enough
-from v2 import models 
+from backend import models 
 
 # Mark all tests in this module as async
 pytestmark = pytest.mark.asyncio 
@@ -66,7 +66,7 @@ async def test_read_users_me_no_token(client: AsyncClient):
     """Test accessing /auth/users/me without providing a token."""
     response = await client.get("/auth/users/me")
     assert response.status_code == 401 # Unauthorized
-    assert response.json()["detail"] == "Not authenticated"
+    assert response.json()["detail"] == "Could not validate credentials"
 
 async def test_read_users_me_invalid_token(client: AsyncClient):
     """Test accessing /auth/users/me with an invalid token."""

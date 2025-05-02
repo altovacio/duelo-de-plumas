@@ -5,9 +5,9 @@ from sqlalchemy.orm import selectinload
 from typing import List, Optional
 
 # Relative imports from within v2 directory
-from .. import schemas, models
-from ..database import get_db_session
-from .. import security # Import security utilities
+from ... import schemas, models
+from ...database import get_db_session
+from ... import security # Corrected: Go up two levels
 
 router = APIRouter()
 

@@ -8,6 +8,7 @@ from functools import lru_cache
 import openai
 import anthropic
 from .config.settings import Settings
+from fastapi import Depends
 
 @lru_cache()
 def get_settings() -> Settings:
@@ -88,4 +89,29 @@ def get_anthropic_client() -> anthropic.AsyncAnthropic | None:
 #             await session.rollback()
 #             raise
 #         finally:
-#             await session.close() 
+#             await session.close()
+
+# Mock clients for testing
+def get_openai_client_mock():
+    """
+    Returns an OpenAI client instance.
+    For testing, returns a basic client without authentication.
+    In production, this would use proper API keys from config.
+    """
+    # For testing - no actual API calls will be made with mock router
+    # In production, you would use:
+    # client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+    client = openai.AsyncOpenAI(api_key="sk-mock-key-for-testing-only")
+    return client
+
+def get_anthropic_client_mock():
+    """
+    Returns an Anthropic client instance.
+    For testing, returns a basic client without authentication.
+    In production, this would use proper API keys from config.
+    """
+    # For testing - no actual API calls will be made with mock router
+    # In production, you would use:
+    # client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+    client = anthropic.AsyncAnthropic(api_key="sk-mock-key-for-testing-only")
+    return client 

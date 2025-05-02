@@ -7,10 +7,10 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 # Relative imports from within v2
-from .. import schemas, models
-from ..database import get_db_session
-from .. import security # Import our security utilities
-from ..fastapi_config import settings # Import settings for token expiry
+from ... import schemas, models
+from ...database import get_db_session
+from ... import security # Corrected: Go up two levels
+from ...fastapi_config import settings # Corrected: Go up two levels
 
 router = APIRouter()
 

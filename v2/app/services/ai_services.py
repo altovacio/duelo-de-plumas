@@ -22,19 +22,26 @@ from ..config.ai_params import (
     BASE_WRITER_INSTRUCTION_PROMPT
 )
 
+# --- Model Imports (Direct Relative Import - Outside Try/Except for Debugging) ---
+# from ..models import Contest as ContestModel, User as UserModel, Submission as SubmissionModel, Vote as VoteModel, AIEvaluation as AIEvaluationModel, contest_judges as contest_judges_table
+# Contest, User, Submission, Vote, AIEvaluation, contest_judges = (
+#     ContestModel, UserModel, SubmissionModel, VoteModel, AIEvaluationModel, contest_judges_table
+# )
+
 # --- Model Imports (Attempt at top level) ---
 # Attempt to import actual models, set to None on failure
 try:
-    from ..models import Contest as ContestModel, User as UserModel, Submission as SubmissionModel, Vote as VoteModel, AIEvaluation as AIEvaluationModel, contest_judges as contest_judges_table
+    # from ..models import Contest as ContestModel, User as UserModel, Submission as SubmissionModel, Vote as VoteModel, AIEvaluation as AIEvaluationModel, contest_judges as contest_judges_table # Old relative import
+    from v2.models import Contest as ContestModel, User as UserModel, Submission as SubmissionModel, Vote as VoteModel, AIEvaluation as AIEvaluationModel, contest_judges as contest_judges_table # Use absolute import
     Contest, User, Submission, Vote, AIEvaluation, contest_judges = (
         ContestModel, UserModel, SubmissionModel, VoteModel, AIEvaluationModel, contest_judges_table
     )
     print("Successfully imported v2 models at module level.")
 except ImportError as e:
-    print(f"Warning: Could not import v2 models at module level ({e}). Will use placeholders.")
+    print(f"Error: Could not import v2 models using absolute path v2.models ({e}). Check structure and execution path.") # Updated error message
     Contest, User, Submission, Vote, AIEvaluation, contest_judges = [None] * 6
 
-# Placeholder structure for models if import fails
+# Placeholder structure for models if import fails - RESTORE THIS BLOCK
 class PlaceholderModel:
     id: int
     title: str | None = None
@@ -372,34 +379,66 @@ async def call_ai_api(
         elif provider == 'anthropic':
             if not anthropic_client:
                 raise ValueError("Anthropic client not available or API key not configured.")
-            print(f"Calling Anthropic model: {api_name}")
-            max_output_tokens = model_info.get('max_tokens', 4000) // 2
+            print(f"Calling Anthropic model (streaming): {api_name}")
             
-            response = await anthropic_client.messages.create(
+            # Define Anthropic max output limit and a desired default
+            ANTHROPIC_MAX_OUTPUT_TOKENS = 8192 
+            desired_output_tokens = 4096 # Default desired output length
+
+            # Ensure desired tokens doesn't exceed the absolute max
+            max_output_tokens = min(desired_output_tokens, ANTHROPIC_MAX_OUTPUT_TOKENS)
+            
+            # Old calculation based on context window - remove/comment out
+            # context_window_tokens = model_info.get('max_tokens', 4000) # Get total context window
+            # max_output_tokens = min(context_window_tokens // 2, ANTHROPIC_MAX_OUTPUT_TOKENS) # Use half context, capped at max
+            
+            # Use context manager for streaming
+            async with anthropic_client.messages.stream(
                 model=api_name,
-                max_tokens=max_output_tokens, 
+                max_tokens=max_output_tokens, # Use the calculated max_output_tokens
                 messages=[
                     {"role": "user", "content": prompt}
                 ],
                 temperature=temperature
-            )
-            response_text = response.content[0].text if response.content else ""
+            ) as stream:
+                # Iterate through the stream and build the response text
+                async for text_chunk in stream.text_stream:
+                    response_text += text_chunk
+                
+                # After the stream is finished, get the final message object
+                # This contains usage information if available
+                final_message = await stream.get_final_message()
+
+            # Old non-streaming code:
+            # response = await anthropic_client.messages.create(
+            #     model=api_name,
+            #     max_tokens=max_output_tokens, 
+            #     messages=[
+            #         {"role": "user", "content": prompt}
+            #     ],
+            #     temperature=temperature
+            # )
+            # response_text = response.content[0].text if response.content else ""
             
             # Initialize completion_tokens before try block
             completion_tokens = 0 
             try:
-                # Attempt to get tokens directly from usage if available
-                usage_tokens = response.usage.output_tokens # Assign to temp var
-                # Fallback if API returns None for the value
-                if usage_tokens is None:
-                     print("Anthropic returned None for output_tokens, using fallback.")
-                     completion_tokens = count_tokens(response_text, model_id)
+                # Attempt to get tokens directly from usage of the final message
+                if final_message and hasattr(final_message, 'usage') and final_message.usage:
+                    usage_tokens = final_message.usage.output_tokens # Assign to temp var
+                    # Fallback if API returns None for the value
+                    if usage_tokens is None:
+                         print("Anthropic returned None for output_tokens in final message, using fallback.")
+                         completion_tokens = count_tokens(response_text, model_id)
+                    else:
+                         completion_tokens = usage_tokens # Assign the valid integer
                 else:
-                     completion_tokens = usage_tokens # Assign the valid integer
+                     print("Anthropic final message or usage info not available, using tiktoken count for completion tokens.")
+                     completion_tokens = count_tokens(response_text, model_id)
                  
-            except (AttributeError, TypeError): 
+            except (AttributeError, TypeError) as usage_error:
                 # Fallback if usage object or attribute doesn't exist
-                print("Anthropic usage info object/attribute not found or invalid, using tiktoken count for completion tokens as fallback.")
+                print(f"Anthropic usage info error ({usage_error}), using tiktoken count for completion tokens as fallback.")
                 completion_tokens = count_tokens(response_text, model_id)
                 
             success = True
@@ -486,9 +525,9 @@ async def run_ai_evaluation(
              'is_reevaluation': False
          }
     # We already checked and created a placeholder for current_contest_judges if it was None
-    
+
     try:
-        # Get the contest, judge using the determined classes
+        # Get the contest, judge using the determined classes (uses placeholder logic)
         contest = await session.get(current_Contest, contest_id)
         judge = await session.get(current_User, judge_id)
         
@@ -613,14 +652,18 @@ async def run_ai_evaluation(
         await session.flush() 
         evaluation_id = evaluation.id
         
-        # Create Vote records for each ranked submission
+        # Create Vote records AND aggregate results for response
         votes_created = 0
+        rankings_dict = {}
+        comments_dict = {}
         submission_ids_in_contest = {sub.id for sub in submissions}
+        
         for submission_id, place, comment in parsed_results:
             if submission_id not in submission_ids_in_contest:
                 print(f"Warning: Parsed submission ID {submission_id} not found in current contest submissions. Skipping vote.")
                 continue
             
+            # Create Vote object
             vote = current_Vote(
                 judge_id=judge_id,
                 submission_id=submission_id,
@@ -629,14 +672,25 @@ async def run_ai_evaluation(
             )
             session.add(vote)
             votes_created += 1
+            
+            # Populate response dictionaries
+            rankings_dict[str(submission_id)] = place # Schema expects dict {sub_id: place}
+            if comment: # Only add comment if it exists
+                 comments_dict[str(submission_id)] = comment # Schema expects dict {sub_id: comment}
         
         await session.commit()
         
+        # Update the return dictionary to include all fields required by the schema
         return {
             'success': True,
             'message': f"AI evaluation completed successfully. Created {votes_created} vote records.",
             'evaluation_id': evaluation_id,
-            'cost': api_result['cost'],
+            'judge_id': judge_id, # Add judge_id
+            'contest_id': contest_id, # Add contest_id
+            'rankings': rankings_dict, # Add rankings dict
+            'comments': comments_dict, # Add comments dict
+            # Optional internal details (not part of AIEvaluationResult schema)
+            'cost': api_result['cost'], 
             'votes_created': votes_created,
             'is_reevaluation': is_reevaluation
         }
@@ -655,8 +709,146 @@ async def run_ai_evaluation(
             'is_reevaluation': False
         }
 
-# Add stub for generate_text later
-async def generate_text(): # Placeholder
-    pass
-# Remove internal PlaceholderModel definition if moved outside or models import reliably
-# Remove unittest.mock import if PlaceholderModel is removed 
+# --- AI Writer Service ---
+
+async def generate_text(
+    session: AsyncSession, 
+    contest_id: int, 
+    ai_writer_id: int, 
+    model_id: str, 
+    title: str,
+    openai_client: openai.AsyncOpenAI | None,
+    anthropic_client: anthropic.AsyncAnthropic | None
+) -> Dict[str, Any]:
+    """
+    Generate a text using an AI writer and submit it to a contest (Async version).
+
+    Args:
+        session: The AsyncSession for database operations.
+        contest_id: ID of the contest.
+        ai_writer_id: ID of the AI writer.
+        model_id: ID of the AI model to use.
+        title: Title for the generated text.
+        openai_client: Async OpenAI client instance.
+        anthropic_client: Async Anthropic client instance.
+
+    Returns:
+        A dictionary with status and message, plus submission_id and text on success.
+    """
+    # Attempt to import specific models needed for this function - RESTORE LOCAL IMPORT FOR SAFETY
+    try:
+        from v2.models import Contest, AIWriter, Submission, AIWritingRequest # Use absolute path here too
+        # Ensure APP_VERSION is available, maybe from config?
+        try:
+            from v2.app.config.settings import APP_VERSION # Use absolute path
+        except ImportError:
+            print("Warning: APP_VERSION not found in config.settings. Defaulting to 'v2.0'")
+            APP_VERSION = "v2.0" 
+            
+    except ImportError:
+        print("Error: Could not import necessary models (Contest, AIWriter, Submission, AIWritingRequest) for generate_text.")
+        return {"success": False, "message": "Internal server error: Missing required models."}
+    # Use the module-level imported models - REMOVE THIS DEBUG CODE
+    # try:
+    #     from ..config.settings import APP_VERSION
+    # except ImportError:
+    #     print("Warning: APP_VERSION not found in config.settings. Defaulting to 'v2.0'")
+    #     APP_VERSION = "v2.0"
+
+    try:
+        # Get the contest and AI writer asynchronously using locally imported models
+        contest_result = await session.execute(select(Contest).where(Contest.id == contest_id))
+        contest = contest_result.scalar_one_or_none()
+
+        ai_writer_result = await session.execute(select(AIWriter).where(AIWriter.id == ai_writer_id))
+        ai_writer = ai_writer_result.scalar_one_or_none()
+
+        if not contest:
+            return {"success": False, "message": f"Contest with ID {contest_id} not found"}
+        
+        if not ai_writer:
+            return {"success": False, "message": f"AI Writer with ID {ai_writer_id} not found"}
+        
+        # Check if contest is open (Assuming 'status' attribute exists)
+        if not hasattr(contest, 'status') or contest.status != 'open':
+            return {"success": False, "message": "Contest is not open for submissions"}
+        
+        # Construct the prompt (using the existing synchronous helper for now)
+        # TODO: Consider making construct_writer_prompt async if it involves I/O
+        prompt = construct_writer_prompt(contest, ai_writer, title)
+        
+        # Call the AI API asynchronously
+        # Use a default temperature suitable for creative writing if not specified
+        creative_temperature = 0.7 
+        api_result = await call_ai_api(
+            prompt=prompt, 
+            model_id=model_id, 
+            temperature=creative_temperature,
+            openai_client=openai_client,
+            anthropic_client=anthropic_client
+        )
+        
+        if not api_result['success']:
+            # Log the underlying error if possible
+            print(f"AI API call failed for contest {contest_id}, writer {ai_writer_id}: {api_result.get('error_message', api_result['response_text'])}")
+            return {"success": False, "message": f"Error calling AI API: {api_result['response_text']}"}
+        
+        # Create a submission
+        # Use a helper to get current timestamp if needed, e.g., datetime.utcnow()
+        from datetime import datetime # Add import if not present at top
+        submission = Submission(
+            author_name=f"{ai_writer.name} (IA)", # Assuming 'name' attribute exists
+            title=title,
+            text_content=api_result['response_text'],
+            contest_id=contest.id,
+            is_ai_generated=True,
+            ai_writer_id=ai_writer.id,
+            submission_date = datetime.utcnow() # Add submission date
+        )
+        
+        session.add(submission)
+        await session.flush() # Flush here to get submission ID for the request log
+
+        if submission.id is None:
+             # This shouldn't happen if flush is successful, but good to check
+             await session.rollback()
+             print(f"Error: Failed to get submission ID after flush for contest {contest_id}")
+             return {"success": False, "message": "Failed to create submission record."}
+             
+        # Record the AI writing request
+        writing_request = AIWritingRequest(
+            contest_id=contest.id,
+            ai_writer_id=ai_writer.id,
+            ai_model=model_id, # Use the requested model_id
+            full_prompt=prompt,
+            response_text=api_result['response_text'],
+            prompt_tokens=api_result.get('prompt_tokens'), # Use .get for safety
+            completion_tokens=api_result.get('completion_tokens'),
+            cost=api_result.get('cost'),
+            timestamp=submission.submission_date, # Use submission timestamp
+            app_version=APP_VERSION, 
+            submission_id=submission.id # Link the submission
+        )
+        
+        session.add(writing_request)
+        
+        await session.commit()
+        
+        return {
+            "success": True, 
+            "message": f"Text generated and submitted successfully",
+            "submission_id": submission.id,
+            "text": api_result['response_text']
+        }
+        
+    except Exception as e:
+        await session.rollback()
+        # Log the exception for debugging
+        print(f"Error generating text for contest {contest_id}, writer {ai_writer_id}: {e}")
+        import traceback
+        traceback.print_exc() 
+        return {"success": False, "message": f"An unexpected error occurred: {str(e)}"}
+
+# Placeholder for the old function signature (if any) - remove if not needed
+# async def generate_text(): # Placeholder - REMOVE THIS LINE
+#    pass # REMOVE THIS LINE 

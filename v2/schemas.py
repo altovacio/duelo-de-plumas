@@ -43,6 +43,24 @@ class UserDetail(UserPublic):
     # judged_contests: List['ContestPublic'] = [] # Avoid circular imports initially
     pass
 
+# --- ADDED: Schemas specifically for Admin AI Judge CRUD ---
+class AIJudgeCreate(BaseModel):
+    username: str = Field(..., min_length=3, max_length=64)
+    email: EmailStr
+    password: str = Field(..., min_length=8)
+    ai_personality_prompt: str # Prompt is required for AI judges
+    # role is fixed to 'judge', judge_type is fixed to 'ai' on creation
+
+class AIJudgeUpdate(BaseModel):
+    username: Optional[str] = Field(None, min_length=3, max_length=64)
+    email: Optional[EmailStr] = None
+    password: Optional[str] = Field(None, min_length=8) # Allow password update
+    ai_personality_prompt: Optional[str] = None # Allow prompt update
+    # role and judge_type should not be changed via this schema
+
+# Use UserPublic for listing/viewing AI judges
+AIJudgeAdminView = UserPublic 
+
 # --- Token Schemas (for Authentication) ---
 class Token(BaseModel):
     access_token: str
@@ -148,7 +166,7 @@ class AIWriterBase(ModelBase):
 class AIWriterCreate(AIWriterBase):
     pass
 
-class AIWriterUpdate(ModelBase):
+class AIWriterUpdate(BaseModel):
     name: Optional[str] = Field(None, max_length=64)
     description: Optional[str] = None
     personality_prompt: Optional[str] = None
@@ -156,9 +174,50 @@ class AIWriterUpdate(ModelBase):
 class AIWriterPublic(AIWriterBase, ModelPublic):
     created_date: datetime
 
+# ADDED: Admin view might be the same as public for AI Writer
+AIWriterAdminView = AIWriterPublic 
+
+# --- ADDED: Contest Judge Assignment Schema ---
+class AssignJudgeRequest(BaseModel):
+    ai_model: Optional[str] = Field(None, description="Required if the judge is an AI judge. Must match an ID from the configured AI models.")
+
+# --- ADDED: Contest Status/Password Schemas ---
+class ContestSetStatusRequest(BaseModel):
+    status: str = Field(..., pattern=r'^(open|evaluation|closed)$')
+
+class ContestResetPasswordRequest(BaseModel):
+    new_password: str = Field(..., min_length=6)
+
+# --- ADDED: AI Evaluation Schemas ---
+class AIEvaluationPublic(BaseModel):
+    id: int
+    contest_id: int
+    judge_id: int 
+    ai_model: str
+    cost: float
+    timestamp: datetime
+    app_version: str
+    # Exclude full_prompt and response_text from default public view
+    class Config:
+        from_attributes = True
+
+class AIEvaluationDetail(AIEvaluationPublic):
+    full_prompt: Optional[str] = None # Optional in case it was truncated or not stored
+    response_text: str
+    prompt_tokens: int
+    completion_tokens: int
+    # Potentially link to contest/judge public views
+    # contest: Optional[ContestPublic] = None 
+    # judge: Optional[UserPublic] = None 
+
+# --- ADDED: AI Writer Submission Trigger Schema ---
+class TriggerAISubmissionRequest(BaseModel):
+    ai_writer_id: int = Field(..., description="ID of the AI Writer to use")
+    model_id: str = Field(..., description="ID of the AI Model to use")
+    title: str = Field(..., description="Title for the generated text", min_length=1, max_length=200)
+
 # --- Placeholder Schemas for other models (Expand as needed) ---
 # class AIEvaluationBase(ModelBase): ...
-# class AIEvaluationPublic(AIEvaluationBase, ModelPublic): ...
 # class AIWritingRequestBase(ModelBase): ...
 # class AIWritingRequestPublic(AIWritingRequestBase, ModelPublic): ...
 

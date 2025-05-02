@@ -8,6 +8,8 @@ from .fastapi_config import settings
 from .app.routers import contest, auth, ai_router # Corrected path
 # ADD: Import the new main router
 from .app.routers import main as main_router
+# ADD: Import the new admin router
+from .app.routers import admin as admin_router
 
 # The app.routers path doesn't exist, fix it:
 # from .app.routers.ai_router import router as ai_router  # This path is incorrect
@@ -41,7 +43,9 @@ app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 app.include_router(contest.router, prefix="/contests", tags=["Contests"])
 app.include_router(ai_router.router, prefix="/ai", tags=["AI"])  # Include AI router directly
 # ADD: Include the main router
-app.include_router(main_router.router, prefix="/api/v2") # Remove tags argument here
+app.include_router(main_router.router, prefix="/api/v2") # Main routes with prefix
+# ADD: Include the admin router (typically with a distinct prefix)
+app.include_router(admin_router.router) # Uses prefix '/admin' defined in the router itself
 
 # Example for auth router later:
 # from .routers import auth

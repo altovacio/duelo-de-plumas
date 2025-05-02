@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
+from sqlalchemy import or_
 
 # Relative imports from within v2 directory
 from ... import schemas, models
@@ -59,19 +60,35 @@ async def create_contest(
 async def list_contests(
     skip: int = 0,
     limit: int = 100,
-    db: AsyncSession = Depends(get_db_session)
+    db: AsyncSession = Depends(get_db_session),
+    # ADDED: Optional user dependency for filtering
+    current_user: Optional[models.User] = Depends(security.get_current_user)
 ):
-    """Retrieves a list of public contests.
+    """Retrieves a list of contests.
 
-    TODO: Filter for private contests based on user access.
+    - Public contests are always listed.
+    - Private contests are listed only for admins or assigned judges.
     """
-    result = await db.execute(
-        select(models.Contest)
-        .order_by(models.Contest.start_date.desc())
-        # .where(models.Contest.contest_type == 'public') # Add filtering later
-        .offset(skip)
-        .limit(limit)
-    )
+    # Base query
+    stmt = select(models.Contest).order_by(models.Contest.start_date.desc())
+    
+    # Filter based on user access for private contests
+    if not current_user or not current_user.is_admin():
+        # Non-admins or anonymous users see public contests OR private contests they are assigned to
+        private_access_filter = models.Contest.judges.any(models.User.id == current_user.id) if current_user else False
+        
+        stmt = stmt.where(
+            or_(
+                models.Contest.contest_type == 'public',
+                private_access_filter # Only applies if user is logged in
+            )
+        )
+    # Admins see all contests - no additional filtering needed
+    
+    # Apply pagination
+    stmt = stmt.offset(skip).limit(limit)
+    
+    result = await db.execute(stmt)
     contests = result.scalars().all()
     return contests
 
@@ -110,21 +127,21 @@ async def get_contest(
 
     # --- Access Control for Private Contests --- 
     if contest.contest_type == 'private':
-        # Allow access if user is authenticated and is an admin
-        is_authorized = current_user and current_user.is_admin()
-        
-        # TODO: Allow access if user is an assigned judge (check relationship)
-        # if not is_authorized and current_user:
-        #     # Check if current_user.id is in [judge.id for judge in contest.judges]
-        #     # This might require loading the judges relationship if not already loaded
-        #     if current_user in contest.judges: # Check if user object is directly in the loaded list
-        #        is_authorized = True
+        is_authorized = False
+        if current_user:
+            # Allow access if user is an admin
+            if current_user.is_admin():
+                is_authorized = True
+            # Allow access if user is an assigned judge
+            # The judges relationship was eager-loaded by get_contest_or_404
+            elif current_user in contest.judges:
+                is_authorized = True
         
         # TODO: Implement password check mechanism if needed for non-admin/non-judge users
         # Requires a way for the user to provide the password for this request.
 
         if not is_authorized:
-            # If not an admin (and later, not an assigned judge or hasn't provided password)
+            # If not an admin and not an assigned judge
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied: This is a private contest."

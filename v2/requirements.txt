@@ -14,7 +14,8 @@ aiosqlite # For SQLite
 alembic # For migrations
 
 # Authentication
-passlib[bcrypt]
+# passlib[bcrypt] # REMOVED - Using bcrypt directly now
+bcrypt # ADDED - Explicitly require bcrypt
 python-jose[cryptography] # Often used for JWT with FastAPI
 
 # Forms & Templates

@@ -10,7 +10,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 class Settings(BaseSettings):
     # Core App Settings
     APP_NAME: str = "Duelo de Plumas API"
-    APP_VERSION: str = "1.0.0" # Or read dynamically if preferred
+    APP_VERSION: str = "2.0"
     DEBUG: bool = Field(False, description="Enable debug mode")
     SECRET_KEY: str = Field(..., description="Secret key for signing tokens, etc.") # Required
     ALLOWED_HOSTS: List[str] = Field(["*"], description="Allowed hosts for the server") # Default to all for development

@@ -4,7 +4,7 @@ from typing import Optional, Any
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt # Import bcrypt
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -14,11 +14,6 @@ from .fastapi_config import settings
 from . import schemas, models
 from .database import get_db_session
 
-# Re-use the pwd_context from models (or define it here if preferred)
-# from .models import pwd_context 
-# Ensure passlib is installed: pip install passlib[bcrypt]
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 # OAuth2 Scheme Setup
 # tokenUrl should point to the endpoint that issues tokens (we'll create this soon)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
@@ -26,12 +21,22 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 # --- Password Utilities --- 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verifies a plain password against a hashed password."""
-    return pwd_context.verify(plain_password, hashed_password)
+    """Verifies a plain password against a stored bcrypt hash."""
+    # Ensure hashed_password is bytes, as bcrypt expects
+    hashed_password_bytes = hashed_password.encode('utf-8') # Assuming stored hash is UTF-8 string
+    plain_password_bytes = plain_password.encode('utf-8')
+    try:
+        return bcrypt.checkpw(password=plain_password_bytes, hashed_password=hashed_password_bytes)
+    except ValueError: # Handle potential errors if hash format is invalid
+        return False
 
 def get_password_hash(password: str) -> str:
-    """Hashes a plain password."""
-    return pwd_context.hash(password)
+    """Hashes a plain password using bcrypt."""
+    password_bytes = password.encode('utf-8')
+    salt = bcrypt.gensalt()
+    hashed_password_bytes = bcrypt.hashpw(password=password_bytes, salt=salt)
+    # Decode back to string (e.g., UTF-8) for storage in DB
+    return hashed_password_bytes.decode('utf-8')
 
 # --- JWT Token Utilities --- 
 

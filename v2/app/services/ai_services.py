@@ -738,12 +738,13 @@ async def generate_text(
     # Attempt to import specific models needed for this function - RESTORE LOCAL IMPORT FOR SAFETY
     try:
         from v2.models import Contest, AIWriter, Submission, AIWritingRequest # Use absolute path here too
-        # Ensure APP_VERSION is available, maybe from config?
-        try:
-            from v2.app.config.settings import APP_VERSION # Use absolute path
-        except ImportError:
-            print("Warning: APP_VERSION not found in config.settings. Defaulting to 'v2.0'")
-            APP_VERSION = "v2.0" 
+        # Ensure APP_VERSION is available from config - REMOVE FALLBACK
+        from v2.fastapi_config import settings
+        # try:
+        #     from v2.app.config.settings import APP_VERSION # Use absolute path
+        # except ImportError:
+        #     print("Warning: APP_VERSION not found in config.settings. Defaulting to 'v2.0'")
+        #     APP_VERSION = "v2.0" 
             
     except ImportError:
         print("Error: Could not import necessary models (Contest, AIWriter, Submission, AIWritingRequest) for generate_text.")
@@ -826,7 +827,8 @@ async def generate_text(
             completion_tokens=api_result.get('completion_tokens'),
             cost=api_result.get('cost'),
             timestamp=submission.submission_date, # Use submission timestamp
-            app_version=APP_VERSION, 
+            # Use the imported settings object for APP_VERSION
+            app_version=settings.APP_VERSION, 
             submission_id=submission.id # Link the submission
         )
         

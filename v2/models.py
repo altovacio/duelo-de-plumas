@@ -1,9 +1,14 @@
 from datetime import datetime, timezone
 from typing import List, Optional
 
-# Use passlib for password hashing in the FastAPI version
-from passlib.context import CryptContext
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Import settings
+from .fastapi_config import settings
+
+# REMOVED: passlib import and context definition - password methods updated below
+# from passlib.context import CryptContext
+# pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Import bcrypt directly for password methods
+import bcrypt
 
 from sqlalchemy import (
     Integer, String, Text, DateTime, ForeignKey, Boolean, Float, Table, Column, 
@@ -12,9 +17,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.ext.asyncio import AsyncAttrs
 
-# Application version - can be sourced from config or kept here
-# Consider moving to fastapi_config.py
-APP_VERSION = "v1.02" # Keep consistent for now
+# REMOVED: Hardcoded APP_VERSION
+# APP_VERSION = "v1.02" 
 
 # Define Base class using SQLAlchemy 2.0 syntax
 class Base(AsyncAttrs, DeclarativeBase):
@@ -51,14 +55,24 @@ class User(Base):
     )
     ai_evaluations: Mapped[List["AIEvaluation"]] = relationship(back_populates='judge') # Added back_populates
 
-    # --- Methods using passlib --- 
+    # --- Methods using bcrypt --- 
     def set_password(self, password: str):
-        """Hashes the password and sets the password_hash field."""
-        self.password_hash = pwd_context.hash(password)
+        """Hashes the password using bcrypt and sets the password_hash field."""
+        password_bytes = password.encode('utf-8')
+        salt = bcrypt.gensalt()
+        hashed_password_bytes = bcrypt.hashpw(password=password_bytes, salt=salt)
+        self.password_hash = hashed_password_bytes.decode('utf-8')
 
     def check_password(self, password: str) -> bool:
-        """Verifies a given password against the stored hash."""
-        return pwd_context.verify(password, self.password_hash)
+        """Verifies a given password against the stored bcrypt hash."""
+        if not self.password_hash: # Handle case where hash might be missing
+            return False
+        hashed_password_bytes = self.password_hash.encode('utf-8')
+        plain_password_bytes = password.encode('utf-8')
+        try:
+            return bcrypt.checkpw(password=plain_password_bytes, hashed_password=hashed_password_bytes)
+        except ValueError: # Handle potential errors if hash format is invalid
+            return False
 
     def is_admin(self) -> bool:
         return self.role == 'admin'
@@ -97,19 +111,27 @@ class Contest(Base):
     )
     ai_evaluations: Mapped[List["AIEvaluation"]] = relationship(back_populates='contest', cascade="all, delete-orphan")
 
-    # --- Methods using passlib --- 
+    # --- Methods using bcrypt --- 
     def set_password(self, password: str):
         """Hashes the password and sets the password_hash field if contest is private."""
         if self.contest_type == 'private':
-            self.password_hash = pwd_context.hash(password)
+            password_bytes = password.encode('utf-8')
+            salt = bcrypt.gensalt()
+            hashed_password_bytes = bcrypt.hashpw(password=password_bytes, salt=salt)
+            self.password_hash = hashed_password_bytes.decode('utf-8')
         else:
             self.password_hash = None
 
     def check_password(self, password: str) -> bool:
-        """Verifies a given password against the stored hash if contest is private."""
+        """Verifies a given password against the stored bcrypt hash if contest is private."""
         if self.contest_type != 'private' or not self.password_hash:
             return False
-        return pwd_context.verify(password, self.password_hash)
+        hashed_password_bytes = self.password_hash.encode('utf-8')
+        plain_password_bytes = password.encode('utf-8')
+        try:
+            return bcrypt.checkpw(password=plain_password_bytes, hashed_password=hashed_password_bytes)
+        except ValueError:
+            return False
 
     def __repr__(self):
         return f'<Contest {self.title}>'
@@ -148,7 +170,7 @@ class Vote(Base):
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, default=lambda: datetime.now(timezone.utc))
     judge_id: Mapped[int] = mapped_column(Integer, ForeignKey('user.id'), nullable=False)
     submission_id: Mapped[int] = mapped_column(Integer, ForeignKey('submission.id'), nullable=False)
-    app_version: Mapped[str] = mapped_column(String(10), default=APP_VERSION)
+    app_version: Mapped[str] = mapped_column(String(10), default=settings.APP_VERSION)
     
     # Relationships
     judge: Mapped["User"] = relationship(back_populates='votes')
@@ -174,7 +196,7 @@ class AIEvaluation(Base):
     completion_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
     cost: Mapped[float] = mapped_column(Float, nullable=False)
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, default=lambda: datetime.now(timezone.utc))
-    app_version: Mapped[str] = mapped_column(String(10), default=APP_VERSION)
+    app_version: Mapped[str] = mapped_column(String(10), default=settings.APP_VERSION)
     
     # Relationships
     contest: Mapped["Contest"] = relationship(back_populates='ai_evaluations')
@@ -214,7 +236,7 @@ class AIWritingRequest(Base):
     # Made submission_id nullable=False initially, assuming request ALWAYS creates a submission? Check logic. If request can exist before submission is saved, keep nullable=True
     submission_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey('submission.id'), nullable=True) 
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, default=lambda: datetime.now(timezone.utc))
-    app_version: Mapped[str] = mapped_column(String(10), default=APP_VERSION)
+    app_version: Mapped[str] = mapped_column(String(10), default=settings.APP_VERSION)
     
     # Relationships
     contest: Mapped["Contest"] = relationship() # No back_populates needed if Contest doesn't link back here directly

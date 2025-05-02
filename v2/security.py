@@ -15,8 +15,8 @@ from . import schemas, models
 from .database import get_db_session
 
 # OAuth2 Scheme Setup
-# tokenUrl should point to the endpoint that issues tokens (we'll create this soon)
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
+# Add auto_error=False to make the scheme itself optional
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token", auto_error=False)
 
 # --- Password Utilities --- 
 
@@ -77,20 +77,21 @@ async def get_user_by_id(db: AsyncSession, user_id: int) -> Optional[models.User
 # --- Security Dependencies --- 
 
 async def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    token: str = Depends(oauth2_scheme, use_cache=False), # Disable cache if needed
     db: AsyncSession = Depends(get_db_session)
-) -> models.User:
+) -> Optional[models.User]: # Changed return type to Optional[User]
     """Dependency to get the current user from the JWT token.
     
     Verifies token signature and expiry, fetches user from DB.
-    Raises HTTPException if token is invalid or user not found.
+    Returns the User object if valid, otherwise returns None.
     """
     print(f"Attempting to get current user from token: {token[:10]}...") # DEBUG
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+    # REMOVED: Direct exception raising on token error
+    # credentials_exception = HTTPException(...)
+    if not token:
+        print("  No token provided.") # DEBUG
+        return None # Return None if no token is present
+
     try:
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[settings.AUTH_ALGORITHM]
@@ -99,41 +100,68 @@ async def get_current_user(
         print(f"  Token payload decoded. Username (sub): {username}") # DEBUG
         if username is None:
             print("  Error: Username (sub) not found in token.") # DEBUG
-            raise credentials_exception
-        # Optionally, you could store user_id in the token instead:
-        # user_id: int = int(payload.get("sub")) 
-        # if user_id is None: raise credentials_exception
-        # token_data = schemas.TokenData(user_id=user_id)
+            # raise credentials_exception
+            return None # Return None on invalid payload
         token_data = schemas.TokenData(username=username)
     except (JWTError, ValidationError) as e:
         print(f"  Error decoding token: {e}") # DEBUG
-        raise credentials_exception
+        # raise credentials_exception
+        return None # Return None on decode error
 
     # Fetch user from DB based on token subject (username or user_id)
-    # user = await get_user_by_id(db, token_data.user_id) 
     print(f"  Fetching user from DB with username: {token_data.username}") # DEBUG
     user = await get_user_by_username(db, token_data.username)
     
     if user is None:
         print(f"  Error: User '{token_data.username}' not found in database.") # DEBUG
-        raise credentials_exception
+        # raise credentials_exception
+        return None # Return None if user not found
         
     print(f"  User found: {user.username} (ID: {user.id})") # DEBUG
     return user
 
-# Example of a dependency for requiring an active user (could add checks)
-async def get_current_active_user(
-    current_user: models.User = Depends(get_current_user)
-) -> models.User:
-    """Dependency to get the current *active* user.
+# New dependency for truly optional user retrieval
+async def get_optional_current_user(
+    # Use Depends with the now optional scheme
+    token: Optional[str] = Depends(oauth2_scheme, use_cache=False),
+    db: AsyncSession = Depends(get_db_session)
+) -> Optional[models.User]:
+    """Dependency to optionally get the current user.
     
-    Placeholder for potential future checks (e.g., user.is_active flag).
+    Returns the User object if token is valid, otherwise returns None.
+    Relies on oauth2_scheme(auto_error=False) and get_current_user returning None.
     """
+    if not token:
+        return None
+    # Reuse the logic from get_current_user which already handles internal errors by returning None
+    return await get_current_user(token=token, db=db) 
+    # Removed the redundant try/except HTTPException block
+
+# get_current_active_user dependency needs adjustment
+# It should handle the case where get_current_user returns None
+# or raise 401 if the endpoint *requires* an active user.
+async def get_current_active_user(
+    # current_user: models.User = Depends(get_current_user) # Old dependency
+    current_user: Optional[models.User] = Depends(get_current_user)
+) -> models.User: # Keep return type as User, raise if None
+    """Dependency that ensures a valid user is authenticated.
+    
+    Raises 401 if get_current_user returns None.
+    Placeholder for potential future active checks.
+    """
+    if current_user is None:
+        # This dependency requires a valid user, so raise 401 if None was returned
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated", # Or "Could not validate credentials"
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     # if not current_user.is_active: # Example check
     #     raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
 
 # Example of a dependency requiring admin role
+# This now relies on get_current_active_user which handles the None case
 async def require_admin(
     current_user: models.User = Depends(get_current_active_user)
 ) -> models.User:

@@ -61,8 +61,8 @@ async def list_contests(
     skip: int = 0,
     limit: int = 100,
     db: AsyncSession = Depends(get_db_session),
-    # ADDED: Optional user dependency for filtering
-    current_user: Optional[models.User] = Depends(security.get_current_user)
+    # Use the new optional dependency
+    current_user: Optional[models.User] = Depends(security.get_optional_current_user)
 ):
     """Retrieves a list of contests.
 
@@ -116,8 +116,8 @@ async def get_contest_or_404(contest_id: int, db: AsyncSession) -> models.Contes
 async def get_contest(
     contest_id: int,
     db: AsyncSession = Depends(get_db_session),
-    # ADDED: Optional dependency to get user if authenticated
-    current_user: Optional[models.User] = Depends(security.get_current_user) 
+    # Use the new optional dependency
+    current_user: Optional[models.User] = Depends(security.get_optional_current_user) 
 ):
     """Retrieves detailed information about a specific contest, including submissions and judges.
 

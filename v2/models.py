@@ -17,8 +17,6 @@ from sqlalchemy import (
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.ext.asyncio import AsyncAttrs
 
-# REMOVED: Hardcoded APP_VERSION
-# APP_VERSION = "v1.02" 
 
 # Define Base class using SQLAlchemy 2.0 syntax
 class Base(AsyncAttrs, DeclarativeBase):

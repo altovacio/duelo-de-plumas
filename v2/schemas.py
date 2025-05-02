@@ -1,5 +1,5 @@
-from pydantic import BaseModel, EmailStr, Field
-from typing import List, Optional
+from pydantic import BaseModel, EmailStr, Field, field_validator, ValidationInfo, model_validator
+from typing import List, Optional, Any
 from datetime import datetime
 
 # --- Base Schemas ---
@@ -83,6 +83,13 @@ class ContestBase(ModelBase):
 
 class ContestCreate(ContestBase):
     password: Optional[str] = Field(None, min_length=6) # Password only if private
+
+    @model_validator(mode='after')
+    def check_password_required_for_private(self) -> 'ContestCreate':
+        """Ensure password is provided if contest_type is 'private' (model validator)."""
+        if self.contest_type == 'private' and self.password is None:
+            raise ValueError('Password is required for private contests')
+        return self
 
 class ContestUpdate(ModelBase):
     title: Optional[str] = Field(None, max_length=150)

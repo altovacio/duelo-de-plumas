@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
-from typing import List
+from typing import List, Optional
 
 # Relative imports from within v2 directory
 from .. import schemas, models
@@ -99,19 +99,37 @@ async def get_contest_or_404(contest_id: int, db: AsyncSession) -> models.Contes
 async def get_contest(
     contest_id: int,
     db: AsyncSession = Depends(get_db_session),
-    # current_user: Optional[models.User] = Depends(security.get_current_user_optional) # Add later for private checks
+    # ADDED: Optional dependency to get user if authenticated
+    current_user: Optional[models.User] = Depends(security.get_current_user) 
 ):
     """Retrieves detailed information about a specific contest, including submissions and judges.
 
-    TODO: Handle access control for private contests.
+    Handles access control for private contests.
     """
     contest = await get_contest_or_404(contest_id, db)
 
-    # --- Access Control (Add later) ---
-    # if contest.contest_type == 'private':
-    #     if not current_user or (not current_user.is_admin() and current_user not in contest.judges):
-    #         # Check session or password mechanism from Flask app
-    #         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+    # --- Access Control for Private Contests --- 
+    if contest.contest_type == 'private':
+        # Allow access if user is authenticated and is an admin
+        is_authorized = current_user and current_user.is_admin()
+        
+        # TODO: Allow access if user is an assigned judge (check relationship)
+        # if not is_authorized and current_user:
+        #     # Check if current_user.id is in [judge.id for judge in contest.judges]
+        #     # This might require loading the judges relationship if not already loaded
+        #     if current_user in contest.judges: # Check if user object is directly in the loaded list
+        #        is_authorized = True
+        
+        # TODO: Implement password check mechanism if needed for non-admin/non-judge users
+        # Requires a way for the user to provide the password for this request.
+
+        if not is_authorized:
+            # If not an admin (and later, not an assigned judge or hasn't provided password)
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: This is a private contest."
+            )
+    # --- End Access Control --- 
 
     return contest # Pydantic will convert using response_model and from_attributes
 

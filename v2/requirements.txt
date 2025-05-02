@@ -1,0 +1,32 @@
+# Core FastAPI
+fastapi
+uvicorn[standard]
+
+# Pydantic & Config
+pydantic[email]
+pydantic-settings # Used in v2/app/config/settings.py
+python-dotenv
+
+# Database (Async)
+sqlalchemy[asyncio]
+asyncpg # For PostgreSQL
+aiosqlite # For SQLite
+alembic # For migrations
+
+# Authentication
+passlib[bcrypt]
+python-jose[cryptography] # Often used for JWT with FastAPI
+
+# Forms & Templates
+python-multipart # For form data
+jinja2
+
+# AI Services
+openai
+anthropic
+tiktoken
+
+# Testing
+pytest
+pytest-asyncio # For testing async code
+httpx # For making async requests to the test client 

@@ -49,7 +49,7 @@ def test_full_user_admin_workflow():
     p) Login as Admin
         p1) Delete User 1 (Admin)
         p2) Delete User 2 (Admin)
-        p3) Delete User 2's contest (Admin)
+        p3) Delete User 2's contest (Admin) (expects failure as deleting a user also deletes their contests)
     """
     user1_token = None
     user1_id = None # We might need this if the API returns it or we fetch it

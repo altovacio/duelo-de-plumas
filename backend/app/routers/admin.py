@@ -53,12 +53,17 @@ async def admin_list_users(
     users = result.scalars().all()
     return users
 
-@router.post("/users/", response_model=schemas.UserPublic, status_code=status.HTTP_201_CREATED, summary="Create Human Judge User")
-async def admin_create_human_judge(
+@router.post("/users/", response_model=schemas.UserPublic, status_code=status.HTTP_201_CREATED, summary="Create User (Admin Only)")
+async def admin_create_user(
     user_in: schemas.UserCreate, 
     db: AsyncSession = Depends(get_db_session)
 ):
-    """Creates a new user, enforcing role='judge' and judge_type='human'."""
+    """(Admin) Creates a new user with a specified role.
+    
+    Defaults to 'user' role if not provided.
+    Sets judge_type to 'human'.
+    Requires admin privileges (enforced by router dependency).
+    """
     # Verify username and email don't exist
     existing_user = await db.scalar(select(models.User).where(or_(models.User.username == user_in.username, models.User.email == user_in.email)))
     if existing_user:
@@ -68,19 +73,31 @@ async def admin_create_human_judge(
             detail=f"{field} already registered."
         )
     
-    # Prepare user data, overriding role and judge_type
-    user_data = user_in.model_dump(exclude={'password', 'role', 'judge_type'})
-    user_data['role'] = 'judge'
-    user_data['judge_type'] = 'human'
+    # Prepare user data, setting defaults if needed
+    user_data = user_in.model_dump(exclude={'password'}, exclude_unset=True) # Exclude unset fields
     
-    new_judge = models.User(**user_data)
-    new_judge.set_password(user_in.password) # Hash the password
+    # Set default role if not provided
+    if 'role' not in user_data:
+        user_data['role'] = 'user'
     
-    db.add(new_judge)
+    # Explicitly set judge_type for non-AI judges created here
+    user_data['judge_type'] = 'human' 
+    
+    # Validate the role is allowed (admin or user for this endpoint)
+    if user_data['role'] not in ['admin', 'user']:
+         raise HTTPException(
+             status_code=status.HTTP_400_BAD_REQUEST,
+             detail=f"Invalid role '{user_data['role']}'. Can only create 'admin' or 'user'."
+         )
+
+    new_user = models.User(**user_data)
+    new_user.set_password(user_in.password) # Hash the password
+    
+    db.add(new_user)
     try:
         await db.commit()
-        await db.refresh(new_judge)
-        return new_judge
+        await db.refresh(new_user)
+        return new_user
     except IntegrityError:
         await db.rollback()
         # This might happen in a race condition if the initial check passes
@@ -90,10 +107,10 @@ async def admin_create_human_judge(
         )
     except Exception as e:
         await db.rollback()
-        print(f"Error creating human judge: {e}") # Log unexpected errors
+        print(f"Error creating user: {e}") # Log unexpected errors
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create human judge user."
+            detail="Failed to create user."
         )
 
 # --- AI Writer Management ---

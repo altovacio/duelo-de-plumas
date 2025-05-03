@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Response, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -6,11 +6,17 @@ from typing import List, Optional
 from sqlalchemy import or_, delete
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta
+from jose import jwt, JWTError
 
 # Relative imports
 from ... import models, schemas
 from ...database import get_db_session
-from ...security import get_current_active_user, get_optional_current_user, require_admin, create_access_token
+from ...security import (
+    get_current_active_user,
+    get_optional_current_user,
+    require_admin,
+    create_access_token,
+)
 from ...fastapi_config import settings
 
 router = APIRouter(
@@ -26,37 +32,39 @@ router = APIRouter(
     "/",
     response_model=schemas.ContestPublic,
     status_code=status.HTTP_201_CREATED,
-    summary="Create a new contest (Admin Only)", # Updated summary
+    summary="Create a new contest (User or Admin)", # Updated summary
     tags=["Contests"]
 )
 async def create_contest(
     contest_data: schemas.ContestCreate,
     db: AsyncSession = Depends(get_db_session),
-    current_user: models.User = Depends(require_admin) # Use imported function directly
+    current_user: models.User = Depends(get_current_active_user) # Changed dependency
 ):
     """Creates a new contest.
 
-    Requires admin privileges.
+    Requires authenticated user (user or admin).
+    Sets the current user as the contest creator.
     Handles password hashing if contest_type is 'private'.
     """
-    # --- Authorization Check is now handled by the dependency --- 
+    # Authorization check (logged in) is handled by the dependency
 
-    # Separate password from other data before creating model instance
     contest_dict = contest_data.model_dump(exclude_unset=True)
-    password = contest_dict.pop('password', None) # Remove password from dict, store it
+    password = contest_dict.pop('password', None)
 
-    # Create Contest instance using the rest of the data
+    # Set the creator_id from the authenticated user
+    contest_dict['creator_id'] = current_user.id 
+
     new_contest = models.Contest(**contest_dict)
 
-    # Handle password hashing if private
+    # Handle password hashing
     if new_contest.contest_type == 'private' and password:
-        new_contest.set_password(password) # Use the passlib method
+        new_contest.set_password(password)
     elif new_contest.contest_type == 'public':
         new_contest.password_hash = None
 
     db.add(new_contest)
     await db.commit()
-    await db.refresh(new_contest) # Refresh to get ID, created_at etc.
+    await db.refresh(new_contest)
     return new_contest
 
 @router.get(
@@ -70,34 +78,21 @@ async def list_contests(
     skip: int = 0,
     limit: int = 10,
     db: AsyncSession = Depends(get_db_session),
-    current_user: Optional[models.User] = Depends(get_optional_current_user) # Use imported function directly
+    # current_user: Optional[models.User] = Depends(get_optional_current_user) # No longer needed for listing
 ):
-    """Retrieves a list of contests.
+    """Retrieves a list of all contests (public and private).
 
-    - Public contests are always listed.
-    - Private contests are listed only for admins or assigned judges.
+    Access control is handled when viewing contest details or participating.
     """
-    # Base query
-    stmt = select(models.Contest).order_by(models.Contest.start_date.desc())
-    
-    # Filter based on user access for private contests
-    if not current_user or not current_user.is_admin():
-        # Non-admins or anonymous users see public contests OR private contests they are assigned to
-        private_access_filter = models.Contest.judges.any(models.User.id == current_user.id) if current_user else False
-        
-        stmt = stmt.where(
-            or_(
-                models.Contest.contest_type == 'public',
-                private_access_filter # Only applies if user is logged in
-            )
-        )
-    # Admins see all contests - no additional filtering needed
-    
-    # Apply pagination
-    stmt = stmt.offset(skip).limit(limit)
-    
+    # Base query - simplified, no access control needed here
+    stmt = select(models.Contest).order_by(models.Contest.created_at.desc()) # Order by creation date as per spec
+
+    # Apply status filter if provided
     if status:
         stmt = stmt.where(models.Contest.status == status)
+
+    # Apply pagination
+    stmt = stmt.offset(skip).limit(limit)
     
     result = await db.execute(stmt)
     contests = result.scalars().all()
@@ -109,8 +104,9 @@ async def get_contest_or_404(contest_id: int, db: AsyncSession) -> models.Contes
         select(models.Contest)
         .where(models.Contest.id == contest_id)
         .options(
-            selectinload(models.Contest.submissions), # Eager load submissions
-            selectinload(models.Contest.judges)       # Eager load judges
+            selectinload(models.Contest.submissions),    # Eager load submissions
+            selectinload(models.Contest.human_judges),   # Eager load human judges
+            selectinload(models.Contest.ai_judges)       # Eager load AI judges
         )
     )
     contest = result.scalar_one_or_none()
@@ -126,59 +122,78 @@ async def get_contest_or_404(contest_id: int, db: AsyncSession) -> models.Contes
 )
 async def get_contest(
     contest_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db_session),
-    current_user: Optional[models.User] = Depends(get_optional_current_user) # Use imported function directly
+    current_user: Optional[models.User] = Depends(get_optional_current_user)
 ):
-    """Retrieves detailed information about a specific contest, including submissions and judges.
+    """Retrieves detailed information about a specific contest.
 
-    Handles access control for private contests.
+    - Public contests are accessible to everyone.
+    - Private contests require admin/judge role OR a valid access token 
+      (obtained via POST /check-password) passed as a cookie.
     """
     contest = await get_contest_or_404(contest_id, db)
 
     # --- Access Control for Private Contests --- 
     if contest.contest_type == 'private':
         is_authorized = False
+        expected_subject = f"contest_access:{contest_id}"
+
+        # 1. Check for Admin/Judge role
         if current_user:
-            # Allow access if user is an admin
             if current_user.is_admin():
                 is_authorized = True
-            # Allow access if user is an assigned judge
-            # The judges relationship was eager-loaded by get_contest_or_404
-            elif current_user in contest.judges:
+            # Check if user is in the list of assigned human judges
+            elif current_user in contest.human_judges: 
                 is_authorized = True
-        
-        # TODO: Implement password check mechanism if needed for non-admin/non-judge users
-        # Requires a way for the user to provide the password for this request.
 
+        # 2. If not authorized by role, check for password access token (cookie)
         if not is_authorized:
-            # If not an admin and not an assigned judge
+            token = request.cookies.get(f"contest_access_{contest_id}")
+            if token:
+                try:
+                    payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+                    subject: str = payload.get("sub")
+                    if subject == expected_subject:
+                        is_authorized = True # Token is valid for this contest
+                except JWTError: # Catches expired tokens, invalid signatures, etc.
+                    pass # Token is invalid, authorization remains False
+
+        # 3. Final check - raise 403 if not authorized by role or valid token
+        if not is_authorized:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied: This is a private contest."
+                detail=f"Access denied: Private contest. Use POST /contests/{contest_id}/check-password to gain temporary access."
             )
     # --- End Access Control --- 
 
-    return contest # Pydantic will convert using response_model and from_attributes
+    return contest
 
 @router.put(
     "/{contest_id}",
     response_model=schemas.ContestPublic,
-    summary="Update a contest (Admin Only)", # Updated summary
+    summary="Update a contest (Owner or Admin)", # Updated summary
     tags=["Contests"]
 )
 async def update_contest(
     contest_id: int,
     contest_update: schemas.ContestUpdate,
     db: AsyncSession = Depends(get_db_session),
-    current_user: models.User = Depends(require_admin) # Use imported function directly
+    current_user: models.User = Depends(get_current_active_user) # Changed dependency
 ):
     """Updates an existing contest.
 
-    Requires admin privileges.
+    - Requires admin privileges OR ownership of the contest.
     """
     contest = await get_contest_or_404(contest_id, db) # Fetch existing contest
 
-    # --- Authorization Check is now handled by the dependency --- 
+    # --- Authorization Check ---
+    if not current_user.is_admin() and contest.creator_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to update this contest"
+        )
+    # --- End Authorization Check ---
 
     update_data = contest_update.model_dump(exclude_unset=True)
 
@@ -187,9 +202,10 @@ async def update_contest(
     if contest.contest_type == 'private' and new_password:
         contest.set_password(new_password) # Use the passlib method
     elif "contest_type" in update_data and update_data["contest_type"] == 'public':
-        contest.password_hash = None # Clear hash if changing to public
+        # If changing to public, ensure password hash is cleared
+        contest.password_hash = None 
 
-    # Update contest fields
+    # Update other contest fields
     for field, value in update_data.items():
         setattr(contest, field, value)
 
@@ -201,25 +217,33 @@ async def update_contest(
 @router.delete(
     "/{contest_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete a contest (Admin Only)", # Updated summary
+    summary="Delete a contest (Owner or Admin)", # Updated summary
     tags=["Contests"]
 )
 async def delete_contest(
     contest_id: int,
     db: AsyncSession = Depends(get_db_session),
-    current_user: models.User = Depends(require_admin) # Use imported function directly
+    current_user: models.User = Depends(get_current_active_user) # Changed dependency
 ):
-    """Deletes a contest and its associated submissions/votes (due to cascade).
+    """Deletes a contest and its associated data (submissions, votes, etc.).
 
-    Requires admin privileges.
+    - Requires admin privileges OR ownership of the contest.
     """
     contest = await get_contest_or_404(contest_id, db)
 
-    # --- Authorization Check is now handled by the dependency --- 
+    # --- Authorization Check ---
+    if not current_user.is_admin() and contest.creator_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to delete this contest"
+        )
+    # --- End Authorization Check ---
 
     await db.delete(contest)
     await db.commit()
-    return None # Return None for 204 status code 
+    # No need to return Response(status_code=...) explicitly for 204
+    # Returning None with status_code in decorator handles it.
+    return None 
 
 # --- Submit to Contest ---
 
@@ -227,112 +251,170 @@ async def delete_contest(
 async def create_submission(
     contest_id: int,
     submission_data: schemas.SubmissionCreate,
+    request: Request, # Add request
     db: AsyncSession = Depends(get_db_session),
-    current_user: Optional[models.User] = Depends(get_optional_current_user) # Correct dependency for optional user
+    current_user: models.User = Depends(get_current_active_user) # Changed dependency
 ):
-    """Creates a new submission for an open contest."""
-    # 1. Get Contest and check status
-    contest = await db.get(models.Contest, contest_id)
-    if not contest:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contest not found")
-    if contest.status != 'open':
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Contest is not open for submissions")
+    """Creates a new submission for a contest.
 
-    # 2. Prepare submission data
-    submission_dict = submission_data.model_dump()
+    - Requires authenticated user.
+    - If user is not admin:
+        - Contest must be 'open'.
+        - If contest is private, requires a valid access cookie 
+          (from POST /check-password).
+    - Admins can submit to contests in any status.
+    """
+    contest = await get_contest_or_404(contest_id, db) # Use helper to get contest or 404
+
+    # --- Authorization and Status Checks ---
+    is_authorized_for_private = True # Assume public or authorized initially
     
-    author_name = submission_dict.get('author_name')
-    if not author_name and current_user:
-        author_name = current_user.username
-    elif not author_name:
-        author_name = "Anonymous"
+    if not current_user.is_admin():
+        # 1. Check Contest Status (Non-Admin)
+        if contest.status != 'open':
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Contest is not open for submissions"
+            )
         
-    submission_dict['author_name'] = author_name
-    submission_dict['contest_id'] = contest_id
-    submission_dict['submission_date'] = datetime.utcnow()
-    submission_dict['is_ai_generated'] = False
-    submission_dict['ai_writer_id'] = None
-    submission_dict['user_id'] = current_user.id if current_user else None
-    word_count = len(submission_dict.get('text_content', '').split())
-    # Note: word_count is calculated but Submission model doesn't have this field.
-    # We can add it later if needed, or just return it in the schema.
+        # 2. Check Private Contest Access (Non-Admin)
+        if contest.contest_type == 'private':
+            is_authorized_for_private = False # Reset flag, must verify token
+            expected_subject = f"contest_access:{contest_id}"
+            token = request.cookies.get(f"contest_access_{contest_id}")
+            if token:
+                try:
+                    payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+                    subject: str = payload.get("sub")
+                    if subject == expected_subject:
+                        is_authorized_for_private = True # Token is valid
+                except JWTError:
+                    pass # Token invalid, flag remains False
 
-    # 3. Create Submission
+            if not is_authorized_for_private:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Access denied: Private contest. Use POST /contests/{contest_id}/check-password first."
+                )
+    # --- End Authorization and Status Checks ---
+    
+    # --- TODO: Add contest specific rule checks (Non-Admin) ---
+    # if not current_user.is_admin():
+    #     # - Check if judges can participate (if contest.restrict_judges_as_authors)
+    #     if contest.restrict_judges_as_authors and current_user in contest.judges:
+    #          raise HTTPException(status_code=403, detail="Judges cannot submit entries to this contest.")
+    #     # - Check if multiple submissions allowed per author (if contest.allow_multiple_submissions_per_author is False)
+    #     # Requires querying existing submissions for this user in this contest
+
+    # Prepare submission data
+    submission_dict = submission_data.model_dump(exclude_unset=True)
+    submission_dict['user_id'] = current_user.id
+    submission_dict['contest_id'] = contest_id
+    
+    # Use username as default author_name if not provided
+    if 'author_name' not in submission_dict or not submission_dict['author_name']:
+        submission_dict['author_name'] = current_user.username
+        
+    # Calculate word count
+    submission_dict['word_count'] = len(submission_dict.get('text_content', '').split())
+
+    # Create and save
+    new_submission = models.Submission(**submission_dict)
+    db.add(new_submission)
     try:
-        # Prepare data strictly for the model
-        model_data = {
-            "title": submission_dict["title"],
-            "text_content": submission_dict["text_content"],
-            "author_name": submission_dict["author_name"],
-            "contest_id": submission_dict["contest_id"],
-            "submission_date": submission_dict["submission_date"],
-            "is_ai_generated": submission_dict["is_ai_generated"],
-            "ai_writer_id": submission_dict["ai_writer_id"],
-            "user_id": submission_dict["user_id"]
-            # Ensure no fields like 'word_count' are passed if not in model
-        }
-        new_submission = models.Submission(**model_data)
-        db.add(new_submission)
         await db.commit()
         await db.refresh(new_submission)
-        
-        # Prepare response using SubmissionRead schema
-        response_data = schemas.SubmissionRead(
-            id=new_submission.id,
-            title=new_submission.title,
-            text_content=new_submission.text_content, 
-            author_name=new_submission.author_name,
-            contest_id=new_submission.contest_id,
-            user_id=new_submission.user_id,
-            timestamp=new_submission.submission_date, # Use submission_date from model for timestamp
-            word_count=word_count, # Include calculated word_count in response schema
-            votes=[] # Votes list is empty initially
-        )
-        return response_data
-        
     except IntegrityError as e:
         await db.rollback()
-        # Log specific IntegrityError if helpful
-        print(f"IntegrityError creating submission: {e}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Database integrity error. Ensure data is valid.")
+        # Log the error details for debugging
+        print(f"IntegrityError creating submission for contest {contest_id} by user {current_user.id}: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Error saving submission (potential duplicate or constraint violation).")
     except Exception as e:
         await db.rollback()
-        print(f"Unexpected error creating submission: {e}") # Log the error
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create submission")
+        print(f"Exception creating submission for contest {contest_id} by user {current_user.id}: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred while saving the submission.")
+        
+    return new_submission
 
 # --- Get Submissions for a Contest (Judge/Admin Access) ---
-@router.get("/{contest_id}/submissions", response_model=List[schemas.SubmissionRead])
-async def get_contest_submissions(
+@router.get("/{contest_id}/submissions", response_model=List[schemas.SubmissionRead], summary="List Submissions for a Contest") 
+async def list_contest_submissions(
     contest_id: int,
+    request: Request, # Add request object
     db: AsyncSession = Depends(get_db_session),
-    current_user: models.User = Depends(get_current_active_user) # Use imported function directly
+    current_user: models.User = Depends(get_current_active_user) 
 ):
-    """Get all submissions for a specific contest (Requires judge/admin access)."""
-    contest = await db.get(models.Contest, contest_id)
-    if not contest:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contest not found")
+    """Lists submissions for a contest, handling access control and anonymization.
 
-    # Authorization Check: Only admin or assigned judges can view submissions
-    is_admin = current_user.role == 'admin'
-    # Check if user is an assigned human judge
-    is_assigned_human = any(assign.user_id == current_user.id for assign in contest.human_judge_assignments)
-    # Check if user is an assigned AI judge (less likely scenario for this specific check, but possible)
-    # Assuming AI Judge functionality links back to a User with role 'judge' and type 'ai'
-    # This requires loading the AIJudge configurations linked to the user
-    # Simpler check: Is user a judge assigned to this contest?
-    is_judge_assigned = is_assigned_human # Add AI judge assignment check if needed
+    Access Rules:
+    - Admins: Can view anytime.
+    - Non-Admins:
+        - Can view only if contest status is 'evaluation' or 'closed'.
+        - AND must EITHER be an assigned judge OR have access to the private contest (via cookie if private).
     
-    if not is_admin and not is_judge_assigned:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view submissions for this contest")
+    Anonymization:
+    - Author names are anonymized if contest status is NOT 'closed' 
+      AND the current user is NOT an admin.
+    """
+    contest = await get_contest_or_404(contest_id, db) # Eager loads judges and submissions
 
-    # Fetch submissions
-    result = await db.execute(
-        select(models.Submission)
-        .where(models.Submission.contest_id == contest_id)
-        .order_by(models.Submission.submission_date) # Or order by ID?
-    )
-    submissions = result.scalars().all()
-    return submissions
+    # --- Authorization Check --- 
+    can_view = False
+    is_private_contest_accessible = True # Assume public or accessible initially
+
+    if current_user.is_admin():
+        can_view = True
+    else:
+        # Non-admin access requires specific conditions
+        if contest.status in ['evaluation', 'closed']:
+            # Condition 1: User is an assigned judge
+            is_judge = current_user in contest.judges
+
+            # Condition 2: User has access to the contest (relevant if private)
+            if contest.contest_type == 'private' and not is_judge:
+                is_private_contest_accessible = False # Must verify cookie
+                expected_subject = f"contest_access:{contest_id}"
+                token = request.cookies.get(f"contest_access_{contest_id}")
+                if token:
+                    try:
+                        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+                        subject: str = payload.get("sub")
+                        if subject == expected_subject:
+                            is_private_contest_accessible = True
+                    except JWTError:
+                        pass # Invalid token
+            
+            # User can view if they are a judge OR have access to the (potentially private) contest
+            if is_judge or is_private_contest_accessible:
+                can_view = True
+
+    if not can_view:
+        detail_message = "Access denied to view submissions."
+        if contest.status == 'open' and not current_user.is_admin():
+            detail_message = "Submissions cannot be viewed while the contest is open."
+        elif not is_private_contest_accessible and not (current_user in contest.judges):
+             detail_message = "Access denied: User lacks permissions or required access for this contest state."
+       
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=detail_message
+        )
+    # --- End Authorization Check ---
+
+    # --- Anonymization Logic ---
+    submissions_to_return = []
+    # Anonymize if contest is not closed AND user is not admin
+    should_anonymize = (contest.status != 'closed') and (not current_user.is_admin())
+
+    for sub in contest.submissions:
+        # Convert ORM object to Pydantic model for manipulation/return
+        sub_data = schemas.SubmissionRead.model_validate(sub)
+        if should_anonymize:
+            # Use a generic placeholder or ID
+            sub_data.author_name = f"Author #{sub.id}" 
+        submissions_to_return.append(sub_data)
+
+    return submissions_to_return
 
 # --- Contest Password Check Endpoint ---
 @router.post("/{contest_id}/check-password", status_code=status.HTTP_200_OK)

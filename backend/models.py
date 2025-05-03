@@ -12,14 +12,27 @@ import bcrypt
 
 from sqlalchemy import (
     Integer, String, Text, DateTime, ForeignKey, Boolean, Float, Table, Column, 
-    UniqueConstraint
+    UniqueConstraint,
+    MetaData # Import MetaData
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.ext.asyncio import AsyncAttrs
 
+# Define naming convention for Alembic/SQLAlchemy
+# See: https://alembic.sqlalchemy.org/en/latest/naming.html
+convention = {
+    "ix": 'ix_%(column_0_label)s',
+    "uq": "uq_%(table_name)s_%(column_0_name)s",
+    "ck": "ck_%(table_name)s_%(constraint_name)s",
+    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+    "pk": "pk_%(table_name)s"
+}
+
+metadata_obj = MetaData(naming_convention=convention)
 
 # Define Base class using SQLAlchemy 2.0 syntax
 class Base(AsyncAttrs, DeclarativeBase):
+    metadata = metadata_obj # Associate Base with the MetaData object
     pass
 
 # Association Objects define the tables now
@@ -51,7 +64,7 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(64), index=True, unique=True, nullable=False)
     email: Mapped[str] = mapped_column(String(120), index=True, unique=True, nullable=False)
     password_hash: Mapped[Optional[str]] = mapped_column(String(256), nullable=True) # Set nullable=False? Ensure it's always set on creation.
-    role: Mapped[str] = mapped_column(String(10), index=True, default='judge') # 'admin', 'judge', 'user'
+    role: Mapped[str] = mapped_column(String(10), index=True, default='user') # Default to 'user' on creation
     judge_type: Mapped[str] = mapped_column(String(10), default='human') # 'human' or 'ai' (AI type now managed by separate AIJudge model)
     
     # Relationships (adjust lazy loading, use Mapped)
@@ -63,6 +76,8 @@ class User(Base):
     ai_evaluations: Mapped[List["AIEvaluation"]] = relationship(back_populates='judge') # Added back_populates
     # Relationship to the association object
     contest_assignments: Mapped[List["ContestHumanJudgeAssociation"]] = relationship(back_populates="user")
+    submissions: Mapped[List["Submission"]] = relationship(back_populates="user") # Add relationship to submissions
+    created_contests: Mapped[List["Contest"]] = relationship(back_populates="creator") # Added reverse relationship
 
     # --- Methods using bcrypt --- 
     def set_password(self, password: str):
@@ -101,6 +116,7 @@ class Contest(Base):
     __tablename__ = 'contest'
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    creator_id: Mapped[int] = mapped_column(ForeignKey('user.id'), index=True, nullable=False) # Added creator FK
     title: Mapped[str] = mapped_column(String(150), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
@@ -126,6 +142,7 @@ class Contest(Base):
     # Relationship to fetch judge assignment details (including ai_model)
     human_judge_assignments: Mapped[List["ContestHumanJudgeAssociation"]] = relationship(back_populates="contest")
     ai_judge_assignments: Mapped[List["ContestAIJudgeAssociation"]] = relationship(back_populates="contest")
+    creator: Mapped["User"] = relationship(back_populates="created_contests") # Added relationship to creator
 
     # --- Methods using bcrypt --- 
     def set_password(self, password: str):
@@ -156,7 +173,9 @@ class Submission(Base):
     __tablename__ = 'submission'
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    author_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    # Link to the user who submitted (nullable for AI/potential anonymous?)
+    user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey('user.id'), nullable=True, index=True)
+    author_name: Mapped[str] = mapped_column(String(100), nullable=False) # Keep for display, might differ from username
     title: Mapped[str] = mapped_column(String(150), nullable=False)
     text_content: Mapped[str] = mapped_column(Text, nullable=False)
     submission_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, default=lambda: datetime.now(timezone.utc))
@@ -165,8 +184,10 @@ class Submission(Base):
     final_rank: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     is_ai_generated: Mapped[bool] = mapped_column(Boolean, default=False)
     ai_writer_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey('ai_writer.id'), nullable=True)
+    word_count: Mapped[int] = mapped_column(Integer, default=0)
     
     # Relationships
+    user: Mapped[Optional["User"]] = relationship(back_populates="submissions") # Add relationship to user
     contest: Mapped["Contest"] = relationship(back_populates='submissions')
     votes: Mapped[List["Vote"]] = relationship(back_populates='submission', cascade="all, delete-orphan")
     ai_writer: Mapped[Optional["AIWriter"]] = relationship(back_populates='submissions')

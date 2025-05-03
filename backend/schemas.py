@@ -18,10 +18,18 @@ class ModelPublic(ModelBase):
 class UserBase(ModelBase):
     username: str = Field(..., min_length=3, max_length=64)
     email: EmailStr
-    role: str = Field('judge', pattern=r'^(admin|judge|user)$')
-    judge_type: Optional[str] = Field('human', pattern=r'^(human|ai)$')
+    # Role is now optional in base, will be set by endpoint logic or model default
+    role: Optional[str] = Field(None, pattern=r'^(admin|judge|user)$') 
+    # Judge type is optional, defaults to 'human' in model if not provided
+    judge_type: Optional[str] = Field(None, pattern=r'^(human|ai)$') 
 
 class UserCreate(UserBase):
+    password: str = Field(..., min_length=8)
+
+# Schema specifically for the /register endpoint request body
+class UserRegister(ModelBase):
+    username: str = Field(..., min_length=3, max_length=64)
+    email: EmailStr
     password: str = Field(..., min_length=8)
 
 class UserUpdate(ModelBase):
@@ -40,6 +48,16 @@ class UserDetail(UserPublic):
     # Example: Add relationships if needed, ensure they use Public schemas
     # judged_contests: List['ContestPublic'] = [] # Avoid circular imports initially
     pass
+
+# Schema for the /auth/users/me endpoint
+class UserMe(ModelBase):
+    id: int
+    username: str
+    email: EmailStr
+    role: str
+
+    class Config:
+        from_attributes = True
 
 # --- NEW AIJudge Schemas ---
 class AIJudgeBase(BaseModel):

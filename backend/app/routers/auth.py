@@ -42,7 +42,7 @@ async def login_for_access_token(
     return {"access_token": access_token, "token_type": "bearer"}
 
 # Optional: Endpoint to test authentication and get current user info
-@router.get("/users/me", response_model=schemas.UserPublic, tags=["Authentication"])
+@router.get("/users/me", response_model=schemas.UserMe, tags=["Authentication"])
 async def read_users_me(
     current_user: models.User = Depends(security.get_current_active_user)
 ):
@@ -57,13 +57,13 @@ async def read_users_me(
     tags=["Authentication"]
 )
 async def register_user(
-    user_in: schemas.UserCreate, 
+    user_in: schemas.UserRegister, # Changed from UserCreate
     db: AsyncSession = Depends(get_db_session)
 ):
-    """Registers a new user.
+    """Registers a new user with the 'user' role.
     
-    Hashes the password using passlib before saving.
-    Checks for existing username/email.
+    Checks for existing username/email and hashes the password.
+    Role and judge_type are automatically set to 'user' and 'human'.
     """
     # Check for existing username
     existing_user = await security.get_user_by_username(db, username=user_in.username)
@@ -83,13 +83,20 @@ async def register_user(
         )
     # --- END ADDED --- 
         
-    # Create new user instance (excluding password from direct model creation)
-    user_data = user_in.model_dump(exclude={'password'})
-    new_user = models.User(**user_data)
+    # Create user data dictionary from the specific input schema
+    user_data = user_in.model_dump() # Dump all fields from UserRegister
+    
+    # Explicitly set role and judge_type for standard user registration
+    user_data['role'] = 'user' 
+    user_data['judge_type'] = 'human'
+    
+    # Prepare data for model (separate password for hashing)
+    password_to_hash = user_data.pop('password') 
+    new_user = models.User(**user_data) # Create model with username, email, role, judge_type
     
     # Set hashed password
     try:
-        new_user.set_password(user_in.password)
+        new_user.set_password(password_to_hash) # Use the separated password
     except Exception as e:
         # Catch potential errors during hashing (like the bcrypt issue)
         print(f"Error hashing password during registration: {e}") # Log the error

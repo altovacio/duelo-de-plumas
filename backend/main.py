@@ -1,4 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 # ADD: Import StaticFiles and FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -14,6 +17,10 @@ from .app.routers import contest, auth, ai_router # Corrected path
 from .app.routers import main as main_router
 # ADD: Import the new admin router
 from .app.routers import admin as admin_router
+# ADD: Import submission router
+from .app.routers import submission # Use consistent path
+# ADD: Import the database module
+from .database import init_db # Corrected relative import, removed close_db
 
 # The app.routers path doesn't exist, fix it:
 # from .app.routers.ai_router import router as ai_router  # This path is incorrect
@@ -35,16 +42,30 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FRONTEND_DIR = os.path.join(PROJECT_ROOT, 'frontend')
 
 app = FastAPI(
-    title=settings.APP_NAME, 
-    version=settings.APP_VERSION,
-    debug=settings.DEBUG,
-    # Add other FastAPI app configurations here
+    title="Utopia API",
+    description="API for the Duelo de Plumas collaborative writing platform.",
+    version="0.2.0",
 )
 
+# CORS Middleware Configuration
+origins = [
+    "http://localhost:3000", # Allow frontend origin
+    "http://127.0.0.1:3000",
+    # Add other origins if needed (e.g., production frontend URL)
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# Include routers
+# Include Routers
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
-app.include_router(contest.router, tags=["Contests"])
+app.include_router(contest.router, prefix="/contests", tags=["Contests"])
+app.include_router(admin_router.router, prefix="/admin", tags=["Admin"])
+app.include_router(submission.router, prefix="/submissions", tags=["Submissions"]) # ADDED submission router
 app.include_router(ai_router.router, prefix="/ai", tags=["AI"])  # Include AI router directly
 # ADD: Include the main router
 app.include_router(main_router.router, prefix="/api/v2") # Main routes with prefix

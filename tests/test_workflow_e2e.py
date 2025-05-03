@@ -16,6 +16,41 @@ def get_auth_headers(token: str):
 
 @pytest.mark.e2e
 def test_full_user_admin_workflow():
+    """Runs a full end-to-end workflow test involving two users and an admin.
+    
+    Steps:
+    --- User 1 Workflow ---
+    a) Register User 1
+    b) Login User 1 & Get ID
+    c) List initial contests (User 1)
+    d) Create public contest (User 1)
+    e) Modify contest to private with password (User 1)
+    f) Check password - wrong (User 1)
+    g) Check password - correct & get cookie (User 1)
+    h) Submit text to contest (User 1)
+    i) List submissions (User 1 - expects failure)
+    j) Logout User 1 (implicit)
+    --- User 2 Workflow ---
+    k) Register User 2
+    l) Login User 2 & Get ID
+    c2) List contests (User 2)
+    d2) Create public contest (User 2)
+    e2) Modify contest to private with password (User 2)
+    f2) Check password - wrong (User 2)
+    g2) Check password - correct & get cookie (User 2)
+    h2) Submit text to contest (User 2)
+    i2) List submissions (User 2 - expects failure)
+    m) Try to delete User 1's contest (User 2 - expects failure)
+    n) Logout User 2 (implicit)
+    --- Cleanup Workflow ---
+    o) Re-login User 1
+        o1) Delete own contest (User 1)
+        o2) Try to delete User 2's contest (User 1 - expects failure)
+    p) Login as Admin
+        p1) Delete User 1 (Admin)
+        p2) Delete User 2 (Admin)
+        p3) Delete User 2's contest (Admin)
+    """
     user1_token = None
     user1_id = None # We might need this if the API returns it or we fetch it
     user2_token = None
@@ -357,7 +392,7 @@ def test_full_user_admin_workflow():
         response = requests.delete(f"{BASE_URL}/admin/users/{user1_id}", headers=headers_admin)
         print(f"Admin Delete User 1 Response: {response.status_code}")
         # Allow 404 Not Found if user was already deleted or login failed earlier
-        assert response.status_code in [200, 204, 404]
+        assert response.status_code in [204]
     else:
         print("Skipping Admin Delete User 1 (ID not available).")
 
@@ -368,7 +403,7 @@ def test_full_user_admin_workflow():
         response = requests.delete(f"{BASE_URL}/admin/users/{user2_id}", headers=headers_admin)
         print(f"Admin Delete User 2 Response: {response.status_code}")
         # Allow 404 Not Found
-        assert response.status_code in [200, 204, 404]
+        assert response.status_code in [204]
     else:
         print("Skipping Admin Delete User 2 (ID not available).")
 
@@ -379,7 +414,7 @@ def test_full_user_admin_workflow():
         response = requests.delete(f"{BASE_URL}/contests/{contest2_id}", headers=headers_admin)
         print(f"Admin Delete Contest 2 Response: {response.status_code}")
         # Allow 404 Not Found
-        assert response.status_code in [200, 204, 404]
+        assert response.status_code in [404]
     else:
         print("Skipping Admin Delete Contest 2 (ID not available).")
 

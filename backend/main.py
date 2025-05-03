@@ -63,7 +63,7 @@ app.add_middleware(
 
 # Include Routers
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
-app.include_router(contest.router, prefix="/contests", tags=["Contests"])
+app.include_router(contest.router, tags=["Contests"])
 app.include_router(admin_router.router, prefix="/admin", tags=["Admin"])
 app.include_router(submission.router, prefix="/submissions", tags=["Submissions"]) # ADDED submission router
 app.include_router(ai_router.router, prefix="/ai", tags=["AI"])  # Include AI router directly

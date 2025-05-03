@@ -7,6 +7,7 @@ from sqlalchemy import or_, delete
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta
 from jose import jwt, JWTError
+import traceback
 
 # Relative imports
 from ... import models, schemas
@@ -58,12 +59,12 @@ async def create_contest(
 
     # Handle password hashing
     if new_contest.contest_type == 'private' and password:
-        new_contest.set_password(password)
+        new_contest.set_password(password) # Call model method to hash and set password_hash
     elif new_contest.contest_type == 'public':
         new_contest.password_hash = None
 
     db.add(new_contest)
-    await db.commit()
+    await db.commit() # Save the instance to the DB
     await db.refresh(new_contest)
     return new_contest
 
@@ -152,7 +153,7 @@ async def get_contest(
             token = request.cookies.get(f"contest_access_{contest_id}")
             if token:
                 try:
-                    payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+                    payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.AUTH_ALGORITHM])
                     subject: str = payload.get("sub")
                     if subject == expected_subject:
                         is_authorized = True # Token is valid for this contest
@@ -195,23 +196,49 @@ async def update_contest(
         )
     # --- End Authorization Check ---
 
+    print(f"---> [update_contest {contest_id}] User {current_user.id} authorized.") # DEBUG
     update_data = contest_update.model_dump(exclude_unset=True)
-
-    # Handle password update if provided
+    print(f"---> [update_contest {contest_id}] Raw update data: {update_data}") # DEBUG
     new_password = update_data.pop("password", None)
-    if contest.contest_type == 'private' and new_password:
-        contest.set_password(new_password) # Use the passlib method
-    elif "contest_type" in update_data and update_data["contest_type"] == 'public':
-        # If changing to public, ensure password hash is cleared
-        contest.password_hash = None 
+    print(f"---> [update_contest {contest_id}] Password in update: {'Provided' if new_password else 'None'}") # DEBUG
 
-    # Update other contest fields
+    # Update contest fields from the update data first
+    print(f"---> [update_contest {contest_id}] Applying fields via setattr:") # DEBUG
     for field, value in update_data.items():
+        print(f"    Setting {field} = {repr(value)}") # DEBUG
         setattr(contest, field, value)
 
+    # Determine type changes based on the NOW UPDATED contest object
+    is_changing_to_private = update_data.get("contest_type") == 'private' # Check original intent
+    is_changing_to_public = update_data.get("contest_type") == 'public'
+    print(f"---> [update_contest {contest_id}] Intent: ChangeToPrivate={is_changing_to_private}, ChangeToPublic={is_changing_to_public}") # DEBUG
+    print(f"---> [update_contest {contest_id}] Contest state after setattr: Type={contest.contest_type}") # DEBUG
+
+    # Handle password logic based on type changes
+    if is_changing_to_private:
+        print(f"---> [update_contest {contest_id}] Handling change to private...") # DEBUG
+        if not new_password:
+            print(f"---> [update_contest {contest_id}] ERROR: Password required but not provided!") # DEBUG
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Password is required when changing contest type to private."
+            )
+        print(f"---> [update_contest {contest_id}] Calling contest.set_password()...") # DEBUG
+        contest.set_password(new_password)
+    elif new_password and contest.contest_type == 'private':
+        print(f"---> [update_contest {contest_id}] Updating password for existing private contest...") # DEBUG
+        contest.set_password(new_password)
+    elif is_changing_to_public:
+        print(f"---> [update_contest {contest_id}] Handling change to public, clearing hash...") # DEBUG
+        contest.password_hash = None # Clear hash
+    else:
+        print(f"---> [update_contest {contest_id}] No password logic triggered.") # DEBUG
+
+    print(f"---> [update_contest {contest_id}] Attempting commit...") # DEBUG
     db.add(contest)
     await db.commit()
     await db.refresh(contest)
+    print(f"---> [update_contest {contest_id}] Update successful.") # DEBUG
     return contest
 
 @router.delete(
@@ -247,7 +274,7 @@ async def delete_contest(
 
 # --- Submit to Contest ---
 
-@router.post("/{contest_id}/submissions", response_model=schemas.SubmissionRead, status_code=status.HTTP_201_CREATED, summary="Submit an Entry to a Contest")
+@router.post("/{contest_id}/submissions", response_model=schemas.SubmissionCreateResponse, status_code=status.HTTP_201_CREATED, summary="Submit an Entry to a Contest")
 async def create_submission(
     contest_id: int,
     submission_data: schemas.SubmissionCreate,
@@ -284,7 +311,7 @@ async def create_submission(
             token = request.cookies.get(f"contest_access_{contest_id}")
             if token:
                 try:
-                    payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+                    payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.AUTH_ALGORITHM])
                     subject: str = payload.get("sub")
                     if subject == expected_subject:
                         is_authorized_for_private = True # Token is valid
@@ -331,10 +358,12 @@ async def create_submission(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Error saving submission (potential duplicate or constraint violation).")
     except Exception as e:
         await db.rollback()
-        print(f"Exception creating submission for contest {contest_id} by user {current_user.id}: {e}")
+        print(f"Exception creating submission for contest {contest_id} by user {current_user.id}:")
+        traceback.print_exc() # Print the full traceback
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred while saving the submission.")
         
-    return new_submission
+    # Explicitly validate/convert to Pydantic model before returning
+    return schemas.SubmissionCreateResponse.model_validate(new_submission)
 
 # --- Get Submissions for a Contest (Judge/Admin Access) ---
 @router.get("/{contest_id}/submissions", response_model=List[schemas.SubmissionRead], summary="List Submissions for a Contest") 
@@ -377,7 +406,7 @@ async def list_contest_submissions(
                 token = request.cookies.get(f"contest_access_{contest_id}")
                 if token:
                     try:
-                        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+                        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.AUTH_ALGORITHM])
                         subject: str = payload.get("sub")
                         if subject == expected_subject:
                             is_private_contest_accessible = True
@@ -439,7 +468,7 @@ async def check_contest_password(
     # Use settings for secret key and cookie name/duration.
     # This is a simplified example:
     access_token = create_access_token(
-        data={"sub": f"contest_access:{contest_id}", "contest_id": contest_id},
+        subject=f"contest_access:{contest_id}", # Pass only the subject string
         expires_delta=timedelta(minutes=settings.CONTEST_ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     

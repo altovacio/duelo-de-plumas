@@ -100,6 +100,9 @@ class ContestBase(ModelBase):
     status: str = Field('open', pattern=r'^(open|evaluation|closed)$')
     contest_type: str = Field('public', pattern=r'^(public|private)$')
     required_judges: int = Field(1, ge=1)
+    # Add restriction fields
+    restrict_judges_as_authors: bool = Field(False, description="Prevent assigned judges from submitting")
+    limit_submissions_per_author: bool = Field(False, description="Limit each author to one submission")
 
 class ContestCreate(ContestBase):
     password: Optional[str] = Field(None, min_length=6) # Password only if private
@@ -120,6 +123,9 @@ class ContestUpdate(ModelBase):
     contest_type: Optional[str] = Field(None, pattern=r'^(public|private)$')
     required_judges: Optional[int] = Field(None, ge=1)
     password: Optional[str] = Field(None, min_length=6) # Allow password change
+    # Add restriction fields
+    restrict_judges_as_authors: Optional[bool] = None
+    limit_submissions_per_author: Optional[bool] = None
 
 class ContestPublic(ContestBase, ModelPublic):
     created_at: datetime
@@ -148,7 +154,7 @@ class VoteUpdate(ModelBase):
 
 class VoteRead(VoteBase, ModelPublic): # Define VoteRead here
     timestamp: datetime
-    app_version: Optional[str] = None # Made optional
+    app_version: str # Changed from Optional[str]
     judge_id: int # Add judge_id to the read model
     # Potentially include judge/submission info using Public schemas
     # judge: Optional[UserPublic] = None
@@ -171,10 +177,28 @@ class SubmissionRead(SubmissionBase):
     id: int
     contest_id: int
     user_id: Optional[int] # Submissions might not be linked to a user (e.g., AI generated?)
-    timestamp: datetime
+    submission_date: datetime
     word_count: int
+    # Add missing fields from model
+    total_points: int = 0 # Provide default if needed
+    final_rank: Optional[int] = None
+    is_ai_generated: bool = False # Provide default if needed
+    ai_writer_id: Optional[int] = None
+    
     votes: List[VoteRead] = [] # Include votes when reading a submission
 
+    model_config = {
+        "from_attributes": True
+    }
+
+# Response model specifically for the submission creation endpoint
+class SubmissionCreateResponse(SubmissionBase): # Inherit from SubmissionBase
+    id: int
+    contest_id: int
+    user_id: Optional[int]
+    submission_date: datetime
+    word_count: int
+    # Exclude votes relationship for create response
     model_config = {
         "from_attributes": True
     }
@@ -311,5 +335,6 @@ class AICostsSummary(BaseModel):
 # Do this at the end of the file
 ContestDetail.model_rebuild()
 SubmissionDetail.model_rebuild()
+SubmissionRead.model_rebuild()
 # VotePublic.model_rebuild()
 # ... rebuild others as needed ... 

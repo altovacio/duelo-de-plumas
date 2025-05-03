@@ -54,6 +54,12 @@ class Settings(BaseSettings):
              return value.replace("sqlite://", "sqlite+aiosqlite://", 1)
         return value
 
+    # ADDED: Expiry for temporary contest access tokens (via password check)
+    CONTEST_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(15, description="Contest access token expiry time in minutes")
+
+    # Add SECURE_COOKIES setting for production
+    SECURE_COOKIES: bool = Field(False, description="Set to True when using HTTPS")
+
 
 # Create a single instance of the settings to be imported elsewhere
 settings = Settings()

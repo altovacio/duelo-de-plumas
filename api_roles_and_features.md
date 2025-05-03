@@ -33,9 +33,11 @@ This document outlines the defined user roles and tracks the implementation stat
     *   `[x]` View Own Basic User Info (`GET /auth/users/me`) 
 *   **Contests:**
     *   `[x]` Create Contest (`POST /contests/`)
+    *   `[ ]` Set Contest Restrictions (Judge participation, submission limits) (Part of `POST /contests/` & `PUT /contests/{contest_id}`)
     *   `[x]` Edit Own Contest (`PUT /contests/{contest_id}`)
     *   `[x]` Delete Own Contest (`DELETE /contests/{contest_id}`)
     *   `[t]` Submit Text to Open Contest (`POST /contests/{contest_id}/submissions` - Needs user role check)
+    *   `[ ]` Enforce Contest Restrictions (Judge participation, submission limits) (Part of `POST /contests/{contest_id}/submissions`)
     *   `[t]` Submit Votes/Evaluation (if assigned as Judge) (`POST /contests/{contest_id}/evaluate` - Needs check for user assignment as judge for the contest)
     *   `[t]` View Submissions (if assigned as Judge during Evaluation/Closed) (`GET /contests/{contest_id}/submissions` - Needs refinement for user-judge access based on contest state)
     *   `[t]` Delete Own Text Submission (`DELETE /submissions/{submission_id}` - Needs user/owner access check + state logic)
@@ -65,7 +67,7 @@ This document outlines the defined user roles and tracks the implementation stat
     *   `[t]` List Users (`GET /admin/users/`)
     *   `[p]` Create User (`POST /admin/users/` - Needs update to create 'user' or 'admin' roles, not 'Judge')
     *   `[ ]` Edit User (Roles/Details)
-    *   `[ ]` Delete User
+    *   `[x]` Delete User (`DELETE /admin/users/{user_id}`)
 *   **Contest Management:**
     *   `[p]` View Any Contest Details (`GET /contests/{contest_id}`) -- *Ensure Admin overrides privacy/password.*
     *   `[x]` Update Any Contest (`PUT /contests/{contest_id}`)
@@ -108,4 +110,4 @@ This document outlines the defined user roles and tracks the implementation stat
 *   `[?t]` Delete roadmap item (`DELETE /roadmap/item/{item_id}`)
 *   `[?t]` Update roadmap item status (`PUT /roadmap/item/{item_id}/status`)
 *   `[?t]` List recent submissions (Global?) (`GET /submissions/` in `main.py`) -- *Likely redundant?*
-*   `[?t]` Get dashboard data (Global?) (`GET /dashboard-data` in `main.py`) -- *Purpose unclear, likely redundant?* 
+*   `[?t]`

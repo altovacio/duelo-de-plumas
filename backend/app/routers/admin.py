@@ -113,6 +113,47 @@ async def admin_create_user(
             detail="Failed to create user."
         )
 
+@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a user (Admin)")
+async def delete_user_admin(
+    user_id: int,
+    db: AsyncSession = Depends(get_db_session),
+    # current_user: models.User = Depends(require_admin) # Dependency already applied at router level
+):
+    """Deletes a user by ID. Requires admin privileges.
+    
+    WARNING: Also deletes all contests created by this user due to creator_id NOT NULL constraint.
+    Consider making creator_id nullable and setting to NULL instead if contests should be preserved.
+    """
+    user_to_delete = await db.get(models.User, user_id)
+    if not user_to_delete:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    
+    # Optional: Add check to prevent admin from deleting themselves?
+    # if current_user.id == user_id:
+    #     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Admin cannot delete themselves.")
+
+    # Find and delete contests created by this user
+    contests_to_delete = await db.scalars(
+        select(models.Contest).where(models.Contest.creator_id == user_id)
+    )
+    deleted_contest_count = 0
+    for contest in contests_to_delete.all():
+        print(f"---> Deleting contest {contest.id} (created by user {user_id}) before deleting user.") # DEBUG
+        await db.delete(contest) # Deleting contest will cascade to its submissions/votes etc.
+        deleted_contest_count += 1
+    
+    if deleted_contest_count > 0:
+        # Flush the contest deletions before deleting the user
+        print(f"---> Flushing deletion of {deleted_contest_count} contests created by user {user_id}") # DEBUG
+        await db.flush() 
+
+    print(f"---> Deleting user {user_id}") # DEBUG
+    await db.delete(user_to_delete) # This should now succeed
+    print(f"---> Committing transaction for user {user_id} deletion") # DEBUG
+    await db.commit()
+    print(f"---> Commit successful for user {user_id} deletion") # DEBUG
+    return None # FastAPI handles 204 No Content automatically
+
 # --- AI Writer Management ---
 
 @router.get("/ai-writers", response_model=List[schemas.AIWriterAdminView])

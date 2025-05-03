@@ -69,15 +69,15 @@ class User(Base):
     
     # Relationships (adjust lazy loading, use Mapped)
     # Use back_populates for bidirectional relationships
-    votes: Mapped[List["Vote"]] = relationship(back_populates='judge') # Removed lazy='dynamic' - default is select IN loading or use selectinload
+    votes: Mapped[List["Vote"]] = relationship(back_populates='judge', cascade="all, delete-orphan") # Add cascade
     judged_human_contests: Mapped[List["Contest"]] = relationship(
         "Contest", secondary='contest_human_judges', back_populates='human_judges' # Use table name string
     )
-    ai_evaluations: Mapped[List["AIEvaluation"]] = relationship(back_populates='judge') # Added back_populates
+    ai_evaluations: Mapped[List["AIEvaluation"]] = relationship(back_populates='judge', cascade="all, delete-orphan") # Add cascade
     # Relationship to the association object
-    contest_assignments: Mapped[List["ContestHumanJudgeAssociation"]] = relationship(back_populates="user")
-    submissions: Mapped[List["Submission"]] = relationship(back_populates="user") # Add relationship to submissions
-    created_contests: Mapped[List["Contest"]] = relationship(back_populates="creator") # Added reverse relationship
+    contest_assignments: Mapped[List["ContestHumanJudgeAssociation"]] = relationship(back_populates="user", cascade="all, delete-orphan") # Add cascade
+    submissions: Mapped[List["Submission"]] = relationship(back_populates="user", cascade="all, delete-orphan") # Add cascade
+    created_contests: Mapped[List["Contest"]] = relationship(back_populates="creator") # KEEP - Handle manually or make creator_id nullable
 
     # --- Methods using bcrypt --- 
     def set_password(self, password: str):
@@ -116,7 +116,9 @@ class Contest(Base):
     __tablename__ = 'contest'
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    creator_id: Mapped[int] = mapped_column(ForeignKey('user.id'), index=True, nullable=False) # Added creator FK
+    # Set creator_id to nullable=True in the model to allow setting it to None before user deletion
+    # NOTE: This requires a corresponding DB migration to actually allow NULLs in the database.
+    creator_id: Mapped[Optional[int]] = mapped_column(ForeignKey('user.id'), index=True, nullable=True) 
     title: Mapped[str] = mapped_column(String(150), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
@@ -125,6 +127,9 @@ class Contest(Base):
     contest_type: Mapped[str] = mapped_column(String(10), default='public') # 'public', 'private'
     password_hash: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
     required_judges: Mapped[int] = mapped_column(Integer, default=1)
+    # Add restriction fields
+    restrict_judges_as_authors: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    limit_submissions_per_author: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
@@ -157,13 +162,18 @@ class Contest(Base):
 
     def check_password(self, password: str) -> bool:
         """Verifies a given password against the stored bcrypt hash if contest is private."""
-        if self.contest_type != 'private' or not self.password_hash:
+        # Explicitly check hash is a non-empty string before proceeding
+        if self.contest_type != 'private' or not isinstance(self.password_hash, str) or not self.password_hash:
             return False
-        hashed_password_bytes = self.password_hash.encode('utf-8')
-        plain_password_bytes = password.encode('utf-8')
+        
         try:
+            # Ensure encoding happens within the try block
+            hashed_password_bytes = self.password_hash.encode('utf-8') 
+            plain_password_bytes = password.encode('utf-8')
             return bcrypt.checkpw(password=plain_password_bytes, hashed_password=hashed_password_bytes)
         except ValueError:
+            return False
+        except Exception as e:
             return False
 
     def __repr__(self):

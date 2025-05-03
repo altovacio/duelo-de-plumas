@@ -1,4 +1,8 @@
 from fastapi import FastAPI
+# ADD: Import StaticFiles and FileResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import os # Needed for path joining
 
 # Potentially import settings later
 from .fastapi_config import settings
@@ -26,6 +30,10 @@ from .app.routers import admin as admin_router
 #         ai_router = None
 # from .app.routers.ai_router import router as ai_router # Simplified import
 
+# ADD: Get the absolute path to the project root (one level up from backend)
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FRONTEND_DIR = os.path.join(PROJECT_ROOT, 'frontend')
+
 app = FastAPI(
     title=settings.APP_NAME, 
     version=settings.APP_VERSION,
@@ -33,19 +41,44 @@ app = FastAPI(
     # Add other FastAPI app configurations here
 )
 
-# Placeholder root endpoint
-@app.get("/")
-async def read_root():
-    return {"message": f"Welcome to {settings.APP_NAME}"}
 
 # Include routers
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
-app.include_router(contest.router, prefix="/contests", tags=["Contests"])
+app.include_router(contest.router, tags=["Contests"])
 app.include_router(ai_router.router, prefix="/ai", tags=["AI"])  # Include AI router directly
 # ADD: Include the main router
 app.include_router(main_router.router, prefix="/api/v2") # Main routes with prefix
 # ADD: Include the admin router (typically with a distinct prefix)
 app.include_router(admin_router.router) # Uses prefix '/admin' defined in the router itself
+
+# --- Static Files and Frontend Serving ---
+
+# Mount static directories first -- REMOVE THESE
+# Use check_dir=False because the directory might be outside the 'backend' package
+# app.mount("/css", StaticFiles(directory=os.path.join(FRONTEND_DIR, 'css'), check_dir=False), name="css")
+# app.mount("/js", StaticFiles(directory=os.path.join(FRONTEND_DIR, 'js'), check_dir=False), name="js")
+# app.mount("/images", StaticFiles(directory=os.path.join(FRONTEND_DIR, 'images'), check_dir=False), name="images")
+
+# Root endpoint to serve index.html -- REMOVE THIS
+# @app.get("/", response_class=FileResponse)
+# async def read_index():
+#     index_path = os.path.join(FRONTEND_DIR, 'index.html')
+#     if not os.path.exists(index_path):
+#         return {"message": "index.html not found"} # Or raise HTTPException
+#     return FileResponse(index_path)
+
+# Catch-all route to serve index.html for client-side routing -- REMOVE THIS
+# @app.get("/{full_path:path}", response_class=FileResponse)
+# async def serve_frontend_app(full_path: str):
+    # ... removed implementation ...
+#     return FileResponse(index_path)
+
+# ADD: Mount the entire frontend directory
+# html=True allows serving index.html for / and other .html files directly
+app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True, check_dir=False), name="frontend")
+
+# --- End Static Files and Frontend Serving ---
+
 
 # Example for auth router later:
 # from .routers import auth

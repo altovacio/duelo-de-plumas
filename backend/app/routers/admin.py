@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from typing import List, Optional
 # ADD: AI Client imports for trigger endpoint
 import openai
@@ -15,12 +15,86 @@ from ...database import get_db_session
 from ... import security
 # ADD: Import AI Schema
 from ..schemas.ai_schemas import GenerateTextResponse
+import re
+import time
+from datetime import datetime
+# ADD: Import the missing dependency
+from ...security import get_current_active_user
+from sqlalchemy.exc import IntegrityError
 
 router = APIRouter(
     prefix="/admin",
     tags=["Admin"],
     dependencies=[Depends(security.require_admin)]
 )
+
+# --- ADDED: User Management (Focus on Human Judges) ---
+
+@router.get("/users/", response_model=List[schemas.UserPublic], summary="List Users (Filterable)")
+async def admin_list_users(
+    role: Optional[str] = Query(None, description="Filter by user role (e.g., 'judge')"),
+    judge_type: Optional[str] = Query(None, description="Filter by judge type (e.g., 'human')"),
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db_session)
+):
+    """Lists users, with optional filtering by role and judge type.
+    
+    Primarily used to list human judges for contest assignment.
+    """
+    query = select(models.User)
+    if role:
+        query = query.where(models.User.role == role)
+    if judge_type:
+        query = query.where(models.User.judge_type == judge_type)
+    
+    query = query.order_by(models.User.username).offset(skip).limit(limit)
+    result = await db.execute(query)
+    users = result.scalars().all()
+    return users
+
+@router.post("/users/", response_model=schemas.UserPublic, status_code=status.HTTP_201_CREATED, summary="Create Human Judge User")
+async def admin_create_human_judge(
+    user_in: schemas.UserCreate, 
+    db: AsyncSession = Depends(get_db_session)
+):
+    """Creates a new user, enforcing role='judge' and judge_type='human'."""
+    # Verify username and email don't exist
+    existing_user = await db.scalar(select(models.User).where(or_(models.User.username == user_in.username, models.User.email == user_in.email)))
+    if existing_user:
+        field = "Username" if existing_user.username == user_in.username else "Email"
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"{field} already registered."
+        )
+    
+    # Prepare user data, overriding role and judge_type
+    user_data = user_in.model_dump(exclude={'password', 'role', 'judge_type'})
+    user_data['role'] = 'judge'
+    user_data['judge_type'] = 'human'
+    
+    new_judge = models.User(**user_data)
+    new_judge.set_password(user_in.password) # Hash the password
+    
+    db.add(new_judge)
+    try:
+        await db.commit()
+        await db.refresh(new_judge)
+        return new_judge
+    except IntegrityError:
+        await db.rollback()
+        # This might happen in a race condition if the initial check passes
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Username or Email already exists (database constraint)."
+        )
+    except Exception as e:
+        await db.rollback()
+        print(f"Error creating human judge: {e}") # Log unexpected errors
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create human judge user."
+        )
 
 # --- AI Writer Management ---
 
@@ -101,88 +175,6 @@ async def admin_delete_ai_writer(
     await db.commit()
     return None
 
-# --- Contest Judge Assignment ---
-
-@router.post("/contests/{contest_id}/judges/{judge_id}", status_code=status.HTTP_201_CREATED, summary="Assign Judge to Contest")
-async def admin_assign_judge_to_contest(
-    contest_id: int,
-    judge_id: int,
-    assignment_data: schemas.AssignJudgeRequest,
-    db: AsyncSession = Depends(get_db_session)
-):
-    """Assigns a judge (human or AI) to a specific contest."""
-    contest = await db.get(models.Contest, contest_id)
-    if not contest:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contest not found")
-    judge = await db.get(models.User, judge_id)
-    if not judge or judge.role != 'judge':
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Judge not found or user is not a judge")
-    ai_model = assignment_data.ai_model
-    if judge.is_ai_judge() and not ai_model:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="An ai_model must be specified when assigning an AI judge.")
-    if not judge.is_ai_judge():
-        ai_model = None
-    
-    # TODO: Validate ai_model against available models from config/ai_params.py?
-
-    existing_assignment_result = await db.execute(
-        select(models.contest_judges)
-        .where(models.contest_judges.c.contest_id == contest_id)
-        .where(models.contest_judges.c.user_id == judge_id)
-    )
-    existing_assignment = existing_assignment_result.first()
-    if existing_assignment:
-        if judge.is_ai_judge() and existing_assignment.ai_model != ai_model:
-            stmt = (
-                models.contest_judges.update()
-                .where(models.contest_judges.c.contest_id == contest_id)
-                .where(models.contest_judges.c.user_id == judge_id)
-                .values(ai_model=ai_model)
-            )
-            await db.execute(stmt)
-            await db.commit()
-            return {"message": f"AI Judge {judge.username} model updated for contest {contest.title}"}
-        else:
-            return {"message": f"Judge {judge.username} already assigned to contest {contest.title}"}
-    try:
-        insert_stmt = models.contest_judges.insert().values(
-            contest_id=contest_id,
-            user_id=judge_id,
-            ai_model=ai_model
-        )
-        await db.execute(insert_stmt)
-        await db.commit()
-        return {"message": f"Judge {judge.username} assigned to contest {contest.title}"} 
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to assign judge: {e}")
-
-@router.delete("/contests/{contest_id}/judges/{judge_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Unassign Judge from Contest")
-async def admin_unassign_judge_from_contest(
-    contest_id: int,
-    judge_id: int,
-    db: AsyncSession = Depends(get_db_session)
-):
-    """Removes a judge assignment from a contest."""
-    existing_assignment = await db.execute(
-        select(models.contest_judges.c.user_id)
-        .where(models.contest_judges.c.contest_id == contest_id)
-        .where(models.contest_judges.c.user_id == judge_id)
-    )
-    if not existing_assignment.first():
-         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Judge assignment not found for this contest")
-    try:
-        delete_stmt = models.contest_judges.delete().where(
-            models.contest_judges.c.contest_id == contest_id,
-            models.contest_judges.c.user_id == judge_id
-        )
-        await db.execute(delete_stmt)
-        await db.commit()
-        return None
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to unassign judge: {e}")
-
 # --- Contest Status/Password Management ---
 
 @router.put("/contests/{contest_id}/status", response_model=schemas.ContestPublic, summary="Set Contest Status")
@@ -218,105 +210,248 @@ async def admin_reset_contest_password(
     await db.commit()
     return {"message": "Contest password reset successfully"}
 
-# --- AI Judge Management (Users with judge_type='ai') ---
+# --- AI Judge Management (Dedicated Model) ---
 
-@router.get("/ai-judges", response_model=List[schemas.AIJudgeAdminView])
+@router.get("/ai-judges", response_model=List[schemas.AIJudgeRead])
 async def admin_list_ai_judges(
     skip: int = 0,
     limit: int = 100,
     db: AsyncSession = Depends(get_db_session)
 ):
-    """Lists all AI Judge users."""
+    """Lists all configured AI Judges."""
     result = await db.execute(
-        select(models.User)
-        .where(models.User.role == 'judge', models.User.judge_type == 'ai')
-        .order_by(models.User.username)
+        select(models.AIJudge)
+        .order_by(models.AIJudge.name)
         .offset(skip)
         .limit(limit)
     )
     ai_judges = result.scalars().all()
     return ai_judges
 
-@router.post("/ai-judges", response_model=schemas.AIJudgeAdminView, status_code=status.HTTP_201_CREATED)
+@router.post("/ai-judges", response_model=schemas.AIJudgeRead, status_code=status.HTTP_201_CREATED)
 async def admin_create_ai_judge(
     judge_data: schemas.AIJudgeCreate,
     db: AsyncSession = Depends(get_db_session)
 ):
-    """Creates a new AI Judge user."""
-    existing_user = await db.scalar(select(models.User).where(models.User.username == judge_data.username))
-    if existing_user:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already exists")
-    existing_email = await db.scalar(select(models.User).where(models.User.email == judge_data.email))
-    if existing_email:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists")
-    new_judge = models.User(
-        username=judge_data.username,
-        email=judge_data.email,
-        ai_personality_prompt=judge_data.ai_personality_prompt,
-        role='judge',
-        judge_type='ai'
-    )
-    new_judge.set_password(judge_data.password)
+    """Creates a new AI Judge configuration."""
+    existing_judge = await db.scalar(select(models.AIJudge).where(models.AIJudge.name == judge_data.name))
+    if existing_judge:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"AI Judge with name '{judge_data.name}' already exists.")
+    
+    new_judge = models.AIJudge(**judge_data.model_dump())
     db.add(new_judge)
     await db.commit()
     await db.refresh(new_judge)
     return new_judge
 
-@router.get("/ai-judges/{judge_id}", response_model=schemas.AIJudgeAdminView)
+@router.get("/ai-judges/{ai_judge_id}", response_model=schemas.AIJudgeRead)
 async def admin_get_ai_judge(
-    judge_id: int,
+    ai_judge_id: int,
     db: AsyncSession = Depends(get_db_session)
 ):
-    """Gets details of a specific AI Judge user."""
-    judge = await db.scalar(select(models.User).where(models.User.id == judge_id, models.User.judge_type == 'ai'))
+    """Gets details of a specific AI Judge configuration."""
+    judge = await db.get(models.AIJudge, ai_judge_id)
     if not judge:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="AI Judge not found")
     return judge
 
-@router.put("/ai-judges/{judge_id}", response_model=schemas.AIJudgeAdminView)
+@router.put("/ai-judges/{ai_judge_id}", response_model=schemas.AIJudgeRead)
 async def admin_update_ai_judge(
-    judge_id: int,
+    ai_judge_id: int,
     judge_update: schemas.AIJudgeUpdate,
     db: AsyncSession = Depends(get_db_session)
 ):
-    """Updates an existing AI Judge user."""
-    judge = await db.scalar(select(models.User).where(models.User.id == judge_id, models.User.judge_type == 'ai'))
+    """Updates an existing AI Judge configuration."""
+    judge = await db.get(models.AIJudge, ai_judge_id)
     if not judge:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="AI Judge not found")
+    
     update_data = judge_update.model_dump(exclude_unset=True)
-    password = update_data.pop("password", None)
-    if 'username' in update_data and update_data['username'] != judge.username:
-        existing = await db.scalar(select(models.User).where(models.User.username == update_data['username']))
+    
+    if 'name' in update_data and update_data['name'] != judge.name:
+        existing = await db.scalar(select(models.AIJudge).where(models.AIJudge.name == update_data['name']))
         if existing:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already exists")
-    if 'email' in update_data and update_data['email'] != judge.email:
-        existing = await db.scalar(select(models.User).where(models.User.email == update_data['email']))
-        if existing:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists")
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"AI Judge name '{update_data['name']}' already exists")
+
     for field, value in update_data.items():
         setattr(judge, field, value)
-    if password:
-        judge.set_password(password)
+        
+    judge.updated_at = datetime.utcnow() # Manually update timestamp
     db.add(judge)
     await db.commit()
     await db.refresh(judge)
     return judge
 
-@router.delete("/ai-judges/{judge_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/ai-judges/{ai_judge_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def admin_delete_ai_judge(
-    judge_id: int,
+    ai_judge_id: int,
     db: AsyncSession = Depends(get_db_session)
 ):
-    """Deletes an AI Judge user."""
-    judge = await db.scalar(select(models.User).where(models.User.id == judge_id, models.User.judge_type == 'ai'))
+    """Deletes an AI Judge configuration."""
+    judge = await db.get(models.AIJudge, ai_judge_id)
     if not judge:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="AI Judge not found")
-    assigned_contests = await db.scalar(select(func.count(models.contest_judges.c.contest_id)).where(models.contest_judges.c.user_id == judge_id))
+    
+    # Check assignments before deleting
+    assigned_contests = await db.scalar(select(func.count(models.contest_ai_judges.c.contest_id)).where(models.contest_ai_judges.c.ai_judge_id == ai_judge_id))
     if assigned_contests > 0:
-         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Cannot delete AI Judge {judge.username} as they are assigned to {assigned_contests} contest(s). Remove assignments first.")
+         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Cannot delete AI Judge {judge.name} as it is assigned to {assigned_contests} contest(s). Remove assignments first.")
+
     await db.delete(judge)
     await db.commit()
     return None
+
+# --- Renamed Human Judge Assignment --- 
+@router.post("/contests/{contest_id}/human-judges/{user_id}", status_code=status.HTTP_201_CREATED, summary="Assign Human Judge to Contest")
+async def admin_assign_human_judge_to_contest(
+    contest_id: int,
+    user_id: int,
+    assignment_data: schemas.AssignHumanJudgeRequest,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    """Assigns a human judge (User) to a specific contest."""
+    contest = await db.get(models.Contest, contest_id)
+    if not contest:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contest not found")
+    judge = await db.get(models.User, user_id)
+    if not judge or judge.role != 'judge' or judge.judge_type != 'human':
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Human judge user not found")
+
+    existing_assignment = await db.execute(
+        select(models.contest_human_judges.c.user_id)
+        .where(models.contest_human_judges.c.contest_id == contest_id)
+        .where(models.contest_human_judges.c.user_id == user_id)
+    )
+    if existing_assignment.first():
+        return {"message": f"Human Judge {judge.username} already assigned to contest {contest.title}"}
+
+    try:
+        insert_stmt = models.contest_human_judges.insert().values(
+            contest_id=contest_id,
+            user_id=user_id,
+            ai_model=None # Explicitly None for human judges
+        )
+        await db.execute(insert_stmt)
+        await db.commit()
+        return {"message": f"Human Judge {judge.username} assigned to contest {contest.title}"} 
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to assign human judge: {e}")
+
+@router.delete("/contests/{contest_id}/human-judges/{user_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Unassign Human Judge from Contest")
+async def admin_unassign_human_judge_from_contest(
+    contest_id: int,
+    user_id: int,
+    db: AsyncSession = Depends(get_db_session)
+):
+    """Removes a human judge assignment from a contest."""
+    # Verify assignment exists
+    existing_assignment = await db.execute(
+        select(models.contest_human_judges.c.user_id)
+        .where(models.contest_human_judges.c.contest_id == contest_id)
+        .where(models.contest_human_judges.c.user_id == user_id)
+    )
+    if not existing_assignment.first():
+         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Human judge assignment not found for this contest")
+    
+    # TODO: Check if judge has submitted votes before allowing unassignment?
+
+    try:
+        delete_stmt = models.contest_human_judges.delete().where(
+            models.contest_human_judges.c.contest_id == contest_id,
+            models.contest_human_judges.c.user_id == user_id
+        )
+        await db.execute(delete_stmt)
+        await db.commit()
+        return None
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to unassign human judge: {e}")
+
+# --- NEW AI Judge Assignment --- 
+@router.post("/contests/{contest_id}/ai-judges/{ai_judge_id}", status_code=status.HTTP_201_CREATED, summary="Assign AI Judge to Contest")
+async def admin_assign_ai_judge_to_contest(
+    contest_id: int,
+    ai_judge_id: int,
+    assignment_data: schemas.AssignAIJudgeRequest,
+    db: AsyncSession = Depends(get_db_session)
+):
+    """Assigns an AI judge configuration to a specific contest with a specified model."""
+    contest = await db.get(models.Contest, contest_id)
+    if not contest:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contest not found")
+    ai_judge = await db.get(models.AIJudge, ai_judge_id)
+    if not ai_judge:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="AI Judge configuration not found")
+    
+    # TODO: Validate assignment_data.ai_model against available models?
+
+    existing_assignment = await db.execute(
+        select(models.contest_ai_judges)
+        .where(models.contest_ai_judges.c.contest_id == contest_id)
+        .where(models.contest_ai_judges.c.ai_judge_id == ai_judge_id)
+    )
+    assignment_row = existing_assignment.first()
+
+    if assignment_row:
+        # If assignment exists, update the model if it's different
+        if assignment_row.ai_model != assignment_data.ai_model:
+            stmt = (
+                models.contest_ai_judges.update()
+                .where(models.contest_ai_judges.c.contest_id == contest_id)
+                .where(models.contest_ai_judges.c.ai_judge_id == ai_judge_id)
+                .values(ai_model=assignment_data.ai_model)
+            )
+            await db.execute(stmt)
+            await db.commit()
+            return {"message": f"AI Judge {ai_judge.name} model updated to {assignment_data.ai_model} for contest {contest.title}"}
+        else:
+            return {"message": f"AI Judge {ai_judge.name} already assigned to contest {contest.title} with model {assignment_data.ai_model}"}
+    else:
+        # Create new assignment
+        try:
+            insert_stmt = models.contest_ai_judges.insert().values(
+                contest_id=contest_id,
+                ai_judge_id=ai_judge_id,
+                ai_model=assignment_data.ai_model
+            )
+            await db.execute(insert_stmt)
+            await db.commit()
+            return {"message": f"AI Judge {ai_judge.name} assigned to contest {contest.title} with model {assignment_data.ai_model}"} 
+        except Exception as e:
+            await db.rollback()
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to assign AI judge: {e}")
+
+@router.delete("/contests/{contest_id}/ai-judges/{ai_judge_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Unassign AI Judge from Contest")
+async def admin_unassign_ai_judge_from_contest(
+    contest_id: int,
+    ai_judge_id: int,
+    db: AsyncSession = Depends(get_db_session)
+):
+    """Removes an AI judge assignment from a contest."""
+    # Verify assignment exists
+    existing_assignment = await db.execute(
+        select(models.contest_ai_judges.c.ai_judge_id)
+        .where(models.contest_ai_judges.c.contest_id == contest_id)
+        .where(models.contest_ai_judges.c.ai_judge_id == ai_judge_id)
+    )
+    if not existing_assignment.first():
+         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="AI judge assignment not found for this contest")
+
+    # TODO: Check if AI judge has submitted evaluations before allowing unassignment?
+
+    try:
+        delete_stmt = models.contest_ai_judges.delete().where(
+            models.contest_ai_judges.c.contest_id == contest_id,
+            models.contest_ai_judges.c.ai_judge_id == ai_judge_id
+        )
+        await db.execute(delete_stmt)
+        await db.commit()
+        return None
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to unassign AI judge: {e}")
 
 # --- AI Evaluation Info ---
 
@@ -349,6 +484,90 @@ async def admin_get_ai_evaluation(
     if not evaluation:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="AI Evaluation record not found")
     return evaluation
+
+# --- ADDED: AI Cost Summary --- 
+
+@router.get("/ai-costs-summary", response_model=schemas.AICostsSummary, summary="Get AI Costs Summary")
+async def admin_get_ai_costs_summary(
+    recent_limit: int = Query(10, description="Number of recent evaluations/requests to return"),
+    db: AsyncSession = Depends(get_db_session)
+):
+    """Calculates and returns a summary of AI API costs and token usage."""
+    summary = schemas.AICostsSummary()
+    
+    # Aggregate Evaluation Costs
+    eval_stmt = select(
+        func.sum(models.AIEvaluation.cost).label("total_cost"),
+        func.sum(models.AIEvaluation.prompt_tokens).label("total_prompt"),
+        func.sum(models.AIEvaluation.completion_tokens).label("total_completion")
+    )
+    eval_result = (await db.execute(eval_stmt)).first()
+    if eval_result and eval_result.total_cost is not None:
+        summary.evaluation_cost = eval_result.total_cost
+        summary.evaluation_prompt_tokens = eval_result.total_prompt or 0
+        summary.evaluation_completion_tokens = eval_result.total_completion or 0
+        summary.total_cost += summary.evaluation_cost
+        summary.total_prompt_tokens += summary.evaluation_prompt_tokens
+        summary.total_completion_tokens += summary.evaluation_completion_tokens
+
+    # Aggregate Writing Costs
+    write_stmt = select(
+        func.sum(models.AIWritingRequest.cost).label("total_cost"),
+        func.sum(models.AIWritingRequest.prompt_tokens).label("total_prompt"),
+        func.sum(models.AIWritingRequest.completion_tokens).label("total_completion")
+    )
+    write_result = (await db.execute(write_stmt)).first()
+    if write_result and write_result.total_cost is not None:
+        summary.writing_cost = write_result.total_cost
+        summary.writing_prompt_tokens = write_result.total_prompt or 0
+        summary.writing_completion_tokens = write_result.total_completion or 0
+        summary.total_cost += summary.writing_cost
+        summary.total_prompt_tokens += summary.writing_prompt_tokens
+        summary.total_completion_tokens += summary.writing_completion_tokens
+
+    # Aggregate Costs by Model (Combine both sources)
+    model_costs = {}
+    eval_model_stmt = select(
+        models.AIEvaluation.ai_model,
+        func.sum(models.AIEvaluation.cost).label("cost"),
+        func.sum(models.AIEvaluation.prompt_tokens).label("prompt"),
+        func.sum(models.AIEvaluation.completion_tokens).label("completion")
+    ).group_by(models.AIEvaluation.ai_model)
+    eval_model_results = (await db.execute(eval_model_stmt)).all()
+    for row in eval_model_results:
+        if row.ai_model not in model_costs:
+            model_costs[row.ai_model] = {"cost": 0.0, "prompt": 0, "completion": 0}
+        model_costs[row.ai_model]["cost"] += row.cost or 0.0
+        model_costs[row.ai_model]["prompt"] += row.prompt or 0
+        model_costs[row.ai_model]["completion"] += row.completion or 0
+
+    write_model_stmt = select(
+        models.AIWritingRequest.ai_model,
+        func.sum(models.AIWritingRequest.cost).label("cost"),
+        func.sum(models.AIWritingRequest.prompt_tokens).label("prompt"),
+        func.sum(models.AIWritingRequest.completion_tokens).label("completion")
+    ).group_by(models.AIWritingRequest.ai_model)
+    write_model_results = (await db.execute(write_model_stmt)).all()
+    for row in write_model_results:
+        if row.ai_model not in model_costs:
+            model_costs[row.ai_model] = {"cost": 0.0, "prompt": 0, "completion": 0}
+        model_costs[row.ai_model]["cost"] += row.cost or 0.0
+        model_costs[row.ai_model]["prompt"] += row.prompt or 0
+        model_costs[row.ai_model]["completion"] += row.completion or 0
+
+    summary.cost_by_model = [
+        schemas.ModelCostSummary(model_name=k, **v) for k, v in model_costs.items()
+    ]
+
+    # Fetch Recent Records
+    if recent_limit > 0:
+        recent_eval_stmt = select(models.AIEvaluation).order_by(models.AIEvaluation.timestamp.desc()).limit(recent_limit)
+        summary.recent_evaluations = (await db.scalars(recent_eval_stmt)).all()
+        
+        recent_write_stmt = select(models.AIWritingRequest).order_by(models.AIWritingRequest.timestamp.desc()).limit(recent_limit)
+        summary.recent_writing_requests = (await db.scalars(recent_write_stmt)).all()
+
+    return summary
 
 # --- AI Writer Submission Trigger ---
 
@@ -398,6 +617,59 @@ async def admin_delete_submission(
     await db.delete(submission)
     await db.commit()
     return None
+
+# --- ADDED: Trigger AI Evaluation --- 
+
+@router.post("/contests/{contest_id}/ai-judges/{ai_judge_id}/evaluate", response_model=schemas.AIEvaluationDetail, summary="Trigger AI Judge Evaluation")
+async def admin_trigger_ai_evaluation(
+    contest_id: int,
+    ai_judge_id: int, # From path
+    session: AsyncSession = Depends(get_db_session),
+    openai_client: openai.AsyncOpenAI | None = Depends(get_openai_client),
+    anthropic_client: anthropic.AsyncAnthropic | None = Depends(get_anthropic_client),
+    current_user: models.User = Depends(get_current_active_user) # Admin check done by router dependency
+) -> schemas.AIEvaluationDetail:
+    """
+    Triggers AI evaluation for a specific contest using a designated AI judge configuration.
+    Requires admin privileges.
+    """
+    # The user authentication (require_admin) is handled by the main router dependency
+    try:
+        result = await ai_services.run_ai_evaluation(
+            contest_id=contest_id,
+            ai_judge_id=ai_judge_id, # Pass AI Judge config ID from path
+            admin_user_id=current_user.id, # Pass triggering admin user ID
+            session=session,
+            openai_client=openai_client,
+            anthropic_client=anthropic_client,
+        )
+        
+        if not result.get("success"):
+             status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+             detail = result.get("message", "AI evaluation failed.")
+             if "not found" in detail.lower():
+                 status_code = status.HTTP_404_NOT_FOUND
+             elif "invalid state" in detail.lower():
+                 status_code = status.HTTP_409_CONFLICT
+             # Add specific check for assignment error from service
+             elif "not assigned" in detail.lower():
+                 status_code = status.HTTP_400_BAD_REQUEST 
+             raise HTTPException(status_code=status_code, detail=detail)
+            
+        # Ensure the returned dict matches the AIEvaluationResult schema fields
+        # The service function might return extra keys ('cost', 'votes_created', etc.)
+        # Filter the result dict or ensure AIEvaluationResult allows extra fields if needed.
+        # Assuming AIEvaluationResult is defined correctly to handle the output of run_ai_evaluation.
+        return schemas.AIEvaluationDetail(**result)
+    
+    except ValueError as ve:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
+    except Exception as e:
+        print(f"Error during AI evaluation trigger: {e}") 
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred during AI evaluation trigger."
+        )
 
 # --- Other Admin Endpoints (Placeholders) ---
 # TODO: Implement endpoints for:

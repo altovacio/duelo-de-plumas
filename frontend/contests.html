@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Concursos - Duelo de Plumas</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <!-- Re-use the same header structure -->
+        <div class="header-content">
+             <h1><a href="/"><img src="images/letter-quill-svgrepo-com.svg" alt="" class="site-header-quill"> Duelo de Plumas</a></h1>
+             <nav>
+                 <ul>
+                     <li><a href="/">Inicio</a></li>
+                     <li><a href="/contests.html">Concursos</a></li> 
+                     <li id="nav-admin" style="display: none;"><a href="/admin.html">Admin</a></li>
+                     <li id="nav-login"><a href="/login.html">Iniciar Sesión</a></li>
+                     <li id="nav-logout-li" style="display: none;"><a href="#" id="nav-logout-button">Cerrar Sesión</a></li>
+                 </ul>
+             </nav>
+         </div>
+    </header>
+
+    <main>
+        <h1>Lista de Concursos</h1>
+
+        <section id="open-contests">
+            <h2>Abiertos</h2>
+            <ul class="contest-list"></ul>
+            <p class="no-contests-message" style="display: none;">No hay concursos abiertos.</p>
+        </section>
+
+        <hr class="section-divider">
+
+        <section id="expired-open-contests">
+            <h2>Expirados (Pendientes de Cierre)</h2>
+            <ul class="contest-list"></ul>
+            <p class="no-contests-message" style="display: none;">No hay concursos expirados pendientes.</p>
+        </section>
+        
+        <!-- We might need a dedicated endpoint to list ALL evaluation contests publicly -->
+        <!-- 
+        <hr class="section-divider">
+        <section id="evaluation-contests">
+            <h2>En Evaluación</h2>
+            <ul class="contest-list"></ul>
+            <p class="no-contests-message" style="display: none;">No hay concursos en evaluación.</p>
+        </section>
+        -->
+
+        <hr class="section-divider">
+
+        <section id="closed-contests">
+            <h2>Cerrados</h2>
+            <ul class="contest-list"></ul>
+            <p class="no-contests-message" style="display: none;">No hay concursos cerrados.</p>
+       </section>
+
+    </main>
+
+    <footer>
+        <p>&copy; 2024 Duelo de Plumas</p>
+    </footer>
+
+    <!-- Auth utilities -->
+    <script src="js/auth.js"></script>
+    <!-- Page specific script -->
+    <script src="js/contests.js"></script>
+</body>
+</html> 

@@ -3,8 +3,8 @@ from logging.config import fileConfig
 
 # Make sure all SQLAlchemy models are imported before loading Base
 # Adust the import path according to your project structure
-from v2.models import Base # Import Base from v2/models.py
-from v2.fastapi_config import settings # Import settings from v2/fastapi_config.py
+from backend.models import Base # Import Base from backend/models.py
+from backend.fastapi_config import settings # Import settings from backend/fastapi_config.py
 
 from sqlalchemy import pool
 # Import create_engine for synchronous operation in migrations

@@ -20,7 +20,6 @@ class UserBase(ModelBase):
     email: EmailStr
     role: str = Field('judge', pattern=r'^(admin|judge|user)$')
     judge_type: Optional[str] = Field('human', pattern=r'^(human|ai)$')
-    ai_personality_prompt: Optional[str] = None
 
 class UserCreate(UserBase):
     password: str = Field(..., min_length=8)
@@ -30,7 +29,6 @@ class UserUpdate(ModelBase):
     email: Optional[EmailStr] = None
     role: Optional[str] = Field(None, pattern=r'^(admin|judge|user)$')
     judge_type: Optional[str] = Field(None, pattern=r'^(human|ai)$')
-    ai_personality_prompt: Optional[str] = None
     password: Optional[str] = Field(None, min_length=8) # Allow password update
 
 # Public representation (omits password_hash)
@@ -43,23 +41,27 @@ class UserDetail(UserPublic):
     # judged_contests: List['ContestPublic'] = [] # Avoid circular imports initially
     pass
 
-# --- ADDED: Schemas specifically for Admin AI Judge CRUD ---
-class AIJudgeCreate(BaseModel):
-    username: str = Field(..., min_length=3, max_length=64)
-    email: EmailStr
-    password: str = Field(..., min_length=8)
-    ai_personality_prompt: str # Prompt is required for AI judges
-    # role is fixed to 'judge', judge_type is fixed to 'ai' on creation
+# --- NEW AIJudge Schemas ---
+class AIJudgeBase(BaseModel):
+    name: str = Field(..., min_length=3, max_length=64)
+    description: Optional[str] = Field(None, max_length=255)
+    ai_personality_prompt: str
+
+class AIJudgeCreate(AIJudgeBase):
+    pass
 
 class AIJudgeUpdate(BaseModel):
-    username: Optional[str] = Field(None, min_length=3, max_length=64)
-    email: Optional[EmailStr] = None
-    password: Optional[str] = Field(None, min_length=8) # Allow password update
-    ai_personality_prompt: Optional[str] = None # Allow prompt update
-    # role and judge_type should not be changed via this schema
+    name: Optional[str] = Field(None, min_length=3, max_length=64)
+    description: Optional[str] = Field(None, max_length=255)
+    ai_personality_prompt: Optional[str] = None
 
-# Use UserPublic for listing/viewing AI judges
-AIJudgeAdminView = UserPublic 
+class AIJudgeRead(AIJudgeBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    model_config = {
+        "from_attributes": True
+    }
 
 # --- Token Schemas (for Authentication) ---
 class Token(BaseModel):
@@ -107,21 +109,57 @@ class ContestPublic(ContestBase, ModelPublic):
 
 # Detailed view might include submissions, judges (using their public schemas)
 class ContestDetail(ContestPublic):
-    # Use forward references initially if needed
-    submissions: List['SubmissionPublic'] = [] 
-    judges: List[UserPublic] = []
+    submissions: List['SubmissionRead'] = [] # Changed from SubmissionPublic
+    human_judges: List[UserPublic] = [] # Renamed from judges
+    ai_judges: List[AIJudgeRead] = [] # Added new relationship
     # ai_evaluations: List['AIEvaluationPublic'] = []
 
+# --- Vote Schemas (Example) ---
+class VoteBase(ModelBase):
+    place: Optional[int] = Field(None, ge=1) # Rank (1st, 2nd, etc.)
+    comment: Optional[str] = None
+    submission_id: int
+    # judge_id is implicitly set from the user making the request
+
+class VoteCreate(VoteBase):
+    pass # judge_id will be set from authenticated user
+
+class VoteUpdate(ModelBase):
+    place: Optional[int] = Field(None, ge=1)
+    comment: Optional[str] = None
+
+class VoteRead(VoteBase, ModelPublic): # Define VoteRead here
+    timestamp: datetime
+    app_version: Optional[str] = None # Made optional
+    judge_id: int # Add judge_id to the read model
+    # Potentially include judge/submission info using Public schemas
+    # judge: Optional[UserPublic] = None
+    # submission: Optional[SubmissionPublic] = None # Avoid circular dependency for now
+    model_config = {
+        "from_attributes": True
+    }
+
 # --- Submission Schemas ---
-class SubmissionBase(ModelBase):
-    author_name: str = Field(..., max_length=100)
-    title: str = Field(..., max_length=150)
-    text_content: str
-    contest_id: int # Required for linking
-    # Omit fields calculated/set by backend (total_points, rank, date, ai info)
+class SubmissionBase(BaseModel):
+    title: str = Field(..., min_length=1, max_length=255)
+    text_content: str = Field(..., min_length=1)
+    author_name: Optional[str] = Field(None, max_length=100) # If submission is anonymous or by non-user
 
 class SubmissionCreate(SubmissionBase):
+    # author_name is optional here, user_id will be set from authenticated user
     pass
+
+class SubmissionRead(SubmissionBase):
+    id: int
+    contest_id: int
+    user_id: Optional[int] # Submissions might not be linked to a user (e.g., AI generated?)
+    timestamp: datetime
+    word_count: int
+    votes: List[VoteRead] = [] # Include votes when reading a submission
+
+    model_config = {
+        "from_attributes": True
+    }
 
 class SubmissionUpdate(ModelBase):
     author_name: Optional[str] = Field(None, max_length=100)
@@ -141,28 +179,6 @@ class SubmissionDetail(SubmissionPublic):
     # ai_writer: Optional['AIWriterPublic'] = None
     # ai_writing_request: Optional['AIWritingRequestPublic'] = None
     contest: ContestPublic # Include basic contest info
-
-
-# --- Vote Schemas (Example) ---
-class VoteBase(ModelBase):
-    place: Optional[int] = Field(None, ge=1) # Rank (1st, 2nd, etc.)
-    comment: Optional[str] = None
-    submission_id: int
-    judge_id: int # Usually set from current_user
-
-class VoteCreate(VoteBase):
-    pass # judge_id will be set from authenticated user
-
-class VoteUpdate(ModelBase):
-    place: Optional[int] = Field(None, ge=1)
-    comment: Optional[str] = None
-
-class VotePublic(VoteBase, ModelPublic):
-    timestamp: datetime
-    app_version: str
-    # Potentially include judge/submission info
-    # judge: UserPublic
-    # submission: SubmissionPublic # Careful with recursion
 
 # --- AI Writer Schemas (Example) ---
 class AIWriterBase(ModelBase):
@@ -185,8 +201,12 @@ class AIWriterPublic(AIWriterBase, ModelPublic):
 AIWriterAdminView = AIWriterPublic 
 
 # --- ADDED: Contest Judge Assignment Schema ---
-class AssignJudgeRequest(BaseModel):
-    ai_model: Optional[str] = Field(None, description="Required if the judge is an AI judge. Must match an ID from the configured AI models.")
+class AssignHumanJudgeRequest(BaseModel):
+    # No extra fields needed for human judges yet
+    pass
+
+class AssignAIJudgeRequest(BaseModel):
+    ai_model: str = Field(..., description="Required. Must match an ID from the configured AI models.")
 
 # --- ADDED: Contest Status/Password Schemas ---
 class ContestSetStatusRequest(BaseModel):
@@ -194,6 +214,10 @@ class ContestSetStatusRequest(BaseModel):
 
 class ContestResetPasswordRequest(BaseModel):
     new_password: str = Field(..., min_length=6)
+
+# ADDED: Schema for checking contest password
+class ContestCheckPasswordRequest(BaseModel):
+    password: str
 
 # --- ADDED: AI Evaluation Schemas ---
 class AIEvaluationPublic(BaseModel):
@@ -225,8 +249,44 @@ class TriggerAISubmissionRequest(BaseModel):
 
 # --- Placeholder Schemas for other models (Expand as needed) ---
 # class AIEvaluationBase(ModelBase): ...
-# class AIWritingRequestBase(ModelBase): ...
-# class AIWritingRequestPublic(AIWritingRequestBase, ModelPublic): ...
+
+# ADDED: Public schema for AI Writing Requests
+class AIWritingRequestPublic(BaseModel):
+    id: int
+    contest_id: int
+    ai_writer_id: int
+    submission_id: Optional[int] = None 
+    ai_model: str
+    # Exclude prompt/response text from public view
+    prompt_tokens: Optional[int] = None
+    completion_tokens: Optional[int] = None
+    cost: Optional[float] = None
+    timestamp: datetime
+    app_version: str
+
+    class Config:
+        from_attributes = True
+
+# ADDED: Schema for AI Costs Summary
+class ModelCostSummary(BaseModel):
+    model_name: str
+    cost: float
+    prompt_tokens: int
+    completion_tokens: int
+
+class AICostsSummary(BaseModel):
+    total_cost: float = 0.0
+    total_prompt_tokens: int = 0
+    total_completion_tokens: int = 0
+    evaluation_cost: float = 0.0
+    evaluation_prompt_tokens: int = 0
+    evaluation_completion_tokens: int = 0
+    writing_cost: float = 0.0
+    writing_prompt_tokens: int = 0
+    writing_completion_tokens: int = 0
+    cost_by_model: List[ModelCostSummary] = []
+    recent_evaluations: List[AIEvaluationPublic] = []
+    recent_writing_requests: List[AIWritingRequestPublic] = []
 
 # --- Update forward references ---
 # This allows Pydantic to resolve the string references like 'ContestPublic'

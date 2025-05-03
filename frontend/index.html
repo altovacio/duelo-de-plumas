@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Duelo de Plumas</title>
+    <!-- Link to CSS will go here -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1><a href="/"><img src="images/letter-quill-svgrepo-com.svg" alt="" class="site-header-quill"> Duelo de Plumas</a></h1>
+            <nav>
+                <ul>
+                    <li><a href="/">Inicio</a></li>
+                    <li><a href="/contests.html">Concursos</a></li> 
+                    <li id="nav-admin" style="display: none;"><a href="/admin.html">Admin</a></li>
+                    <li id="nav-login"><a href="/login.html">Iniciar Sesión</a></li>
+                    <li id="nav-logout-li" style="display: none;"><a href="#" id="nav-logout-button">Cerrar Sesión</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <section id="active-contests">
+            <h2>Concursos Activos</h2>
+            <ul class="contest-list"></ul>
+            <p class="no-contests-message" style="display: none;">No hay concursos activos en este momento.</p>
+        </section>
+
+        <hr class="section-divider">
+
+        <section id="closed-contests">
+            <h2>Concursos Cerrados Recientemente</h2>
+            <ul class="contest-list"></ul>
+             <p class="no-contests-message" style="display: none;">No hay concursos cerrados recientemente.</p>
+       </section>
+
+        <!-- Judge Queue Section (Hidden by default) -->
+        <section id="judge-queue" style="display: none;">
+            <hr class="section-divider">
+            <h2>Tu Cola de Evaluación</h2>
+            <ul class="contest-list"></ul>
+             <p class="no-contests-message" style="display: none;">No tienes concursos pendientes de evaluar.</p>
+       </section>
+
+        <!-- Admin Alerts Section (Hidden by default) -->
+        <section id="admin-alerts" style="display: none;">
+             <hr class="section-divider">
+             <h2>Alertas de Administrador</h2>
+             <div id="expired-open-contests">
+                 <h3>Concursos Abiertos Expirados</h3>
+                 <ul class="contest-list"></ul>
+                  <p class="no-contests-message" style="display: none;">No hay concursos abiertos expirados.</p>
+             </div>
+             <div id="pending-ai-evaluations">
+                 <h3>Evaluaciones IA Pendientes</h3>
+                 <ul class="contest-list"></ul>
+                  <p class="no-contests-message" style="display: none;">No hay evaluaciones IA pendientes.</p>
+            </div>
+        </section>
+
+        <!-- We can remove the old roadmap section -->
+        <!-- 
+        <h2>Roadmap</h2>
+        <ul id="roadmap-list"></ul> 
+        -->
+
+    </main>
+
+    <footer>
+        <!-- Footer content -->
+        <p>&copy; 2024 Duelo de Plumas</p>
+    </footer>
+
+    <!-- Auth utilities -->
+    <script src="js/auth.js"></script>
+    <!-- Page specific script -->
+    <script src="js/script.js"></script>
+</body>
+</html> 

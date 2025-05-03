@@ -1,0 +1,474 @@
+/* Basic styles */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Source+Sans+Pro:wght@400;600&display=swap');
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Source Sans Pro', 'Helvetica Neue', Arial, sans-serif;
+    line-height: 1.6;
+    color: #35302a; /* Dark brown-gray text */
+    background-color: #f7f5f0; /* Light beige background */
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+a {
+    color: #5e6b4c; /* Muted green links */
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+a:hover {
+    color: #44513a; /* Darker muted green */
+    text-decoration: none;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Playfair Display', Georgia, serif;
+    color: #35302a;
+    line-height: 1.3;
+    margin-bottom: 0.75em;
+    font-weight: 700;
+}
+
+h1 {
+    font-size: 2rem; /* 32px */
+}
+
+h2 {
+    font-size: 1.75rem; /* 28px */
+}
+
+h3 {
+    font-size: 1.5rem; /* 24px */
+}
+
+/* Layout */
+header {
+    width: 100%;
+    padding: 1rem 1.5rem; /* 16px 24px */
+    background-color: #f7f5f0;
+    border-bottom: 1px solid #e0d8c9; /* Light grayish-beige border */
+    /* Consider making header fixed later if desired */
+    /* position: fixed; top: 0; left: 0; right: 0; z-index: 1000; */
+}
+
+.header-content {
+    width: 100%;
+    max-width: 1120px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 1.5rem; /* Adjust as needed */
+}
+
+header h1 a {
+    color: inherit; /* Inherit color from h1 */
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+}
+
+header h1 a:hover {
+    color: inherit;
+}
+
+.site-header-quill {
+    height: 1.5em; /* Match font size */
+    width: auto;
+    vertical-align: middle; /* Align better with text */
+}
+
+header nav ul {
+    list-style: none;
+    display: flex;
+    gap: 1.5rem; /* 24px */
+}
+
+header nav a {
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+main {
+    flex-grow: 1;
+    width: 100%;
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem; /* 32px 24px, adjust top if header becomes fixed */
+}
+
+footer {
+    width: 100%;
+    max-width: 1120px;
+    margin: 1.5rem auto 0 auto; /* 24px top margin */
+    padding: 1.5rem 1.5rem; /* 24px */
+    border-top: 1px solid #e0d8c9;
+    text-align: center;
+    font-size: 0.9rem;
+    color: #665e54; /* Muted brown/gray */
+}
+
+/* --- Component Styles --- */
+
+.section-divider {
+    border: 0;
+    height: 1px;
+    background-color: #e0d8c9;
+    margin: 2.5rem 0; /* 40px */
+}
+
+/* Contest List General */
+.contest-list {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    gap: 1.5rem; /* 24px */
+}
+
+/* Placeholder for contest item card - adapt from app/static/css/style.css later */
+.contest-item {
+    background-color: #fff; /* White background for card */
+    border: 1px solid #e0d8c9;
+    border-radius: 4px;
+    padding: 1.5rem; /* 24px */
+    transition: box-shadow 0.2s ease-in-out;
+}
+
+.contest-item:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.contest-title {
+    font-size: 1.25rem; /* 20px */
+    margin-bottom: 0.5em;
+}
+
+.contest-title a {
+    color: inherit;
+}
+
+.contest-meta {
+    font-size: 0.9rem;
+    color: #665e54;
+    margin-top: 1rem;
+}
+
+.no-contests-message {
+    color: #665e54;
+    font-style: italic;
+    margin-top: 1rem;
+}
+
+/* We remove the old roadmap styles */
+/* #roadmap-list ... */
+
+/* --- Form Styles --- */
+
+.form-page-main {
+    max-width: 600px; /* Narrower container for forms */
+}
+
+.auth-form {
+    background-color: #fff;
+    padding: 2rem;
+    border: 1px solid #e0d8c9;
+    border-radius: 4px;
+    margin-top: 1rem;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: #44513a; /* Darker green for labels */
+}
+
+.form-group input[type="text"],
+.form-group input[type="password"],
+.form-group input[type="email"],
+.form-group input[type="url"],
+.form-group input[type="number"],
+.form-group textarea,
+.form-group select {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid #d3cbbd; /* Slightly darker border */
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 1rem;
+    line-height: 1.5;
+    background-color: #fff;
+    transition: border-color 0.2s ease-in-out;
+}
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+    border-color: #5e6b4c; /* Green focus border */
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(94, 107, 76, 0.2); /* Subtle focus shadow */
+}
+
+.form-actions {
+    margin-top: 2rem;
+    text-align: right;
+}
+
+/* Basic button style (can enhance later) */
+.button {
+    display: inline-block;
+    background-color: #5e6b4c; /* Muted Green */
+    color: #fff;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 4px;
+    font-family: 'Source Sans Pro', sans-serif;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    text-align: center;
+}
+
+.button:hover {
+    background-color: #44513a; /* Darker Green */
+    color: #fff;
+}
+
+/* Add small button style */
+.button-small {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+}
+
+.auth-switch {
+    text-align: center;
+    margin-top: 1.5rem;
+    font-size: 0.9rem;
+    color: #665e54;
+}
+
+/* Alert/Error Message Style */
+.alert {
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid transparent;
+    border-radius: 4px;
+}
+
+.alert-danger {
+    color: #721c24; /* Dark red */
+    background-color: #f8d7da; /* Light pink */
+    border-color: #f5c6cb; /* Pink border */
+}
+
+/* Add Success Alert Style */
+.alert-success {
+    color: #155724; /* Dark green */
+    background-color: #d4edda; /* Light green */
+    border-color: #c3e6cb; /* Green border */
+}
+
+/* We remove the old roadmap styles */
+/* #roadmap-list ... */
+
+/* --- Modal Styles (from app/static/css/style.css) --- */
+.modal-overlay {
+    position: fixed; 
+    left: 0;
+    top: 0;
+    width: 100%; 
+    height: 100%; 
+    background-color: rgba(0, 0, 0, 0.7); 
+    z-index: 1050; /* Ensure it's above other content */
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    overflow-y: auto; 
+}
+
+.modal-content {
+    background-color: #fefefe;
+    margin: auto; 
+    padding: 30px;
+    border: 1px solid #ccc; /* Slightly lighter border than original */
+    width: 85%; 
+    max-width: 800px; /* Adjusted max width */
+    min-height: 60%; /* Adjusted min height */
+    max-height: 90vh; 
+    border-radius: 5px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    position: relative; 
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-content h3 {
+    margin-top: 0;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #eee;
+}
+
+#modal-text {
+    flex-grow: 1; 
+    overflow-y: auto; 
+    margin-top: 15px;
+    white-space: pre-wrap; /* Preserve whitespace and wrap text */
+    font-family: 'Courier New', Courier, monospace; /* Monospace for code/text */
+    background-color: #fdfdfd;
+    padding: 1em;
+    border: 1px solid #eee;
+    border-radius: 3px;
+}
+
+.modal-close-btn {
+    position: absolute;
+    top: 10px;
+    right: 20px;
+    color: #aaa;
+    font-size: 28px;
+    font-weight: bold;
+    background: none;
+    border: none;
+    cursor: pointer;
+    line-height: 1; /* Better alignment */
+}
+
+.modal-close-btn:hover,
+.modal-close-btn:focus {
+    color: black;
+    text-decoration: none;
+}
+
+/* We remove the old roadmap styles */
+/* #roadmap-list ... */
+
+/* --- Admin Table Styles --- */
+/* Reuse styles from app/static/css/style.css */
+
+.admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+    background-color: #fff;
+    border: 1px solid #e0d8c9;
+    border-radius: 4px; /* Won't work perfectly on table, but sets intent */
+    overflow: hidden; /* Helps with border-radius */
+}
+
+.admin-table th, .admin-table td {
+    padding: 0.8rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid #e0d8c9;
+}
+
+.admin-table th {
+    background-color: #f8f7f4; /* Slightly off-white header */
+    font-weight: 600;
+    color: #44513a;
+}
+
+.admin-table tr:last-child td {
+     border-bottom: none;
+}
+
+.admin-table tr:hover {
+    background-color: #f8f7f4;
+}
+
+.admin-table td a {
+    /* Standard link color */
+}
+
+.admin-table td a:hover {
+   /* Standard link hover */
+}
+
+.admin-table .actions-column {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.admin-table .actions-column a,
+.admin-table .actions-column button {
+    margin-left: 0.5rem;
+    vertical-align: middle;
+}
+
+.admin-table .actions-column form {
+    display: inline-block; /* Keep form elements inline */
+    margin: 0;
+    padding: 0;
+    margin-left: 0.5rem;
+    vertical-align: middle;
+}
+
+
+/* Styles for inline status update form */
+.admin-table .inline-form {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.admin-table .small-select {
+    padding: 0.3rem 0.5rem;
+    font-size: 0.9rem;
+    /* Inherit other styles from .form-group select */
+    width: auto; /* Don't take full width */
+    border: 1px solid #d3cbbd;
+    border-radius: 4px;
+    background-color: #fff;
+}
+
+.admin-table .status-apply-button {
+    /* Use .button-small styles */
+}
+
+/* Icon button adjustments */
+.button-icon {
+    padding: 0.4rem 0.6rem; /* Adjust padding for icons */
+    line-height: 1;
+}
+
+.button-danger {
+    background-color: #dc3545; /* Bootstrap danger red */
+    color: white;
+}
+
+.button-danger:hover {
+    background-color: #c82333; /* Darker red */
+    color: white;
+}
+
+
+/* Styles for specific columns if needed */
+/* .admin-table .type-column { ... } */
+/* .admin-table td.date-past { color: #888; } */
+
+
+/* Modal Styles ... */ 

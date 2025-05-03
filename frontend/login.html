@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iniciar Sesión - Duelo de Plumas</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <div class="header-content">
+             <h1><a href="/"><img src="images/letter-quill-svgrepo-com.svg" alt="" class="site-header-quill"> Duelo de Plumas</a></h1>
+             <nav>
+                 <ul>
+                     <li><a href="/">Inicio</a></li>
+                     <li><a href="/contests.html">Concursos</a></li> 
+                     <li id="nav-admin" style="display: none;"><a href="/admin.html">Admin</a></li>
+                     <li id="nav-login"><a href="/login.html">Iniciar Sesión</a></li>
+                     <li id="nav-logout-li" style="display: none;"><a href="#" id="nav-logout-button">Cerrar Sesión</a></li>
+                 </ul>
+             </nav>
+         </div>
+    </header>
+
+    <main class="form-page-main">
+        <h1>Iniciar Sesión</h1>
+        
+        <form id="login-form" class="auth-form">
+            <div id="error-message" class="alert alert-danger" style="display: none;"></div>
+            
+            <div class="form-group">
+                <label for="username">Nombre de Usuario</label>
+                <input type="text" id="username" name="username" required>
+                <!-- Note: Backend expects 'username', not 'username_or_email' like Flask -->
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Contraseña</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            
+            <!-- Optional: Remember me?
+            <div class="form-group form-check">
+                <input type="checkbox" id="remember-me" name="remember-me">
+                <label for="remember-me">Recordarme</label>
+            </div>
+            -->
+            
+            <div class="form-actions">
+                <button type="submit" class="button">Iniciar Sesión</button>
+            </div>
+        </form>
+        
+        <p class="auth-switch">¿No tienes cuenta? <a href="/register.html">Regístrate aquí</a></p>
+        
+    </main>
+
+    <footer>
+        <p>&copy; 2024 Duelo de Plumas</p>
+    </footer>
+
+    <!-- Auth utilities -->
+    <script src="js/auth.js"></script>
+    <!-- Login page specific script -->
+    <script src="js/login.js"></script>
+</body>
+</html> 

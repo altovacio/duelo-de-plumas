@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestionar Jueces IA - Admin</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1><a href="/"><img src="images/letter-quill-svgrepo-com.svg" alt="" class="site-header-quill"> Duelo de Plumas</a></h1>
+            <nav>
+                 <ul>
+                    <li><a href="/">Inicio</a></li>
+                    <li><a href="/contests.html">Concursos</a></li> 
+                    <li id="nav-admin" style="display: none;"><a href="/admin.html">Admin</a></li>
+                    <li id="nav-login"><a href="/login.html">Iniciar Sesión</a></li>
+                    <li id="nav-logout-li" style="display: none;"><a href="#" id="nav-logout-button">Cerrar Sesión</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main id="admin-ai-judges-main">
+        <div class="admin-header">
+            <h1>Gestionar Jueces IA</h1>
+             <a href="/admin_ai_judge_edit.html" class="button">Agregar Juez IA</a>
+        </div>
+        
+        <div id="loading-message">Cargando lista de jueces IA...</div>
+        <div id="error-message" class="alert alert-danger" style="display: none;"></div>
+        <div id="admin-table-container" style="display: none;">
+            <table id="ai-judges-table" class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Nombre Usuario</th>
+                        <th>Descripción</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- AI Judge rows populated by JS -->
+                </tbody>
+            </table>
+            <p id="no-judges-message" style="display: none;">No hay jueces IA configurados.</p>
+        </div>
+
+    </main>
+
+    <footer>
+        <p>&copy; 2024 Duelo de Plumas</p>
+    </footer>
+
+    <!-- Auth utilities -->
+    <script src="js/auth.js"></script>
+    <!-- Admin AI Judges page specific script -->
+    <script src="js/admin_ai_judges.js"></script>
+</body>
+</html> 

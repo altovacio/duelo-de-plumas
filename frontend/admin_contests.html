@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestionar Concursos - Admin</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1><a href="/"><img src="images/letter-quill-svgrepo-com.svg" alt="" class="site-header-quill"> Duelo de Plumas</a></h1>
+            <nav>
+                 <ul>
+                    <li><a href="/">Inicio</a></li>
+                    <li><a href="/contests.html">Concursos</a></li> 
+                    <li id="nav-admin" style="display: none;"><a href="/admin.html">Admin</a></li>
+                    <li id="nav-login"><a href="/login.html">Iniciar Sesión</a></li>
+                    <li id="nav-logout-li" style="display: none;"><a href="#" id="nav-logout-button">Cerrar Sesión</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main id="admin-contests-main">
+        <div class="admin-header">
+            <h1>Gestionar Concursos</h1>
+            <a href="/admin_contest_edit.html" class="button">Crear Nuevo Concurso</a> <!-- Link to create page -->
+        </div>
+        
+        <div id="loading-message">Cargando lista de concursos...</div>
+        <div id="error-message" class="alert alert-danger" style="display: none;"></div>
+        <div id="admin-table-container" style="display: none;">
+            <table id="contests-table" class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Título</th>
+                        <th>Tipo</th>
+                        <th>Estado</th>
+                        <th>Fecha Fin</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Contest rows populated by JS -->
+                </tbody>
+            </table>
+            <p id="no-contests-message" style="display: none;">No se encontraron concursos.</p>
+        </div>
+
+    </main>
+
+    <footer>
+        <p>&copy; 2024 Duelo de Plumas</p>
+    </footer>
+
+    <!-- Auth utilities -->
+    <script src="js/auth.js"></script>
+    <!-- Admin Contests page specific script -->
+    <script src="js/admin_contests.js"></script>
+</body>
+</html> 

@@ -11,6 +11,8 @@ from ..dependencies import get_openai_client, get_anthropic_client # Import real
 # Import a mock DB session for testing since the real one doesn't exist yet
 # from unittest.mock import AsyncMock # Remove mock import
 from ...database import get_db_session # Corrected: Go up two levels
+from ... import models # Import models directly for AI service usage
+from ... import security # Import security for admin dependency
 
 # Temporary mock session dependency until real implementation is ready
 # async def get_async_db_session(): # Remove mock function
@@ -94,82 +96,6 @@ async def generate_text_endpoint(
         
     return GenerateTextResponse(**result)
 
-
-@router.post("/evaluate-contest/{contest_id}", response_model=AIEvaluationResult)
-async def evaluate_contest_endpoint(
-    contest_id: int,
-    judge_id: int, # Assuming judge_id is passed as a query parameter or in request body
-    session: AsyncSession = Depends(get_db_session), # Use real DB session
-    openai_client: openai.AsyncOpenAI | None = Depends(get_openai_client),
-    anthropic_client: anthropic.AsyncAnthropic | None = Depends(get_anthropic_client)
-) -> AIEvaluationResult:
-    """
-    Triggers AI evaluation for a specific contest using a designated AI judge.
-    """
-    # MOCK IMPLEMENTATION FOR TESTING - REMOVE THIS BLOCK
-    # if contest_id == 999:
-    #     raise HTTPException(
-    #         status_code=status.HTTP_404_NOT_FOUND,
-    #         detail=f"Contest with ID {contest_id} not found"
-    #     )
-    #     
-    # if judge_id == 999:
-    #     raise HTTPException(
-    #         status_code=status.HTTP_404_NOT_FOUND,
-    #         detail=f"AI Judge with ID {judge_id} not found"
-    #     )
-    # 
-    # # Generate mock rankings and comments
-    # mock_rankings = {"42": 1, "43": 2, "44": 3}
-    # mock_comments = {
-    #     "42": "This submission demonstrated exceptional creativity and mastery of language...",
-    #     "43": "A compelling narrative with strong character development...",
-    #     "44": "While the story had an interesting premise, the execution lacked depth..."
-    # }
-    # 
-    # # Return mock data
-    # return AIEvaluationResult(
-    #     success=True,
-    #     message="Contest evaluation completed successfully (MOCK DATA)",
-    #     evaluation_id=15,
-    #     judge_id=judge_id,
-    #     contest_id=contest_id,
-    #     rankings=mock_rankings,
-    #     comments=mock_comments
-    # )
-
-    # ORIGINAL IMPLEMENTATION - Uncomment when database is ready
-    try:
-        result = await ai_services.run_ai_evaluation(
-            contest_id=contest_id,
-            judge_id=judge_id,
-            session=session,
-            openai_client=openai_client,
-            anthropic_client=anthropic_client,
-            # Potentially pass temperature from config or request
-        )
-        
-        if not result["success"]:
-             # Refine error handling based on ai_services logic
-             status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-             if "not found" in result.get("message", "").lower():
-                 status_code = status.HTTP_404_NOT_FOUND
-             elif "invalid state" in result.get("message", "").lower(): # Example condition
-                 status_code = status.HTTP_409_CONFLICT
-             raise HTTPException(
-                status_code=status_code,
-                detail=result.get("message", "AI evaluation failed.")
-            )
-            
-        # Return the detailed results from the service
-        return AIEvaluationResult(**result)
-    
-    except ValueError as ve:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
-    except Exception as e:
-        # Log the exception details
-        print(f"Error during AI evaluation endpoint: {e}") # Consider using proper logging
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected error occurred during AI evaluation."
-        ) 
+# Endpoint removed - refactored and moved to admin.py
+# @router.post("/evaluate-contest/{contest_id}", response_model=AIEvaluationResult)
+# async def evaluate_contest_endpoint(...) 

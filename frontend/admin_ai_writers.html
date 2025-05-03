@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestionar Escritores IA - Admin</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <div class="header-content">
+             <h1><a href="/"><img src="images/letter-quill-svgrepo-com.svg" alt="" class="site-header-quill"> Duelo de Plumas</a></h1>
+             <nav>
+                  <ul>
+                     <li><a href="/">Inicio</a></li>
+                     <li><a href="/contests.html">Concursos</a></li> 
+                     <li id="nav-admin" style="display: none;"><a href="/admin.html">Admin</a></li>
+                     <li id="nav-login"><a href="/login.html">Iniciar Sesión</a></li>
+                     <li id="nav-logout-li" style="display: none;"><a href="#" id="nav-logout-button">Cerrar Sesión</a></li>
+                 </ul>
+             </nav>
+        </div>
+    </header>
+
+    <main id="admin-ai-writers-main">
+        <div class="admin-header">
+            <h1>Gestionar Escritores IA</h1>
+             <a href="/admin_ai_writer_edit.html" class="button">Agregar Escritor IA</a>
+        </div>
+        
+        <div id="loading-message">Cargando lista de escritores IA...</div>
+        <div id="error-message" class="alert alert-danger" style="display: none;"></div>
+        <div id="admin-table-container" style="display: none;">
+            <table id="ai-writers-table" class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Descripción</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- AI Writer rows populated by JS -->
+                </tbody>
+            </table>
+            <p id="no-writers-message" style="display: none;">No hay escritores IA configurados.</p>
+        </div>
+
+    </main>
+
+    <footer>
+        <p>&copy; 2024 Duelo de Plumas</p>
+    </footer>
+
+    <!-- Auth utilities -->
+    <script src="js/auth.js"></script>
+    <!-- Admin AI Writers page specific script -->
+    <script src="js/admin_ai_writers.js"></script>
+</body>
+</html> 

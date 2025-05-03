@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roadmap - Duelo de Plumas</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <!-- Re-use the same header structure -->
+        <div class="header-content">
+             <h1><a href="/"><img src="images/letter-quill-svgrepo-com.svg" alt="" class="site-header-quill"> Duelo de Plumas</a></h1>
+             <nav>
+                 <ul>
+                     <li><a href="/">Inicio</a></li>
+                     <li><a href="/contests.html">Concursos</a></li> 
+                     <li id="nav-admin" style="display: none;"><a href="/admin.html">Admin</a></li>
+                     <li id="nav-login"><a href="/login.html">Iniciar Sesión</a></li>
+                     <li id="nav-logout-li" style="display: none;"><a href="#" id="nav-logout-button">Cerrar Sesión</a></li>
+                 </ul>
+             </nav>
+         </div>
+    </header>
+
+    <main>
+        <h1>Roadmap de Desarrollo</h1>
+        <p>Estado actual y planes futuros para la plataforma.</p>
+        
+        <section id="roadmap-items-section">
+             <!-- Items will be loaded here -->
+             <ul id="roadmap-list"></ul>
+             <p id="roadmap-loading-message">Cargando roadmap...</p>
+             <p id="roadmap-error-message" style="display: none; color: red;">No se pudo cargar el roadmap.</p>
+             <p id="roadmap-empty-message" style="display: none;">No hay elementos en el roadmap.</p>
+        </section>
+        
+    </main>
+
+    <footer>
+        <p>&copy; 2024 Duelo de Plumas</p>
+        <!-- Optional: Add link to roadmap here -->
+        <!-- <p><a href="/roadmap.html">Roadmap</a></p> -->
+    </footer>
+
+    <!-- Auth utilities -->
+    <script src="js/auth.js"></script>
+    <!-- Page specific script -->
+    <script src="js/roadmap.js"></script>
+</body>
+</html> 

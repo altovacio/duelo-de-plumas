@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Duelo de Plumas</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1><a href="/"><img src="images/letter-quill-svgrepo-com.svg" alt="" class="site-header-quill"> Duelo de Plumas</a></h1>
+            <nav>
+                <ul>
+                    <li><a href="/">Inicio</a></li>
+                    <li><a href="/contests.html">Concursos</a></li> 
+                    <li id="nav-admin" style="display: none;"><a href="/admin.html">Admin</a></li>
+                    <li id="nav-login"><a href="/login.html">Iniciar Sesión</a></li>
+                    <li id="nav-logout-li" style="display: none;"><a href="#" id="nav-logout-button">Cerrar Sesión</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main id="admin-main">
+        <h1>Panel de Administración</h1>
+
+        <div id="admin-content" style="display: none;">
+             <!-- Admin content shown after successful role check -->
+             <p>Bienvenido al panel de administración.</p>
+             
+             <nav class="admin-nav">
+                 <ul>
+                     <li><a href="/admin_contests.html">Gestionar Concursos</a></li>
+                     <li><a href="/admin_users.html">Gestionar Usuarios (Jueces)</a></li>
+                     <li><a href="/admin_ai_judges.html">Gestionar Jueces IA</a></li>
+                     <li><a href="/admin_ai_writers.html">Gestionar Escritores IA</a></li>
+                     <li><a href="/admin_ai_costs.html">Costos de Evaluación IA</a></li>
+                     <!-- Add more links as pages are created -->
+                 </ul>
+             </nav>
+             
+             <!-- Optional: Display admin-specific dashboard items here -->
+             
+        </div>
+
+        <div id="loading-message">Cargando...</div>
+        <div id="error-message" class="alert alert-danger" style="display: none;"></div>
+
+    </main>
+
+    <footer>
+        <p>&copy; 2024 Duelo de Plumas</p>
+    </footer>
+
+    <!-- Auth utilities -->
+    <script src="js/auth.js"></script>
+    <!-- Admin page specific script -->
+    <script src="js/admin.js"></script>
+</body>
+</html> 

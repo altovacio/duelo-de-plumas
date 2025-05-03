@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Envíos - Duelo de Plumas</title> <!-- Title updated dynamically -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1><a href="/"><img src="images/letter-quill-svgrepo-com.svg" alt="" class="site-header-quill"> Duelo de Plumas</a></h1>
+            <nav>
+                <ul>
+                    <li><a href="/">Inicio</a></li>
+                    <li><a href="/contests.html">Concursos</a></li> 
+                    <li id="nav-admin" style="display: none;"><a href="/admin.html">Admin</a></li>
+                    <li id="nav-login"><a href="/login.html">Iniciar Sesión</a></li>
+                    <li id="nav-logout-li" style="display: none;"><a href="#" id="nav-logout-button">Cerrar Sesión</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main id="submission-list-main">
+        <!-- Loading/Error Messages -->
+        <p id="loading-message">Cargando envíos del concurso...</p>
+        <div id="error-message" class="alert alert-danger" style="display: none;"></div>
+        
+        <!-- Submission List Content (populated by JS) -->
+        <div id="submission-list-content" style="display: none;">
+            <h1 id="contest-title-heading">Envíos para: </h1>
+            
+            <!-- Optional: Add button to evaluate/rank later -->
+            <!-- <div class="form-actions" style="text-align: left; margin-bottom: 1.5rem;">
+                <a href="/evaluate.html?id={contest_id}" class="button">Evaluar / Rankear Envíos</a>
+            </div> -->
+
+            <table id="submissions-table" class="admin-table"> 
+                <thead>
+                    <tr>
+                        <th>Autor</th>
+                        <th>Título</th>
+                        <th>Fecha</th>
+                        <th>Acciones</th> 
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Submission rows will be populated here -->
+                </tbody>
+            </table>
+            <p id="no-submissions-message" style="display: none;">No hay envíos para este concurso.</p>
+        </div>
+
+        <!-- Modal for viewing full text -->
+        <div id="view-text-modal" class="modal-overlay" style="display: none;">
+             <div class="modal-content">
+                 <button id="modal-close-btn" class="modal-close-btn">&times;</button>
+                 <h3 id="modal-submission-title"></h3>
+                 <div id="modal-text" class="markdown-content"></div> 
+             </div>
+        </div>
+        
+    </main>
+
+    <footer>
+        <p>&copy; 2024 Duelo de Plumas</p>
+    </footer>
+
+    <!-- Auth utilities -->
+    <script src="js/auth.js"></script>
+    <!-- Submissions page specific script -->
+    <script src="js/submissions.js"></script>
+</body>
+</html> 

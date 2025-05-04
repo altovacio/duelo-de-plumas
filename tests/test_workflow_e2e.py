@@ -1,6 +1,7 @@
 import requests
 import pytest
 import os
+import csv # Added for logging
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -9,6 +10,27 @@ load_dotenv()
 BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000") # Default if not set
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
+
+# Helper function to log endpoint usage
+def log_endpoint(method, endpoint, variables=None):
+    # Use a relative path from the workspace root
+    log_file_path = './endpoints_used.csv'
+    # Check if file exists to write header
+    file_exists = os.path.isfile(log_file_path)
+    with open(log_file_path, 'a', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        # Write header if file is new
+        if not file_exists or os.path.getsize(log_file_path) == 0:
+             writer.writerow(["Method", "Endpoint", "Variables", "File"])
+        
+        row_data = [method, endpoint]
+        if variables:
+            row_data.append(variables)
+        else:
+            row_data.append("")
+        # Ensure the correct filename is logged for this file
+        row_data.append("tests/test_workflow_e2e.py") 
+        writer.writerow(row_data)
 
 # Helper function to get auth headers
 def get_auth_headers(token: str):
@@ -69,6 +91,7 @@ def test_full_user_admin_workflow():
     user1_data = {"username": "usertest", "email": "test@user.plumas.top", "password": "12341234"}
     print(f"Registering User 1: {user1_data['username']}")
     response = requests.post(f"{BASE_URL}/auth/register", json=user1_data)
+    log_endpoint("POST", "/auth/register", f"username={user1_data['username']}")
     print(f"User 1 Registration Response: {response.status_code}, {response.text[:100]}...")
     # Handle potential conflict if user already exists from previous failed run
     if response.status_code == 400 and (
@@ -86,6 +109,7 @@ def test_full_user_admin_workflow():
     login_data = {"username": user1_data["username"], "password": user1_data["password"]}
     print(f"Logging in User 1: {user1_data['username']} (using username)")
     response = requests.post(f"{BASE_URL}/auth/token", data=login_data) # Sending username, not email
+    log_endpoint("POST", "/auth/token", f"username={user1_data['username']}")
     print(f"User 1 Login Response: {response.status_code}")
     assert response.status_code == 200
     user1_token = response.json().get("access_token")
@@ -95,6 +119,7 @@ def test_full_user_admin_workflow():
 
     # Get User 1 ID
     response = requests.get(f"{BASE_URL}/auth/users/me", headers=headers_user1)
+    log_endpoint("GET", "/auth/users/me")
     print(f"Get User 1 Info Response: {response.status_code}")
     assert response.status_code == 200
     user1_id = response.json().get("id")
@@ -104,6 +129,7 @@ def test_full_user_admin_workflow():
     # c) List all contests (user 1)
     print("User 1 Listing Contests...")
     response = requests.get(f"{BASE_URL}/contests/", headers=headers_user1)
+    log_endpoint("GET", "/contests/", f"user_id={user1_id}")
     print(f"User 1 List Contests Response: {response.status_code}")
     assert response.status_code == 200
     initial_contests = response.json()
@@ -116,6 +142,7 @@ def test_full_user_admin_workflow():
     }
     print(f"User 1 Creating Contest: {contest_data['title']}")
     response = requests.post(f"{BASE_URL}/contests/", headers=headers_user1, json=contest_data)
+    log_endpoint("POST", "/contests/", f"user_id={user1_id}, title={contest_data['title']}")
     print(f"User 1 Create Contest Response: {response.status_code}, {response.text[:100]}...")
     assert response.status_code == 201 # Assuming 201 Created
     created_contest = response.json()
@@ -133,6 +160,7 @@ def test_full_user_admin_workflow():
     }
     print(f"User 1 Updating Contest {contest1_id} to Private...")
     response = requests.put(f"{BASE_URL}/contests/{contest1_id}", headers=headers_user1, json=update_data)
+    log_endpoint("PUT", f"/contests/{contest1_id}", f"user_id={user1_id}")
     print(f"User 1 Update Contest Response: {response.status_code}")
     assert response.status_code == 200
 
@@ -140,6 +168,7 @@ def test_full_user_admin_workflow():
     check_pass_data = {"password": "wrongpassword"}
     print(f"User 1 Checking Wrong Password for Contest {contest1_id}...")
     response = requests.post(f"{BASE_URL}/contests/{contest1_id}/check-password", headers=headers_user1, json=check_pass_data)
+    log_endpoint("POST", f"/contests/{contest1_id}/check-password", f"user_id={user1_id}, result=fail")
     print(f"User 1 Check Wrong Password Response: {response.status_code}")
     assert response.status_code == 403 # Changed from 401 based on current API code
 
@@ -147,6 +176,7 @@ def test_full_user_admin_workflow():
     check_pass_data = {"password": "qwerty"}
     print(f"User 1 Checking Correct Password for Contest {contest1_id}...")
     response_g = requests.post(f"{BASE_URL}/contests/{contest1_id}/check-password", headers=headers_user1, json=check_pass_data)
+    log_endpoint("POST", f"/contests/{contest1_id}/check-password", f"user_id={user1_id}, result=success")
     print(f"User 1 Check Correct Password Response: {response_g.status_code}, {response_g.text[:100]}...")
     assert response_g.status_code == 200
     # Capture the access cookie set by the response
@@ -166,6 +196,7 @@ def test_full_user_admin_workflow():
     print(f"User 1 Submitting Text to Contest {contest1_id}...")
     # Use headers WITH the contest access cookie
     response = requests.post(f"{BASE_URL}/contests/{contest1_id}/submissions", headers=headers_user1_with_cookie, json=submission_data)
+    log_endpoint("POST", f"/contests/{contest1_id}/submissions", f"user_id={user1_id}")
     print(f"User 1 Submit Text Response: {response.status_code}, {response.text[:100]}...")
     assert response.status_code == 201 # Now expecting success
     submission1_response = response.json()
@@ -178,6 +209,7 @@ def test_full_user_admin_workflow():
     # Let's test the endpoint but expect it might fail or return empty list depending on exact rules.
     print(f"User 1 Listing Submissions for Contest {contest1_id}...")
     response = requests.get(f"{BASE_URL}/contests/{contest1_id}/submissions", headers=headers_user1)
+    log_endpoint("GET", f"/contests/{contest1_id}/submissions", f"user_id={user1_id}")
     print(f"User 1 List Submissions Response: {response.status_code}")
     # We cannot strongly assert the status code without knowing the exact permission logic.
     # If 403 Forbidden is expected for a user who is not a judge when contest is open, assert that.
@@ -198,6 +230,7 @@ def test_full_user_admin_workflow():
     user2_data = {"username": "usertest2", "email": "test2@user.plumas.top", "password": "12341324"}
     print(f"Registering User 2: {user2_data['username']}")
     response = requests.post(f"{BASE_URL}/auth/register", json=user2_data)
+    log_endpoint("POST", "/auth/register", f"username={user2_data['username']}")
     print(f"User 2 Registration Response: {response.status_code}, {response.text[:100]}...")
     # Handle potential conflict if user already exists from previous failed run
     if response.status_code == 400 and 'already registered' in response.text.lower():
@@ -209,6 +242,7 @@ def test_full_user_admin_workflow():
     login_data_2 = {"username": user2_data["username"], "password": user2_data["password"]}
     print(f"Logging in User 2: {user2_data['username']} (using username)")
     response = requests.post(f"{BASE_URL}/auth/token", data=login_data_2) # Sending username, not email
+    log_endpoint("POST", "/auth/token", f"username={user2_data['username']}")
     print(f"User 2 Login Response: {response.status_code}")
     assert response.status_code == 200
     user2_token = response.json().get("access_token")
@@ -218,6 +252,7 @@ def test_full_user_admin_workflow():
 
     # Get User 2 ID
     response = requests.get(f"{BASE_URL}/auth/users/me", headers=headers_user2)
+    log_endpoint("GET", "/auth/users/me")
     print(f"Get User 2 Info Response: {response.status_code}")
     assert response.status_code == 200
     user2_id = response.json().get("id")
@@ -227,6 +262,7 @@ def test_full_user_admin_workflow():
     #    c2) List all contests (user 2)
     print("User 2 Listing Contests...")
     response = requests.get(f"{BASE_URL}/contests/", headers=headers_user2)
+    log_endpoint("GET", "/contests/", f"user_id={user2_id}")
     print(f"User 2 List Contests Response: {response.status_code}")
     assert response.status_code == 200
     # Optionally compare contest list length to initial_contests + 1
@@ -239,12 +275,14 @@ def test_full_user_admin_workflow():
     }
     print(f"User 2 Creating Contest: {contest_data_2['title']}")
     response = requests.post(f"{BASE_URL}/contests/", headers=headers_user2, json=contest_data_2)
+    log_endpoint("POST", "/contests/", f"user_id={user2_id}, title={contest_data_2['title']}")
     print(f"User 2 Create Contest Response: {response.status_code}, {response.text[:100]}...")
     # Handle potential conflict if contest already exists from previous failed run
     if response.status_code == 400: # Or whatever code indicates conflict
          print(f"Conflict creating contest {contest_data_2['title']}, perhaps it exists. Trying to find it.")
          # Attempt to find the contest ID by listing and filtering
          list_resp = requests.get(f"{BASE_URL}/contests/", headers=headers_user2)
+         log_endpoint("GET", "/contests/", f"user_id={user2_id}, trigger=conflict_check") # Added log for the GET within conflict check
          if list_resp.status_code == 200:
              all_contests = list_resp.json()
              found = False
@@ -275,6 +313,7 @@ def test_full_user_admin_workflow():
     }
     print(f"User 2 Updating Contest {contest2_id} to Private...")
     response = requests.put(f"{BASE_URL}/contests/{contest2_id}", headers=headers_user2, json=update_data_2)
+    log_endpoint("PUT", f"/contests/{contest2_id}", f"user_id={user2_id}")
     print(f"User 2 Update Contest Response: {response.status_code}")
     assert response.status_code == 200
 
@@ -282,6 +321,7 @@ def test_full_user_admin_workflow():
     check_pass_data_2 = {"password": "wrongpassword"}
     print(f"User 2 Checking Wrong Password for Contest {contest2_id}...")
     response = requests.post(f"{BASE_URL}/contests/{contest2_id}/check-password", headers=headers_user2, json=check_pass_data_2)
+    log_endpoint("POST", f"/contests/{contest2_id}/check-password", f"user_id={user2_id}, result=fail")
     print(f"User 2 Check Wrong Password Response: {response.status_code}")
     assert response.status_code == 403 # Changed from 401 based on current API code
 
@@ -289,6 +329,7 @@ def test_full_user_admin_workflow():
     check_pass_data_2 = {"password": "asdfgh"}
     print(f"User 2 Checking Correct Password for Contest {contest2_id}...")
     response_g2 = requests.post(f"{BASE_URL}/contests/{contest2_id}/check-password", headers=headers_user2, json=check_pass_data_2)
+    log_endpoint("POST", f"/contests/{contest2_id}/check-password", f"user_id={user2_id}, result=success")
     print(f"User 2 Check Correct Password Response: {response_g2.status_code}, {response_g2.text[:100]}...")
     assert response_g2.status_code == 200
     # Capture the access cookie set by the response
@@ -308,6 +349,7 @@ def test_full_user_admin_workflow():
     print(f"User 2 Submitting Text to Contest {contest2_id}...")
     # Use headers WITH the contest access cookie
     response = requests.post(f"{BASE_URL}/contests/{contest2_id}/submissions", headers=headers_user2_with_cookie, json=submission_data_2)
+    log_endpoint("POST", f"/contests/{contest2_id}/submissions", f"user_id={user2_id}")
     print(f"User 2 Submit Text Response: {response.status_code}, {response.text[:100]}...")
     # Handle potential conflict if submission already exists from previous failed run (less likely but possible)
     if response.status_code == 400: # Adjust error code as needed
@@ -325,6 +367,7 @@ def test_full_user_admin_workflow():
     #    i2) List all submissions for the contest (user 2)
     print(f"User 2 Listing Submissions for Contest {contest2_id}...")
     response = requests.get(f"{BASE_URL}/contests/{contest2_id}/submissions", headers=headers_user2)
+    log_endpoint("GET", f"/contests/{contest2_id}/submissions", f"user_id={user2_id}")
     print(f"User 2 List Submissions Response: {response.status_code}")
     assert response.status_code == 403 # Assuming same logic as user 1
 
@@ -332,6 +375,7 @@ def test_full_user_admin_workflow():
     assert contest1_id is not None # Ensure contest1_id was set
     print(f"User 2 Attempting to Delete Contest {contest1_id} (created by User 1)...")
     response = requests.delete(f"{BASE_URL}/contests/{contest1_id}", headers=headers_user2)
+    log_endpoint("DELETE", f"/contests/{contest1_id}", f"user_id={user2_id}, trigger=forbidden_attempt")
     print(f"User 2 Delete Contest 1 Response: {response.status_code}")
     assert response.status_code == 403 # Forbidden
 
@@ -346,6 +390,7 @@ def test_full_user_admin_workflow():
     login_data_1_again = {"username": user1_data["username"], "password": user1_data["password"]}
     print(f"Re-logging in User 1: {user1_data['username']} (using username)")
     response = requests.post(f"{BASE_URL}/auth/token", data=login_data_1_again) # Sending username, not email
+    log_endpoint("POST", "/auth/token", f"username={user1_data['username']}") # Log re-login
     print(f"User 1 Re-Login Response: {response.status_code}")
     # If login fails (e.g., user already deleted by previous failed run), skip user cleanup steps
     if response.status_code != 200:
@@ -361,6 +406,7 @@ def test_full_user_admin_workflow():
         assert contest1_id is not None
         print(f"User 1 Deleting Contest {contest1_id}...")
         response = requests.delete(f"{BASE_URL}/contests/{contest1_id}", headers=headers_user1)
+        log_endpoint("DELETE", f"/contests/{contest1_id}", f"user_id={user1_id}")
         print(f"User 1 Delete Contest 1 Response: {response.status_code}")
         # Allow 404 Not Found if already deleted
         assert response.status_code in [200, 204, 404]
@@ -369,6 +415,7 @@ def test_full_user_admin_workflow():
         assert contest2_id is not None
         print(f"User 1 Attempting to Delete Contest {contest2_id} (created by User 2)...")
         response = requests.delete(f"{BASE_URL}/contests/{contest2_id}", headers=headers_user1)
+        log_endpoint("DELETE", f"/contests/{contest2_id}", f"user_id={user1_id}, trigger=forbidden_attempt")
         print(f"User 1 Delete Contest 2 Response: {response.status_code}")
         assert response.status_code == 403 # Forbidden
 
@@ -377,6 +424,7 @@ def test_full_user_admin_workflow():
     admin_login_data = {"username": ADMIN_USERNAME, "password": ADMIN_PASSWORD}
     print(f"Logging in as Admin: {ADMIN_USERNAME} (using username)")
     response = requests.post(f"{BASE_URL}/auth/token", data=admin_login_data) # Sending username from .env
+    log_endpoint("POST", "/auth/token", f"username={ADMIN_USERNAME}") # Log admin login
     print(f"Admin Login Response: {response.status_code}")
     assert response.status_code == 200
     admin_token = response.json().get("access_token")
@@ -390,6 +438,7 @@ def test_full_user_admin_workflow():
     if user1_id:
         print(f"Admin Deleting User 1 (ID: {user1_id})...")
         response = requests.delete(f"{BASE_URL}/admin/users/{user1_id}", headers=headers_admin)
+        log_endpoint("DELETE", f"/admin/users/{user1_id}", f"admin_triggered=True, target_user_id={user1_id}")
         print(f"Admin Delete User 1 Response: {response.status_code}")
         # Allow 404 Not Found if user was already deleted or login failed earlier
         assert response.status_code in [204]
@@ -401,6 +450,7 @@ def test_full_user_admin_workflow():
     if user2_id:
         print(f"Admin Deleting User 2 (ID: {user2_id})...")
         response = requests.delete(f"{BASE_URL}/admin/users/{user2_id}", headers=headers_admin)
+        log_endpoint("DELETE", f"/admin/users/{user2_id}", f"admin_triggered=True, target_user_id={user2_id}")
         print(f"Admin Delete User 2 Response: {response.status_code}")
         # Allow 404 Not Found
         assert response.status_code in [204]
@@ -412,6 +462,7 @@ def test_full_user_admin_workflow():
     if contest2_id:
         print(f"Admin Deleting Contest 2 (ID: {contest2_id})...")
         response = requests.delete(f"{BASE_URL}/contests/{contest2_id}", headers=headers_admin)
+        log_endpoint("DELETE", f"/contests/{contest2_id}", f"admin_triggered=True, target_contest_id={contest2_id}")
         print(f"Admin Delete Contest 2 Response: {response.status_code}")
         # Allow 404 Not Found
         assert response.status_code in [404]

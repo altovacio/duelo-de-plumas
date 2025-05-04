@@ -78,3 +78,4 @@
         * Un lugar para administrar concursos
         * Un lugar para monitorear costos reales de IA y consumo de créditos por usuario.
         * Un lugar para ver el resumen del sitio (número de concursos, una tabla de ganadores más frecuentes, etc.)
+

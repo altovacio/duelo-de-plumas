@@ -1,0 +1,131 @@
+Method,Endpoint,Variables,File
+POST,/auth/register,username=ai_user1_e2e_1746381681,tests/test_ai_agents_e2e.py
+POST,/auth/token,username=ai_user1_e2e_1746381681,tests/test_ai_agents_e2e.py
+GET,/auth/users/me,username=ai_user1_e2e_1746381681,tests/test_ai_agents_e2e.py
+POST,/auth/register,username=ai_user2_e2e_1746381681,tests/test_ai_agents_e2e.py
+POST,/auth/token,username=ai_user2_e2e_1746381681,tests/test_ai_agents_e2e.py
+GET,/auth/users/me,username=ai_user2_e2e_1746381681,tests/test_ai_agents_e2e.py
+POST,/auth/token,username=Hefesto,tests/test_ai_agents_e2e.py
+GET,/auth/users/me,username=Hefesto,tests/test_ai_agents_e2e.py
+GET,/ai-writers/,user_id=21,tests/test_ai_agents_e2e.py
+POST,/ai-writers/,user_id=21,tests/test_ai_agents_e2e.py
+GET,/ai-writers/,user_id=21,tests/test_ai_agents_e2e.py
+GET,/ai-writers/1,user_id=21,tests/test_ai_agents_e2e.py
+PUT,/ai-writers/1,user_id=21,tests/test_ai_agents_e2e.py
+GET,/ai-writers/1,user_id=21,tests/test_ai_agents_e2e.py
+GET,/ai-writers/,user_id=22,tests/test_ai_agents_e2e.py
+GET,/ai-writers/1,user_id=22,tests/test_ai_agents_e2e.py
+PUT,/ai-writers/1,user_id=22,tests/test_ai_agents_e2e.py
+POST,/ai-writers/,user_id=22,tests/test_ai_agents_e2e.py
+GET,/ai-writers/,user_id=22,tests/test_ai_agents_e2e.py
+DELETE,/ai-writers/1,user_id=22,tests/test_ai_agents_e2e.py
+GET,/ai-judges/,user_id=21,tests/test_ai_agents_e2e.py
+POST,/ai-judges/,user_id=21,tests/test_ai_agents_e2e.py
+GET,/ai-judges/,user_id=21,tests/test_ai_agents_e2e.py
+GET,/ai-judges/1,user_id=21,tests/test_ai_agents_e2e.py
+PUT,/ai-judges/1,user_id=21,tests/test_ai_agents_e2e.py
+GET,/ai-judges/1,user_id=21,tests/test_ai_agents_e2e.py
+GET,/ai-judges/,user_id=22,tests/test_ai_agents_e2e.py
+GET,/ai-judges/1,user_id=22,tests/test_ai_agents_e2e.py
+PUT,/ai-judges/1,user_id=22,tests/test_ai_agents_e2e.py
+POST,/ai-judges/,user_id=22,tests/test_ai_agents_e2e.py
+GET,/ai-judges/,user_id=22,tests/test_ai_agents_e2e.py
+DELETE,/ai-judges/1,user_id=22,tests/test_ai_agents_e2e.py
+GET,/ai-writers/,admin,tests/test_ai_agents_e2e.py
+GET,/ai-judges/,admin,tests/test_ai_agents_e2e.py
+GET,/ai-writers/1,admin,tests/test_ai_agents_e2e.py
+GET,/ai-judges/2,admin,tests/test_ai_agents_e2e.py
+PUT,/ai-writers/1,admin,tests/test_ai_agents_e2e.py
+PUT,/ai-judges/2,admin,tests/test_ai_agents_e2e.py
+DELETE,/ai-writers/1,admin,tests/test_ai_agents_e2e.py
+DELETE,/ai-judges/2,admin,tests/test_ai_agents_e2e.py
+GET,/ai-writers/,user_id=21,tests/test_ai_agents_e2e.py
+GET,/ai-writers/1,user_id=21,tests/test_ai_agents_e2e.py
+DELETE,/ai-judges/1,user_id=21,tests/test_ai_agents_e2e.py
+GET,/ai-judges/,user_id=21,tests/test_ai_agents_e2e.py
+GET,/ai-writers/,user_id=22,tests/test_ai_agents_e2e.py
+DELETE,/ai-writers/2,user_id=22,tests/test_ai_agents_e2e.py
+GET,/ai-writers/,user_id=22,tests/test_ai_agents_e2e.py
+GET,/ai-judges/,user_id=22,tests/test_ai_agents_e2e.py
+GET,/ai-judges/2,user_id=22,tests/test_ai_agents_e2e.py
+POST,/auth/token,username=Hefesto,tests/test_ai_agents_e2e.py
+GET,/auth/users/me,username=Hefesto,tests/test_ai_agents_e2e.py
+DELETE,/ai-writers/1,admin,tests/test_ai_agents_e2e.py
+DELETE,/ai-writers/2,admin,tests/test_ai_agents_e2e.py
+DELETE,/ai-judges/1,admin,tests/test_ai_agents_e2e.py
+DELETE,/ai-judges/2,admin,tests/test_ai_agents_e2e.py
+DELETE,/admin/users/21,admin,tests/test_ai_agents_e2e.py
+DELETE,/admin/users/22,admin,tests/test_ai_agents_e2e.py
+GET,/ai-writers/1,admin,tests/test_ai_agents_e2e.py
+GET,/ai-writers/2,admin,tests/test_ai_agents_e2e.py
+GET,/ai-judges/1,admin,tests/test_ai_agents_e2e.py
+GET,/ai-judges/2,admin,tests/test_ai_agents_e2e.py
+GET,/ai-writers/,admin,tests/test_ai_agents_e2e.py
+GET,/ai-judges/,admin,tests/test_ai_agents_e2e.py
+POST,/auth/token,username=Hefesto,tests/test_ai_costs_e2e.py
+POST,/auth/token,username=test_user1,tests/test_ai_costs_e2e.py
+POST,/auth/register,"username=test_user1,email=test_user1@test.plumas.top",tests/test_ai_costs_e2e.py
+POST,/auth/token,username=test_user1,tests/test_ai_costs_e2e.py
+GET,/auth/users/me,,tests/test_ai_costs_e2e.py
+POST,/ai-writers/,"user_id=21, name=TestWriter_67e270bf-cab3-46c2-a05c-5e6ff7d895d3",tests/test_ai_costs_e2e.py
+POST,/ai-judges/,"user_id=21, name=TestJudge_4d0c8e02-9fb0-4717-b291-ce33bfa2a495",tests/test_ai_costs_e2e.py
+POST,/contests/,"user_id=21, title=E2E Test Contest b11f3fc5-b9bd-48c8-aff8-683fae87fb7a",tests/test_ai_costs_e2e.py
+POST,/ai-writers/1/generate,"user_id=21, writer_id=1, trigger=insufficient_credits",tests/test_ai_costs_e2e.py
+POST,/auth/token,username=Hefesto,tests/test_ai_costs_e2e.py
+PUT,/admin/users/21/credits,"admin_triggered=True, target_user_id=21, amount=100",tests/test_ai_costs_e2e.py
+POST,/ai-writers/1/generate,"user_id=21, writer_id=1, trigger=sufficient_credits",tests/test_ai_costs_e2e.py
+POST,/auth/token,username=Hefesto,tests/test_ai_costs_e2e.py
+GET,/auth/users/me,user_id=21,tests/test_ai_costs_e2e.py
+GET,/admin/users/21/credit-history,"admin_triggered=True, target_user_id=21",tests/test_ai_costs_e2e.py
+POST,/contests/2/submissions,"user_id=21, contest_id=2",tests/test_ai_costs_e2e.py
+POST,/ai-judges/1/evaluate,"user_id=21, judge_id=1, contest_id=2",tests/test_ai_costs_e2e.py
+POST,/auth/token,username=Hefesto,tests/test_ai_costs_e2e.py
+GET,/auth/users/me,user_id=21,tests/test_ai_costs_e2e.py
+GET,/admin/users/21/credit-history,"admin_triggered=True, target_user_id=21",tests/test_ai_costs_e2e.py
+POST,/auth/token,username=Hefesto,tests/test_ai_costs_e2e.py
+GET,/admin/users/21/credit-history,"admin_triggered=True, target_user_id=21",tests/test_ai_costs_e2e.py
+POST,/auth/token,username=Hefesto,tests/test_ai_costs_e2e.py
+POST,/auth/token,username=test_user2,tests/test_ai_costs_e2e.py
+POST,/auth/register,"username=test_user2,email=test_user2@test.plumas.top",tests/test_ai_costs_e2e.py
+POST,/auth/token,username=test_user2,tests/test_ai_costs_e2e.py
+GET,/auth/users/me,,tests/test_ai_costs_e2e.py
+POST,/ai-writers/1/generate,"user_id=22, writer_id=1, trigger=forbidden_attempt",tests/test_ai_costs_e2e.py
+POST,/ai-judges/1/evaluate,"user_id=22, judge_id=1, trigger=forbidden_attempt",tests/test_ai_costs_e2e.py
+DELETE,/ai-writers/1,user_id=21,tests/test_ai_costs_e2e.py
+DELETE,/ai-judges/1,user_id=21,tests/test_ai_costs_e2e.py
+GET,/ai-writers/1,"user_id=21, check=deleted",tests/test_ai_costs_e2e.py
+GET,/ai-judges/1,"user_id=21, check=deleted",tests/test_ai_costs_e2e.py
+POST,/auth/token,username=Hefesto,tests/test_ai_costs_e2e.py
+GET,/admin/users/21/credit-history,"admin_triggered=True, target_user_id=21, timing=before_delete",tests/test_ai_costs_e2e.py
+DELETE,/admin/users/21,"admin_triggered=True, target_user_id=21",tests/test_ai_costs_e2e.py
+GET,/admin/users/21/credit-history,"admin_triggered=True, target_user_id=21, timing=after_delete",tests/test_ai_costs_e2e.py
+POST,/auth/token,username=Hefesto,tests/test_ai_costs_e2e.py
+DELETE,/admin/users/22,"admin_triggered=True, target_user_id=22",tests/test_ai_costs_e2e.py
+POST,/auth/register,username=usertest,tests/test_workflow_e2e.py
+POST,/auth/token,username=usertest,tests/test_workflow_e2e.py
+GET,/auth/users/me,,tests/test_workflow_e2e.py
+GET,/contests/,user_id=21,tests/test_workflow_e2e.py
+POST,/contests/,"user_id=21, title=User1 Test Contest E2E",tests/test_workflow_e2e.py
+PUT,/contests/2,user_id=21,tests/test_workflow_e2e.py
+POST,/contests/2/check-password,"user_id=21, result=fail",tests/test_workflow_e2e.py
+POST,/contests/2/check-password,"user_id=21, result=success",tests/test_workflow_e2e.py
+POST,/contests/2/submissions,user_id=21,tests/test_workflow_e2e.py
+GET,/contests/2/submissions,user_id=21,tests/test_workflow_e2e.py
+POST,/auth/register,username=usertest2,tests/test_workflow_e2e.py
+POST,/auth/token,username=usertest2,tests/test_workflow_e2e.py
+GET,/auth/users/me,,tests/test_workflow_e2e.py
+GET,/contests/,user_id=22,tests/test_workflow_e2e.py
+POST,/contests/,"user_id=22, title=User2 Test Contest E2E",tests/test_workflow_e2e.py
+PUT,/contests/3,user_id=22,tests/test_workflow_e2e.py
+POST,/contests/3/check-password,"user_id=22, result=fail",tests/test_workflow_e2e.py
+POST,/contests/3/check-password,"user_id=22, result=success",tests/test_workflow_e2e.py
+POST,/contests/3/submissions,user_id=22,tests/test_workflow_e2e.py
+GET,/contests/3/submissions,user_id=22,tests/test_workflow_e2e.py
+DELETE,/contests/2,"user_id=22, trigger=forbidden_attempt",tests/test_workflow_e2e.py
+POST,/auth/token,username=usertest,tests/test_workflow_e2e.py
+DELETE,/contests/2,user_id=21,tests/test_workflow_e2e.py
+DELETE,/contests/3,"user_id=21, trigger=forbidden_attempt",tests/test_workflow_e2e.py
+POST,/auth/token,username=Hefesto,tests/test_workflow_e2e.py
+DELETE,/admin/users/21,"admin_triggered=True, target_user_id=21",tests/test_workflow_e2e.py
+DELETE,/admin/users/22,"admin_triggered=True, target_user_id=22",tests/test_workflow_e2e.py
+DELETE,/contests/3,"admin_triggered=True, target_contest_id=3",tests/test_workflow_e2e.py

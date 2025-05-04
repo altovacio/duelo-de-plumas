@@ -3,6 +3,7 @@ import pytest
 import os
 from dotenv import load_dotenv
 import time # Import time for potential delays/retries if needed
+import csv
 
 # Load environment variables from .env file
 load_dotenv()
@@ -10,6 +11,26 @@ load_dotenv()
 BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000") # Default if not set
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
+
+# Helper function to log endpoint usage
+def log_endpoint(method, endpoint, variables=None):
+    # Use a relative path from the workspace root
+    log_file_path = './endpoints_used.csv'
+    # Check if file exists to write header
+    file_exists = os.path.isfile(log_file_path)
+    with open(log_file_path, 'a', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        # Write header if file is new
+        if not file_exists or os.path.getsize(log_file_path) == 0:
+             writer.writerow(["Method", "Endpoint", "Variables", "File"])
+        
+        row_data = [method, endpoint]
+        if variables:
+            row_data.append(variables)
+        else:
+            row_data.append("")
+        row_data.append("tests/test_ai_agents_e2e.py") # Hardcoded filename
+        writer.writerow(row_data)
 
 # Helper function to get auth headers
 def get_auth_headers(token: str):
@@ -20,6 +41,7 @@ def register_user(username, email, password):
     user_data = {"username": username, "email": email, "password": password}
     print(f"Registering User: {username}")
     response = requests.post(f"{BASE_URL}/auth/register", json=user_data)
+    log_endpoint("POST", "/auth/register", f"username={username}")
     print(f"Registration Response ({username}): {response.status_code}, {response.text[:100]}...")
     if response.status_code == 400 and (
         'already registered' in response.text.lower() or
@@ -39,6 +61,7 @@ def login_user(username, password):
     login_data = {"username": username, "password": password}
     print(f"Logging in User: {username}")
     response = requests.post(f"{BASE_URL}/auth/token", data=login_data)
+    log_endpoint("POST", "/auth/token", f"username={username}")
     print(f"Login Response ({username}): {response.status_code}")
     if response.status_code != 200:
          pytest.fail(f"Login failed for user {username}: {response.status_code} - {response.text}")
@@ -49,6 +72,7 @@ def login_user(username, password):
 
     # Get User ID
     response_me = requests.get(f"{BASE_URL}/auth/users/me", headers=headers)
+    log_endpoint("GET", "/auth/users/me", f"username={username}")
     print(f"Get User Info Response ({username}): {response_me.status_code}")
     assert response_me.status_code == 200
     user_id = response_me.json().get("id")
@@ -197,6 +221,7 @@ def test_ai_agent_user_admin_workflow():
         # a) List Own AI Writers (User 1 - Expect empty)
         print("User 1: Listing initial AI Writers...")
         response = requests.get(f"{BASE_URL}/ai-writers/", headers=headers_user1)
+        log_endpoint("GET", "/ai-writers/", f"user_id={user1_id}")
         print(f"User 1 List Writers (Initial): {response.status_code}, {response.text[:100]}...")
         assert response.status_code == 200
         assert response.json() == []
@@ -209,6 +234,7 @@ def test_ai_agent_user_admin_workflow():
         }
         print(f"User 1: Creating AI Writer '{writer1_data['name']}'...")
         response = requests.post(f"{BASE_URL}/ai-writers/", headers=headers_user1, json=writer1_data)
+        log_endpoint("POST", "/ai-writers/", f"user_id={user1_id}")
         print(f"User 1 Create Writer Response: {response.status_code}, {response.text[:100]}...")
         assert response.status_code == 201
         writer1_details = response.json()
@@ -219,6 +245,7 @@ def test_ai_agent_user_admin_workflow():
         # c) List Own AI Writers (User 1 - Expect `writer1`)
         print("User 1: Listing AI Writers again...")
         response = requests.get(f"{BASE_URL}/ai-writers/", headers=headers_user1)
+        log_endpoint("GET", "/ai-writers/", f"user_id={user1_id}")
         print(f"User 1 List Writers (Post-Create): {response.status_code}")
         assert response.status_code == 200
         writers_list = response.json()
@@ -229,6 +256,7 @@ def test_ai_agent_user_admin_workflow():
         # d) View Own AI Writer Details (User 1 - `writer1`)
         print(f"User 1: Viewing AI Writer {user1_writer_id} details...")
         response = requests.get(f"{BASE_URL}/ai-writers/{user1_writer_id}", headers=headers_user1)
+        log_endpoint("GET", f"/ai-writers/{user1_writer_id}", f"user_id={user1_id}")
         print(f"User 1 View Writer {user1_writer_id} Response: {response.status_code}")
         assert response.status_code == 200
         details = response.json()
@@ -243,6 +271,7 @@ def test_ai_agent_user_admin_workflow():
         }
         print(f"User 1: Updating AI Writer {user1_writer_id}...")
         response = requests.put(f"{BASE_URL}/ai-writers/{user1_writer_id}", headers=headers_user1, json=writer1_update_data)
+        log_endpoint("PUT", f"/ai-writers/{user1_writer_id}", f"user_id={user1_id}")
         print(f"User 1 Update Writer {user1_writer_id} Response: {response.status_code}")
         assert response.status_code == 200
         updated_details = response.json()
@@ -252,6 +281,7 @@ def test_ai_agent_user_admin_workflow():
         # f) View Updated AI Writer Details (User 1 - `writer1`)
         print(f"User 1: Viewing updated AI Writer {user1_writer_id} details...")
         response = requests.get(f"{BASE_URL}/ai-writers/{user1_writer_id}", headers=headers_user1)
+        log_endpoint("GET", f"/ai-writers/{user1_writer_id}", f"user_id={user1_id}")
         print(f"User 1 View Updated Writer {user1_writer_id} Response: {response.status_code}")
         assert response.status_code == 200
         details = response.json()
@@ -265,6 +295,7 @@ def test_ai_agent_user_admin_workflow():
         # h) List Own AI Writers (User 2 - Expect empty)
         print("User 2: Listing initial AI Writers...")
         response = requests.get(f"{BASE_URL}/ai-writers/", headers=headers_user2)
+        log_endpoint("GET", "/ai-writers/", f"user_id={user2_id}")
         print(f"User 2 List Writers (Initial): {response.status_code}")
         assert response.status_code == 200
         assert response.json() == []
@@ -272,12 +303,14 @@ def test_ai_agent_user_admin_workflow():
         # i) Try View User 1's AI Writer (User 2 - Expect 403)
         print(f"User 2: Attempting to view User 1's Writer {user1_writer_id}...")
         response = requests.get(f"{BASE_URL}/ai-writers/{user1_writer_id}", headers=headers_user2)
+        log_endpoint("GET", f"/ai-writers/{user1_writer_id}", f"user_id={user2_id}")
         print(f"User 2 View User 1 Writer Response: {response.status_code}")
         assert response.status_code == 403 # Forbidden
 
         # j) Try Update User 1's AI Writer (User 2 - Expect 403)
         print(f"User 2: Attempting to update User 1's Writer {user1_writer_id}...")
         response = requests.put(f"{BASE_URL}/ai-writers/{user1_writer_id}", headers=headers_user2, json={"description": "User 2 trying to update"})
+        log_endpoint("PUT", f"/ai-writers/{user1_writer_id}", f"user_id={user2_id}")
         print(f"User 2 Update User 1 Writer Response: {response.status_code}")
         assert response.status_code == 403 # Forbidden
 
@@ -289,6 +322,7 @@ def test_ai_agent_user_admin_workflow():
         }
         print(f"User 2: Creating AI Writer '{writer2_data['name']}'...")
         response = requests.post(f"{BASE_URL}/ai-writers/", headers=headers_user2, json=writer2_data)
+        log_endpoint("POST", "/ai-writers/", f"user_id={user2_id}")
         print(f"User 2 Create Writer Response: {response.status_code}, {response.text[:100]}...")
         assert response.status_code == 201
         writer2_details = response.json()
@@ -299,6 +333,7 @@ def test_ai_agent_user_admin_workflow():
         # l) List Own AI Writers (User 2 - Expect `writer2`)
         print("User 2: Listing AI Writers again...")
         response = requests.get(f"{BASE_URL}/ai-writers/", headers=headers_user2)
+        log_endpoint("GET", "/ai-writers/", f"user_id={user2_id}")
         print(f"User 2 List Writers (Post-Create): {response.status_code}")
         assert response.status_code == 200
         writers_list = response.json()
@@ -309,6 +344,7 @@ def test_ai_agent_user_admin_workflow():
         # m) Try Delete User 1's AI Writer (User 2 - Expect 403)
         print(f"User 2: Attempting to delete User 1's Writer {user1_writer_id}...")
         response = requests.delete(f"{BASE_URL}/ai-writers/{user1_writer_id}", headers=headers_user2)
+        log_endpoint("DELETE", f"/ai-writers/{user1_writer_id}", f"user_id={user2_id}")
         print(f"User 2 Delete User 1 Writer Response: {response.status_code}")
         assert response.status_code == 403 # Forbidden
 
@@ -317,6 +353,7 @@ def test_ai_agent_user_admin_workflow():
         # n) List Own AI Judges (User 1 - Expect empty)
         print("User 1: Listing initial AI Judges...")
         response = requests.get(f"{BASE_URL}/ai-judges/", headers=headers_user1)
+        log_endpoint("GET", "/ai-judges/", f"user_id={user1_id}")
         print(f"User 1 List Judges (Initial): {response.status_code}")
         assert response.status_code == 200
         assert response.json() == []
@@ -329,6 +366,7 @@ def test_ai_agent_user_admin_workflow():
         }
         print(f"User 1: Creating AI Judge '{judge1_data['name']}'...")
         response = requests.post(f"{BASE_URL}/ai-judges/", headers=headers_user1, json=judge1_data)
+        log_endpoint("POST", "/ai-judges/", f"user_id={user1_id}")
         print(f"User 1 Create Judge Response: {response.status_code}, {response.text[:100]}...")
         assert response.status_code == 201
         judge1_details = response.json()
@@ -339,6 +377,7 @@ def test_ai_agent_user_admin_workflow():
         # p) List Own AI Judges (User 1 - Expect `judge1`)
         print("User 1: Listing AI Judges again...")
         response = requests.get(f"{BASE_URL}/ai-judges/", headers=headers_user1)
+        log_endpoint("GET", "/ai-judges/", f"user_id={user1_id}")
         print(f"User 1 List Judges (Post-Create): {response.status_code}")
         assert response.status_code == 200
         judges_list = response.json()
@@ -348,6 +387,7 @@ def test_ai_agent_user_admin_workflow():
         # q) View Own AI Judge Details (User 1 - `judge1`)
         print(f"User 1: Viewing AI Judge {user1_judge_id} details...")
         response = requests.get(f"{BASE_URL}/ai-judges/{user1_judge_id}", headers=headers_user1)
+        log_endpoint("GET", f"/ai-judges/{user1_judge_id}", f"user_id={user1_id}")
         print(f"User 1 View Judge {user1_judge_id} Response: {response.status_code}")
         assert response.status_code == 200
         details = response.json()
@@ -358,6 +398,7 @@ def test_ai_agent_user_admin_workflow():
         judge1_update_data = {"name": f"User1 Judge Omega E2E {timestamp} (Updated)"}
         print(f"User 1: Updating AI Judge {user1_judge_id}...")
         response = requests.put(f"{BASE_URL}/ai-judges/{user1_judge_id}", headers=headers_user1, json=judge1_update_data)
+        log_endpoint("PUT", f"/ai-judges/{user1_judge_id}", f"user_id={user1_id}")
         print(f"User 1 Update Judge {user1_judge_id} Response: {response.status_code}")
         assert response.status_code == 200
         assert response.json()["name"] == judge1_update_data["name"]
@@ -365,6 +406,7 @@ def test_ai_agent_user_admin_workflow():
         # s) View Updated AI Judge Details (User 1 - `judge1`)
         print(f"User 1: Viewing updated AI Judge {user1_judge_id} details...")
         response = requests.get(f"{BASE_URL}/ai-judges/{user1_judge_id}", headers=headers_user1)
+        log_endpoint("GET", f"/ai-judges/{user1_judge_id}", f"user_id={user1_id}")
         print(f"User 1 View Updated Judge {user1_judge_id} Response: {response.status_code}")
         assert response.status_code == 200
         assert response.json()["name"] == judge1_update_data["name"]
@@ -376,6 +418,7 @@ def test_ai_agent_user_admin_workflow():
         # u) List Own AI Judges (User 2 - Expect empty)
         print("User 2: Listing initial AI Judges...")
         response = requests.get(f"{BASE_URL}/ai-judges/", headers=headers_user2)
+        log_endpoint("GET", "/ai-judges/", f"user_id={user2_id}")
         print(f"User 2 List Judges (Initial): {response.status_code}")
         assert response.status_code == 200
         assert response.json() == []
@@ -383,12 +426,14 @@ def test_ai_agent_user_admin_workflow():
         # v) Try View User 1's AI Judge (User 2 - Expect 403)
         print(f"User 2: Attempting to view User 1's Judge {user1_judge_id}...")
         response = requests.get(f"{BASE_URL}/ai-judges/{user1_judge_id}", headers=headers_user2)
+        log_endpoint("GET", f"/ai-judges/{user1_judge_id}", f"user_id={user2_id}")
         print(f"User 2 View User 1 Judge Response: {response.status_code}")
         assert response.status_code == 403
 
         # w) Try Update User 1's AI Judge (User 2 - Expect 403)
         print(f"User 2: Attempting to update User 1's Judge {user1_judge_id}...")
         response = requests.put(f"{BASE_URL}/ai-judges/{user1_judge_id}", headers=headers_user2, json={"description": "User 2 trying to update"})
+        log_endpoint("PUT", f"/ai-judges/{user1_judge_id}", f"user_id={user2_id}")
         print(f"User 2 Update User 1 Judge Response: {response.status_code}")
         assert response.status_code == 403
 
@@ -400,6 +445,7 @@ def test_ai_agent_user_admin_workflow():
         }
         print(f"User 2: Creating AI Judge '{judge2_data['name']}'...")
         response = requests.post(f"{BASE_URL}/ai-judges/", headers=headers_user2, json=judge2_data)
+        log_endpoint("POST", "/ai-judges/", f"user_id={user2_id}")
         print(f"User 2 Create Judge Response: {response.status_code}, {response.text[:100]}...")
         assert response.status_code == 201
         judge2_details = response.json()
@@ -410,6 +456,7 @@ def test_ai_agent_user_admin_workflow():
         # y) List Own AI Judges (User 2 - Expect `judge2`)
         print("User 2: Listing AI Judges again...")
         response = requests.get(f"{BASE_URL}/ai-judges/", headers=headers_user2)
+        log_endpoint("GET", "/ai-judges/", f"user_id={user2_id}")
         print(f"User 2 List Judges (Post-Create): {response.status_code}")
         assert response.status_code == 200
         judges_list = response.json()
@@ -419,6 +466,7 @@ def test_ai_agent_user_admin_workflow():
         # z) Try Delete User 1's AI Judge (User 2 - Expect 403)
         print(f"User 2: Attempting to delete User 1's Judge {user1_judge_id}...")
         response = requests.delete(f"{BASE_URL}/ai-judges/{user1_judge_id}", headers=headers_user2)
+        log_endpoint("DELETE", f"/ai-judges/{user1_judge_id}", f"user_id={user2_id}")
         print(f"User 2 Delete User 1 Judge Response: {response.status_code}")
         assert response.status_code == 403
 
@@ -427,6 +475,7 @@ def test_ai_agent_user_admin_workflow():
         # aa) List All AI Writers (Admin)
         print("Admin: Listing all AI Writers...")
         response = requests.get(f"{BASE_URL}/ai-writers/", headers=headers_admin)
+        log_endpoint("GET", "/ai-writers/", "admin")
         print(f"Admin List All Writers Response: {response.status_code}")
         assert response.status_code == 200
         all_writers = response.json()
@@ -438,6 +487,7 @@ def test_ai_agent_user_admin_workflow():
         # ab) List All AI Judges (Admin)
         print("Admin: Listing all AI Judges...")
         response = requests.get(f"{BASE_URL}/ai-judges/", headers=headers_admin)
+        log_endpoint("GET", "/ai-judges/", "admin")
         print(f"Admin List All Judges Response: {response.status_code}")
         assert response.status_code == 200
         all_judges = response.json()
@@ -449,6 +499,7 @@ def test_ai_agent_user_admin_workflow():
         # ac) View User 1's AI Writer Details (Admin)
         print(f"Admin: Viewing User 1's Writer {user1_writer_id}...")
         response = requests.get(f"{BASE_URL}/ai-writers/{user1_writer_id}", headers=headers_admin)
+        log_endpoint("GET", f"/ai-writers/{user1_writer_id}", "admin")
         print(f"Admin View User 1 Writer {user1_writer_id} Response: {response.status_code}")
         assert response.status_code == 200
         assert response.json()["owner_id"] == user1_id
@@ -456,6 +507,7 @@ def test_ai_agent_user_admin_workflow():
         # ad) View User 2's AI Judge Details (Admin)
         print(f"Admin: Viewing User 2's Judge {user2_judge_id}...")
         response = requests.get(f"{BASE_URL}/ai-judges/{user2_judge_id}", headers=headers_admin)
+        log_endpoint("GET", f"/ai-judges/{user2_judge_id}", "admin")
         print(f"Admin View User 2 Judge {user2_judge_id} Response: {response.status_code}")
         assert response.status_code == 200
         assert response.json()["owner_id"] == user2_id
@@ -464,6 +516,7 @@ def test_ai_agent_user_admin_workflow():
         admin_writer_update = {"description": "Admin updated description."}
         print(f"Admin: Updating User 1's Writer {user1_writer_id}...")
         response = requests.put(f"{BASE_URL}/ai-writers/{user1_writer_id}", headers=headers_admin, json=admin_writer_update)
+        log_endpoint("PUT", f"/ai-writers/{user1_writer_id}", "admin")
         print(f"Admin Update User 1 Writer {user1_writer_id} Response: {response.status_code}")
         assert response.status_code == 200
         assert response.json()["description"] == admin_writer_update["description"]
@@ -472,6 +525,7 @@ def test_ai_agent_user_admin_workflow():
         admin_judge_update = {"description": "Admin updated judge description."}
         print(f"Admin: Updating User 2's Judge {user2_judge_id}...")
         response = requests.put(f"{BASE_URL}/ai-judges/{user2_judge_id}", headers=headers_admin, json=admin_judge_update)
+        log_endpoint("PUT", f"/ai-judges/{user2_judge_id}", "admin")
         print(f"Admin Update User 2 Judge {user2_judge_id} Response: {response.status_code}")
         assert response.status_code == 200
         assert response.json()["description"] == admin_judge_update["description"]
@@ -481,12 +535,14 @@ def test_ai_agent_user_admin_workflow():
         # aj) Delete User 1's AI Writer (Admin)
         print(f"Admin: Deleting User 1's Writer {user1_writer_id}...")
         response = requests.delete(f"{BASE_URL}/ai-writers/{user1_writer_id}", headers=headers_admin)
+        log_endpoint("DELETE", f"/ai-writers/{user1_writer_id}", "admin")
         print(f"Admin Delete User 1 Writer {user1_writer_id} Response: {response.status_code}")
         assert response.status_code == 204
 
         # ak) Delete User 2's AI Judge (Admin)
         print(f"Admin: Deleting User 2's Judge {user2_judge_id}...")
         response = requests.delete(f"{BASE_URL}/ai-judges/{user2_judge_id}", headers=headers_admin)
+        log_endpoint("DELETE", f"/ai-judges/{user2_judge_id}", "admin")
         print(f"Admin Delete User 2 Judge {user2_judge_id} Response: {response.status_code}")
         assert response.status_code == 204
 
@@ -495,6 +551,7 @@ def test_ai_agent_user_admin_workflow():
         # al) List Own AI Writers (Expect empty)
         print("User 1: Listing AI Writers (expect empty after admin delete)...")
         response = requests.get(f"{BASE_URL}/ai-writers/", headers=headers_user1)
+        log_endpoint("GET", "/ai-writers/", f"user_id={user1_id}")
         print(f"User 1 List Writers Final: {response.status_code}")
         assert response.status_code == 200
         assert response.json() == []
@@ -502,18 +559,21 @@ def test_ai_agent_user_admin_workflow():
         # am) Try View Deleted AI Writer (Expect 404)
         print(f"User 1: Attempting to view deleted Writer {user1_writer_id}...")
         response = requests.get(f"{BASE_URL}/ai-writers/{user1_writer_id}", headers=headers_user1)
+        log_endpoint("GET", f"/ai-writers/{user1_writer_id}", f"user_id={user1_id}")
         print(f"User 1 View Deleted Writer Response: {response.status_code}")
         assert response.status_code == 404
 
         # an) Delete Own AI Judge (Expect success)
         print(f"User 1: Deleting own Judge {user1_judge_id}...")
         response = requests.delete(f"{BASE_URL}/ai-judges/{user1_judge_id}", headers=headers_user1)
+        log_endpoint("DELETE", f"/ai-judges/{user1_judge_id}", f"user_id={user1_id}")
         print(f"User 1 Delete Own Judge Response: {response.status_code}")
         assert response.status_code == 204
 
         # ao) List Own AI Judges (Expect empty)
         print("User 1: Listing AI Judges (expect empty after self delete)...")
         response = requests.get(f"{BASE_URL}/ai-judges/", headers=headers_user1)
+        log_endpoint("GET", "/ai-judges/", f"user_id={user1_id}")
         print(f"User 1 List Judges Final: {response.status_code}")
         assert response.status_code == 200
         assert response.json() == []
@@ -523,6 +583,7 @@ def test_ai_agent_user_admin_workflow():
         # ap) List Own AI Writers (Expect `writer2`)
         print("User 2: Listing AI Writers (expect writer2)...")
         response = requests.get(f"{BASE_URL}/ai-writers/", headers=headers_user2)
+        log_endpoint("GET", "/ai-writers/", f"user_id={user2_id}")
         print(f"User 2 List Writers (Before Delete): {response.status_code}")
         assert response.status_code == 200
         writers_list = response.json()
@@ -532,12 +593,14 @@ def test_ai_agent_user_admin_workflow():
         # aq) Delete Own AI Writer (Expect success)
         print(f"User 2: Deleting own Writer {user2_writer_id}...")
         response = requests.delete(f"{BASE_URL}/ai-writers/{user2_writer_id}", headers=headers_user2)
+        log_endpoint("DELETE", f"/ai-writers/{user2_writer_id}", f"user_id={user2_id}")
         print(f"User 2 Delete Own Writer Response: {response.status_code}")
         assert response.status_code == 204
 
         # ar) List Own AI Writers (Expect empty)
         print("User 2: Listing AI Writers (expect empty after self delete)...")
         response = requests.get(f"{BASE_URL}/ai-writers/", headers=headers_user2)
+        log_endpoint("GET", "/ai-writers/", f"user_id={user2_id}")
         print(f"User 2 List Writers Final: {response.status_code}")
         assert response.status_code == 200
         assert response.json() == []
@@ -545,6 +608,7 @@ def test_ai_agent_user_admin_workflow():
         # as) List Own AI Judges (Expect empty)
         print("User 2: Listing AI Judges (expect empty after admin delete)...")
         response = requests.get(f"{BASE_URL}/ai-judges/", headers=headers_user2)
+        log_endpoint("GET", "/ai-judges/", f"user_id={user2_id}")
         print(f"User 2 List Judges Final: {response.status_code}")
         assert response.status_code == 200
         assert response.json() == []
@@ -552,6 +616,7 @@ def test_ai_agent_user_admin_workflow():
         # at) Try View Deleted AI Judge (Expect 404)
         print(f"User 2: Attempting to view deleted Judge {user2_judge_id}...")
         response = requests.get(f"{BASE_URL}/ai-judges/{user2_judge_id}", headers=headers_user2)
+        log_endpoint("GET", f"/ai-judges/{user2_judge_id}", f"user_id={user2_id}")
         print(f"User 2 View Deleted Judge Response: {response.status_code}")
         assert response.status_code == 404
 
@@ -578,6 +643,7 @@ def test_ai_agent_user_admin_workflow():
         for agent_id, endpoint_prefix in agent_endpoints:
             if agent_id:
                  response = requests.delete(f"{BASE_URL}{endpoint_prefix}/{agent_id}", headers=headers_admin)
+                 log_endpoint("DELETE", f"{endpoint_prefix}/{agent_id}", "admin")
                  print(f"Admin cleanup delete {endpoint_prefix}/{agent_id}: {response.status_code}")
                  # We expect 404 if already deleted, 204 if successful now
                  assert response.status_code in [204, 404]
@@ -586,6 +652,7 @@ def test_ai_agent_user_admin_workflow():
         if user1_id:
             print(f"Admin: Deleting User 1 (ID: {user1_id}) via Admin endpoint...")
             response = requests.delete(f"{BASE_URL}/admin/users/{user1_id}", headers=headers_admin)
+            log_endpoint("DELETE", f"/admin/users/{user1_id}", "admin")
             print(f"Admin Delete User 1 Response: {response.status_code}")
             assert response.status_code in [204, 404]
         else:
@@ -595,6 +662,7 @@ def test_ai_agent_user_admin_workflow():
         if user2_id:
             print(f"Admin: Deleting User 2 (ID: {user2_id}) via Admin endpoint...")
             response = requests.delete(f"{BASE_URL}/admin/users/{user2_id}", headers=headers_admin)
+            log_endpoint("DELETE", f"/admin/users/{user2_id}", "admin")
             print(f"Admin Delete User 2 Response: {response.status_code}")
             assert response.status_code in [204, 404]
         else:
@@ -606,12 +674,14 @@ def test_ai_agent_user_admin_workflow():
         for agent_id, endpoint_prefix in agent_endpoints:
             if agent_id:
                  verify_response = requests.get(f"{BASE_URL}{endpoint_prefix}/{agent_id}", headers=headers_admin)
+                 log_endpoint("GET", f"{endpoint_prefix}/{agent_id}", "admin")
                  print(f"Admin verify GET {endpoint_prefix}/{agent_id}: {verify_response.status_code}")
                  assert verify_response.status_code == 404
 
         # az) List All AI Writers (Admin - Final Check)
         print("Admin: Listing all AI Writers (final check)...")
         response = requests.get(f"{BASE_URL}/ai-writers/", headers=headers_admin)
+        log_endpoint("GET", "/ai-writers/", "admin")
         print(f"Admin List All Writers Final Response: {response.status_code}")
         assert response.status_code == 200
         final_writers = [w for w in response.json() if w.get('owner_id') in [user1_id, user2_id]]
@@ -621,6 +691,7 @@ def test_ai_agent_user_admin_workflow():
         # ba) List All AI Judges (Admin - Final Check)
         print("Admin: Listing all AI Judges (final check)...")
         response = requests.get(f"{BASE_URL}/ai-judges/", headers=headers_admin)
+        log_endpoint("GET", "/ai-judges/", "admin")
         print(f"Admin List All Judges Final Response: {response.status_code}")
         assert response.status_code == 200
         final_judges = [j for j in response.json() if j.get('owner_id') in [user1_id, user2_id]]

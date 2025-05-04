@@ -33,6 +33,7 @@ Covers:
 import pytest
 import httpx
 import os # Added for environment variables
+import csv # Added for logging
 from uuid import uuid4
 from dotenv import load_dotenv # Added for .env loading
 import pytest_asyncio # Added import
@@ -45,19 +46,43 @@ BASE_URL = "http://localhost:8000"
 # Define the model ID used for testing consistently
 TEST_MODEL_ID = "claude-3-5-haiku-latest"
 
+# Helper function to log endpoint usage
+def log_endpoint(method, endpoint, variables=None):
+    # Use a relative path from the workspace root
+    log_file_path = './endpoints_used.csv'
+    # Check if file exists to write header
+    file_exists = os.path.isfile(log_file_path)
+    with open(log_file_path, 'a', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        # Write header if file is new
+        if not file_exists or os.path.getsize(log_file_path) == 0:
+             writer.writerow(["Method", "Endpoint", "Variables", "File"])
+        
+        row_data = [method, endpoint]
+        if variables:
+            row_data.append(variables)
+        else:
+            row_data.append("")
+        row_data.append("tests/test_ai_costs_e2e.py") # Hardcoded filename
+        writer.writerow(row_data)
+
 # --- Helper Functions ---
 
 async def login_user_helper(client: httpx.AsyncClient, username: str, password: str):
     """Helper to login a user and get token."""
     login_data = {"username": username, "password": password}
     # Using form data as per OAuth2 standard for /token endpoint
-    response = await client.post(f"{BASE_URL}/auth/token", data=login_data)
+    endpoint = f"{BASE_URL}/auth/token"
+    response = await client.post(endpoint, data=login_data)
+    log_endpoint("POST", "/auth/token", f"username={username}")
     return response
 
 async def get_user_me(client: httpx.AsyncClient, token: str):
     """Helper to get user details from /me endpoint."""
     headers = {"Authorization": f"Bearer {token}"}
-    response = await client.get(f"{BASE_URL}/auth/users/me", headers=headers)
+    endpoint = f"{BASE_URL}/auth/users/me"
+    response = await client.get(endpoint, headers=headers)
+    log_endpoint("GET", "/auth/users/me")
     return response
 
 async def ensure_user_deleted_and_registered(
@@ -101,6 +126,7 @@ async def ensure_user_deleted_and_registered(
         admin_headers = {"Authorization": f"Bearer {admin_token}"}
         delete_url = f"{BASE_URL}/admin/users/{user_id_to_delete}"
         delete_response = await client.delete(delete_url, headers=admin_headers)
+        log_endpoint("DELETE", f"/admin/users/{user_id_to_delete}", f"admin_triggered=True,target_user_id={user_id_to_delete}")
         if delete_response.status_code in [200, 204]:
             print(f" -> Successfully deleted user {user_id_to_delete}.")
         elif delete_response.status_code == 404:
@@ -117,7 +143,9 @@ async def ensure_user_deleted_and_registered(
     # 3. Register the user
     print(f" -> Attempting registration for '{username}'...")
     register_data = {"username": username, "email": email, "password": password}
-    register_response = await client.post(f"{BASE_URL}/auth/register", json=register_data)
+    register_endpoint = f"{BASE_URL}/auth/register"
+    register_response = await client.post(register_endpoint, json=register_data)
+    log_endpoint("POST", "/auth/register", f"username={username},email={email}")
     
     if register_response.status_code == 201:
         print(f" -> Successfully registered user '{username}'.")
@@ -251,7 +279,9 @@ class TestAICostsE2E:
             "personality_prompt": "You are a helpful test writer."
             # Assuming base_prompt is set by backend or not needed for creation
         }
-        response = await async_client.post(f"{BASE_URL}/ai-writers/", headers=headers, json=writer_data)
+        endpoint = f"{BASE_URL}/ai-writers/"
+        response = await async_client.post(endpoint, headers=headers, json=writer_data)
+        log_endpoint("POST", "/ai-writers/", f"user_id={TestAICostsE2E.user1_id}, name={writer_data['name']}")
         assert response.status_code == 201, f"Failed to create AI Writer: {response.status_code} {response.text}"
         writer_details = response.json()
         TestAICostsE2E.user1_writer_id = writer_details.get("id")
@@ -267,7 +297,9 @@ class TestAICostsE2E:
             "description": "A judge for E2E tests",
             "personality_prompt": "You are a fair test judge."
         }
-        response = await async_client.post(f"{BASE_URL}/ai-judges/", headers=headers, json=judge_data)
+        endpoint = f"{BASE_URL}/ai-judges/"
+        response = await async_client.post(endpoint, headers=headers, json=judge_data)
+        log_endpoint("POST", "/ai-judges/", f"user_id={TestAICostsE2E.user1_id}, name={judge_data['name']}")
         assert response.status_code == 201, f"Failed to create AI Judge: {response.status_code} {response.text}"
         judge_details = response.json()
         TestAICostsE2E.user1_judge_id = judge_details.get("id")
@@ -284,7 +316,9 @@ class TestAICostsE2E:
             "is_public": True 
             # Add other required fields if necessary based on ContestCreate schema
         }
-        response = await async_client.post(f"{BASE_URL}/contests/", headers=headers, json=contest_data)
+        endpoint = f"{BASE_URL}/contests/"
+        response = await async_client.post(endpoint, headers=headers, json=contest_data)
+        log_endpoint("POST", "/contests/", f"user_id={TestAICostsE2E.user1_id}, title={contest_data['title']}")
         assert response.status_code == 201, f"Failed to create Contest: {response.status_code} {response.text}"
         contest_details = response.json()
         TestAICostsE2E.user1_contest_id = contest_details.get("id")
@@ -296,12 +330,12 @@ class TestAICostsE2E:
         assert TestAICostsE2E.user1_token, "User 1 token not available"
         assert TestAICostsE2E.user1_writer_id, "User 1 writer ID not available"
         headers = {"Authorization": f"Bearer {TestAICostsE2E.user1_token}"}
-        # Assuming Claude Haiku is a valid, cheap model ID recognized by the backend
         generate_data = {"model_id": TEST_MODEL_ID} 
         
         url = f"{BASE_URL}/ai-writers/{TestAICostsE2E.user1_writer_id}/generate"
         print(f"Attempting generation (expect fail): POST {url}")
         response = await async_client.post(url, headers=headers, json=generate_data)
+        log_endpoint("POST", f"/ai-writers/{TestAICostsE2E.user1_writer_id}/generate", f"user_id={TestAICostsE2E.user1_id}, writer_id={TestAICostsE2E.user1_writer_id}, trigger=insufficient_credits")
         
         # Expect 402 Payment Required
         assert response.status_code == 402, f"Expected 402 Payment Required, but got {response.status_code}: {response.text}"
@@ -319,7 +353,7 @@ class TestAICostsE2E:
         url = f"{BASE_URL}/admin/users/{TestAICostsE2E.user1_id}/credits"
         print(f"Admin assigning {TestAICostsE2E.user1_credits_after_add} credits to User ID {TestAICostsE2E.user1_id}: PUT {url}")
         response = await async_client.put(url, headers=headers, json=credit_data)
-        
+        log_endpoint("PUT", f"/admin/users/{TestAICostsE2E.user1_id}/credits", f"admin_triggered=True, target_user_id={TestAICostsE2E.user1_id}, amount={TestAICostsE2E.user1_credits_after_add}")
         assert response.status_code == 200, f"Failed to assign credits: {response.status_code} {response.text}"
         updated_user_details = response.json()
         # Verify the balance in the response is correct
@@ -339,7 +373,7 @@ class TestAICostsE2E:
         url = f"{BASE_URL}/ai-writers/{TestAICostsE2E.user1_writer_id}/generate"
         print(f"Attempting generation (expect success): POST {url}")
         response = await async_client.post(url, headers=headers, json=generate_data)
-        
+        log_endpoint("POST", f"/ai-writers/{TestAICostsE2E.user1_writer_id}/generate", f"user_id={TestAICostsE2E.user1_id}, writer_id={TestAICostsE2E.user1_writer_id}, trigger=sufficient_credits")
         assert response.status_code == 200, f"AI generation failed: {response.status_code} {response.text}"
         
         response_data = response.json()
@@ -375,6 +409,7 @@ class TestAICostsE2E:
         print("Verifying User 1's balance via /me endpoint...")
         user_headers = {"Authorization": f"Bearer {TestAICostsE2E.user1_token}"}
         me_response = await async_client.get(f"{BASE_URL}/auth/users/me", headers=user_headers)
+        log_endpoint("GET", "/auth/users/me", f"user_id={TestAICostsE2E.user1_id}")
         assert me_response.status_code == 200, f"Failed to get User 1 details: {me_response.text}"
         current_balance = me_response.json().get("credits")
         assert current_balance == TestAICostsE2E.user1_balance_after_generate, \
@@ -386,6 +421,7 @@ class TestAICostsE2E:
         admin_headers = {"Authorization": f"Bearer {admin_token}"}
         history_url = f"{BASE_URL}/admin/users/{TestAICostsE2E.user1_id}/credit-history"
         history_response = await async_client.get(history_url, headers=admin_headers)
+        log_endpoint("GET", f"/admin/users/{TestAICostsE2E.user1_id}/credit-history", f"admin_triggered=True, target_user_id={TestAICostsE2E.user1_id}")
         assert history_response.status_code == 200, f"Failed to get credit history: {history_response.status_code} {history_response.text}"
         
         ledger_entries = history_response.json()
@@ -430,7 +466,7 @@ class TestAICostsE2E:
         url = f"{BASE_URL}/contests/{TestAICostsE2E.user1_contest_id}/submissions"
         print(f"User 1 submitting text to Contest ID {TestAICostsE2E.user1_contest_id}: POST {url}")
         response = await async_client.post(url, headers=headers, json=submission_data)
-        
+        log_endpoint("POST", f"/contests/{TestAICostsE2E.user1_contest_id}/submissions", f"user_id={TestAICostsE2E.user1_id}, contest_id={TestAICostsE2E.user1_contest_id}")
         assert response.status_code == 201, f"Failed to submit text: {response.status_code} {response.text}"
         submission_details = response.json()
         assert submission_details.get("contest_id") == TestAICostsE2E.user1_contest_id
@@ -453,6 +489,7 @@ class TestAICostsE2E:
         url = f"{BASE_URL}/ai-judges/{TestAICostsE2E.user1_judge_id}/evaluate"
         print(f"Attempting evaluation (expect success): POST {url}")
         response = await async_client.post(url, headers=headers, json=evaluate_data)
+        log_endpoint("POST", f"/ai-judges/{TestAICostsE2E.user1_judge_id}/evaluate", f"user_id={TestAICostsE2E.user1_id}, judge_id={TestAICostsE2E.user1_judge_id}, contest_id={TestAICostsE2E.user1_contest_id}")
         
         # TODO: Verify the expected response schema for evaluation success.
         # Assuming 200 OK for now. Might be 202 Accepted if async.
@@ -498,6 +535,7 @@ class TestAICostsE2E:
         print("Verifying User 1's balance post-evaluation via /me endpoint...")
         user_headers = {"Authorization": f"Bearer {TestAICostsE2E.user1_token}"}
         me_response = await async_client.get(f"{BASE_URL}/auth/users/me", headers=user_headers)
+        log_endpoint("GET", "/auth/users/me", f"user_id={TestAICostsE2E.user1_id}")
         assert me_response.status_code == 200, f"Failed to get User 1 details: {me_response.text}"
         current_balance = me_response.json().get("credits")
         assert current_balance == TestAICostsE2E.user1_balance_after_evaluate, \
@@ -509,6 +547,7 @@ class TestAICostsE2E:
         admin_headers = {"Authorization": f"Bearer {admin_token}"}
         history_url = f"{BASE_URL}/admin/users/{TestAICostsE2E.user1_id}/credit-history"
         history_response = await async_client.get(history_url, headers=admin_headers)
+        log_endpoint("GET", f"/admin/users/{TestAICostsE2E.user1_id}/credit-history", f"admin_triggered=True, target_user_id={TestAICostsE2E.user1_id}")
         assert history_response.status_code == 200, f"Failed to get credit history: {history_response.status_code} {history_response.text}"
         
         ledger_entries = history_response.json()
@@ -548,6 +587,7 @@ class TestAICostsE2E:
         admin_headers = {"Authorization": f"Bearer {admin_token}"}
         history_url = f"{BASE_URL}/admin/users/{TestAICostsE2E.user1_id}/credit-history"
         history_response = await async_client.get(history_url, headers=admin_headers)
+        log_endpoint("GET", f"/admin/users/{TestAICostsE2E.user1_id}/credit-history", f"admin_triggered=True, target_user_id={TestAICostsE2E.user1_id}")
         
         assert history_response.status_code == 200, f"Failed to get credit history: {history_response.status_code} {history_response.text}"
         ledger_entries = history_response.json()
@@ -603,7 +643,7 @@ class TestAICostsE2E:
         
         print(f"User 2 attempting to use User 1's Writer ID {TestAICostsE2E.user1_writer_id} (expect 403): POST {url}")
         response = await async_client.post(url, headers=headers, json=generate_data)
-        
+        log_endpoint("POST", f"/ai-writers/{TestAICostsE2E.user1_writer_id}/generate", f"user_id={TestAICostsE2E.user2_id}, writer_id={TestAICostsE2E.user1_writer_id}, trigger=forbidden_attempt")
         assert response.status_code == 403, f"Expected 403 Forbidden, but got {response.status_code}: {response.text}"
         print("Received expected 403 Forbidden when User 2 tries to use User 1's writer.")
 
@@ -622,7 +662,7 @@ class TestAICostsE2E:
         
         print(f"User 2 attempting to use User 1's Judge ID {TestAICostsE2E.user1_judge_id} (expect 403): POST {url}")
         response = await async_client.post(url, headers=headers, json=evaluate_data)
-        
+        log_endpoint("POST", f"/ai-judges/{TestAICostsE2E.user1_judge_id}/evaluate", f"user_id={TestAICostsE2E.user2_id}, judge_id={TestAICostsE2E.user1_judge_id}, trigger=forbidden_attempt")
         assert response.status_code == 403, f"Expected 403 Forbidden, but got {response.status_code}: {response.text}"
         print("Received expected 403 Forbidden when User 2 tries to use User 1's judge.")
 
@@ -638,6 +678,7 @@ class TestAICostsE2E:
         writer_url = f"{BASE_URL}/ai-writers/{TestAICostsE2E.user1_writer_id}"
         print(f"User 1 deleting writer ID {TestAICostsE2E.user1_writer_id}: DELETE {writer_url}")
         writer_response = await async_client.delete(writer_url, headers=headers)
+        log_endpoint("DELETE", f"/ai-writers/{TestAICostsE2E.user1_writer_id}", f"user_id={TestAICostsE2E.user1_id}")
         assert writer_response.status_code == 204, f"Failed to delete writer: {writer_response.status_code} {writer_response.text}"
         print("Writer deleted successfully.")
         
@@ -645,14 +686,17 @@ class TestAICostsE2E:
         judge_url = f"{BASE_URL}/ai-judges/{TestAICostsE2E.user1_judge_id}"
         print(f"User 1 deleting judge ID {TestAICostsE2E.user1_judge_id}: DELETE {judge_url}")
         judge_response = await async_client.delete(judge_url, headers=headers)
+        log_endpoint("DELETE", f"/ai-judges/{TestAICostsE2E.user1_judge_id}", f"user_id={TestAICostsE2E.user1_id}")
         assert judge_response.status_code == 204, f"Failed to delete judge: {judge_response.status_code} {judge_response.text}"
         print("Judge deleted successfully.")
         
         # Verify deletion (optional but good practice)
         print("Verifying agent deletion...")
         writer_get_response = await async_client.get(writer_url, headers=headers)
+        log_endpoint("GET", f"/ai-writers/{TestAICostsE2E.user1_writer_id}", f"user_id={TestAICostsE2E.user1_id}, check=deleted")
         assert writer_get_response.status_code == 404, "Writer should return 404 after deletion"
         judge_get_response = await async_client.get(judge_url, headers=headers)
+        log_endpoint("GET", f"/ai-judges/{TestAICostsE2E.user1_judge_id}", f"user_id={TestAICostsE2E.user1_id}, check=deleted")
         assert judge_get_response.status_code == 404, "Judge should return 404 after deletion"
         print("Agent deletion verified.")
 
@@ -666,6 +710,7 @@ class TestAICostsE2E:
         # Get history *before* deleting user
         history_url = f"{BASE_URL}/admin/users/{TestAICostsE2E.user1_id}/credit-history"
         history_response_before = await async_client.get(history_url, headers=admin_headers)
+        log_endpoint("GET", f"/admin/users/{TestAICostsE2E.user1_id}/credit-history", f"admin_triggered=True, target_user_id={TestAICostsE2E.user1_id}, timing=before_delete")
         assert history_response_before.status_code == 200
         ledger_count_before = len(history_response_before.json())
         print(f"Found {ledger_count_before} ledger entries for User 1 before deletion.")
@@ -675,7 +720,7 @@ class TestAICostsE2E:
         delete_user_url = f"{BASE_URL}/admin/users/{TestAICostsE2E.user1_id}"
         print(f"Admin deleting User ID {TestAICostsE2E.user1_id}: DELETE {delete_user_url}")
         delete_response = await async_client.delete(delete_user_url, headers=admin_headers)
-        # Assuming 204 No Content for successful DELETE
+        log_endpoint("DELETE", f"/admin/users/{TestAICostsE2E.user1_id}", f"admin_triggered=True, target_user_id={TestAICostsE2E.user1_id}")
         assert delete_response.status_code == 204, f"Failed to delete User 1: {delete_response.status_code} {delete_response.text}"
         print("User 1 deleted successfully.")
         
@@ -685,6 +730,7 @@ class TestAICostsE2E:
         # Verify CostLedger entries STILL exist
         print("Verifying CostLedger entries exist after User 1 deletion...")
         history_response_after = await async_client.get(history_url, headers=admin_headers)
+        log_endpoint("GET", f"/admin/users/{TestAICostsE2E.user1_id}/credit-history", f"admin_triggered=True, target_user_id={TestAICostsE2E.user1_id}, timing=after_delete")
         assert history_response_after.status_code == 200, \
                f"Failed to get credit history after user deletion: {history_response_after.status_code} {history_response_after.text}"
         ledger_entries_after = history_response_after.json()
@@ -696,8 +742,7 @@ class TestAICostsE2E:
         for entry in ledger_entries_after:
              assert entry.get("user_id") == TestAICostsE2E.user1_id, "Ledger entry missing original user_id"
              
-        print("CostLedger entries persistence verified after User 1 deletion.")
-        
+        print("CostLedger entries persistence verified after User 1 deletion.")        
     async def test_18_delete_user2(self, async_client, admin_token):
         """Admin deletes User 2."""
         assert admin_token, "Admin token not available"
@@ -707,7 +752,7 @@ class TestAICostsE2E:
         delete_user_url = f"{BASE_URL}/admin/users/{TestAICostsE2E.user2_id}"
         print(f"Admin deleting User ID {TestAICostsE2E.user2_id}: DELETE {delete_user_url}")
         delete_response = await async_client.delete(delete_user_url, headers=admin_headers)
-        
+        log_endpoint("DELETE", f"/admin/users/{TestAICostsE2E.user2_id}", f"admin_triggered=True, target_user_id={TestAICostsE2E.user2_id}")
         assert delete_response.status_code == 204, f"Failed to delete User 2: {delete_response.status_code} {delete_response.text}"
         print("User 2 deleted successfully.")
 

@@ -78,6 +78,9 @@ class User(Base):
     contest_assignments: Mapped[List["ContestHumanJudgeAssociation"]] = relationship(back_populates="user", cascade="all, delete-orphan") # Add cascade
     submissions: Mapped[List["Submission"]] = relationship(back_populates="user", cascade="all, delete-orphan") # Add cascade
     created_contests: Mapped[List["Contest"]] = relationship(back_populates="creator") # KEEP - Handle manually or make creator_id nullable
+    # ADDED: Relationships for user-owned AI agents with cascade delete
+    ai_writers: Mapped[List["UserAIWriter"]] = relationship(back_populates="owner", cascade="all, delete-orphan")
+    ai_judges: Mapped[List["UserAIJudge"]] = relationship(back_populates="owner", cascade="all, delete-orphan")
 
     # --- Methods using bcrypt --- 
     def set_password(self, password: str):
@@ -277,17 +280,63 @@ class AIJudge(Base):
     name: Mapped[str] = mapped_column(String(64), index=True, unique=True, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     ai_personality_prompt: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # Relationship back to contests
     judged_contests: Mapped[List["Contest"]] = relationship(
         "Contest", secondary='contest_ai_judges', back_populates='ai_judges' # Use table name string
     )
     # Relationship to fetch assignment details (including ai_model)
-    contest_assignments: Mapped[List["ContestAIJudgeAssociation"]] = relationship(back_populates="ai_judge")
+    contest_assignments: Mapped[List["ContestAIJudgeAssociation"]] = relationship(back_populates="ai_judge", cascade="all, delete-orphan") # Add cascade
 
-# --- ADDED: AIWritingRequest Model ---
+    def __repr__(self):
+        return f'<Global AIJudge {self.name}>'
+
+# --- NEW User-Owned AI Agent Models ---
+
+class UserAIWriter(Base):
+    __tablename__ = 'user_ai_writer'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey('user.id'), index=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(64), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    personality_prompt: Mapped[str] = mapped_column(Text, nullable=False) # User defined
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    owner: Mapped["User"] = relationship(back_populates="ai_writers") # ADDED back_populates
+
+    # Potential unique constraint for name per user
+    __table_args__ = (UniqueConstraint('owner_id', 'name', name='uq_user_ai_writer_owner_name'),)
+
+    def __repr__(self):
+        return f'<UserAIWriter {self.name} (Owner: {self.owner_id})>'
+
+
+class UserAIJudge(Base):
+    __tablename__ = 'user_ai_judge'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey('user.id'), index=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(64), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    personality_prompt: Mapped[str] = mapped_column(Text, nullable=False) # User defined
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    owner: Mapped["User"] = relationship(back_populates="ai_judges") # ADDED back_populates
+
+    # Potential unique constraint for name per user
+    __table_args__ = (UniqueConstraint('owner_id', 'name', name='uq_user_ai_judge_owner_name'),)
+
+    def __repr__(self):
+        return f'<UserAIJudge {self.name} (Owner: {self.owner_id})>'
+
+
+# --- AI Execution Related Models ---
+
 class AIWritingRequest(Base):
     __tablename__ = 'ai_writing_request'
 

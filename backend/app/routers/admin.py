@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, or_, delete
 from typing import List, Optional
 # ADD: AI Client imports for trigger endpoint
 import openai
@@ -128,9 +128,17 @@ async def delete_user_admin(
     if not user_to_delete:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     
-    # Optional: Add check to prevent admin from deleting themselves?
-    # if current_user.id == user_id:
-    #     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Admin cannot delete themselves.")
+    # REMOVED: Manual deletion of User AI Agents - Relying on cascade delete now
+    # print(f"---> Deleting AI Agents owned by user {user_id}...")
+    # # Delete UserAIWriters
+    # writer_delete_stmt = delete(models.UserAIWriter).where(models.UserAIWriter.owner_id == user_id)
+    # await db.execute(writer_delete_stmt)
+    # # Delete UserAIJudges
+    # judge_delete_stmt = delete(models.UserAIJudge).where(models.UserAIJudge.owner_id == user_id)
+    # await db.execute(judge_delete_stmt)
+    # # Ensure agent deletions are flushed before proceeding
+    # await db.flush()
+    # print(f"---> Flushed deletion of AI Agents for user {user_id}")
 
     # Find and delete contests created by this user
     contests_to_delete = await db.scalars(

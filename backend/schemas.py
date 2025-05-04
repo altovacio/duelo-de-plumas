@@ -237,10 +237,63 @@ class AIWriterUpdate(BaseModel):
     personality_prompt: Optional[str] = None
 
 class AIWriterPublic(AIWriterBase, ModelPublic):
-    created_date: datetime
+    created_date: datetime # Note: Model has created_at, schema has created_date
 
-# ADDED: Admin view might be the same as public for AI Writer
-AIWriterAdminView = AIWriterPublic 
+AIWriterAdminView = AIWriterPublic
+
+# --- NEW User-Owned AI Agent Schemas ---
+
+class UserAIWriterBase(BaseModel):
+    name: str = Field(..., min_length=3, max_length=64)
+    description: Optional[str] = Field(None, max_length=500)
+    personality_prompt: str
+    # base_prompt is not user-settable
+
+class UserAIWriterCreate(UserAIWriterBase):
+    pass # Inherits all fields from base
+
+class UserAIWriterUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=3, max_length=64)
+    description: Optional[str] = Field(None, max_length=500)
+    personality_prompt: Optional[str] = None
+
+class UserAIWriterRead(UserAIWriterBase):
+    id: int
+    owner_id: int
+    created_at: datetime
+    updated_at: datetime
+    # REMOVED: base_prompt
+    # base_prompt: Optional[str] = None 
+
+    model_config = {
+        "from_attributes": True
+    }
+
+class UserAIJudgeBase(BaseModel):
+    name: str = Field(..., min_length=3, max_length=64)
+    description: Optional[str] = Field(None, max_length=500)
+    personality_prompt: str
+    # base_prompt is not user-settable
+
+class UserAIJudgeCreate(UserAIJudgeBase):
+    pass # Inherits all fields from base
+
+class UserAIJudgeUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=3, max_length=64)
+    description: Optional[str] = Field(None, max_length=500)
+    personality_prompt: Optional[str] = None
+
+class UserAIJudgeRead(UserAIJudgeBase):
+    id: int
+    owner_id: int
+    created_at: datetime
+    updated_at: datetime
+    # REMOVED: base_prompt
+    # base_prompt: Optional[str] = None
+
+    model_config = {
+        "from_attributes": True
+    }
 
 # --- ADDED: Contest Judge Assignment Schema ---
 class AssignHumanJudgeRequest(BaseModel):

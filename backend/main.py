@@ -19,6 +19,8 @@ from .app.routers import main as main_router
 from .app.routers import admin as admin_router
 # ADD: Import submission router
 from .app.routers import submission # Use consistent path
+# ADD: Import the new AI agents router
+from .app.routers.ai_agents import writer_router, judge_router # NEW: Import specific routers
 # ADD: Import the database module
 from .database import init_db # Corrected relative import, removed close_db
 
@@ -71,6 +73,10 @@ app.include_router(ai_router.router, prefix="/ai", tags=["AI"])  # Include AI ro
 app.include_router(main_router.router, prefix="/api/v2") # Main routes with prefix
 # ADD: Include the admin router (typically with a distinct prefix)
 app.include_router(admin_router.router) # Uses prefix '/admin' defined in the router itself
+
+# Include the new user-owned AI agent router
+app.include_router(writer_router) # NEW: Mount the writer router
+app.include_router(judge_router) # NEW: Mount the judge router
 
 # --- Static Files and Frontend Serving ---
 

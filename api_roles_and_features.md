@@ -22,7 +22,7 @@ This document outlines the defined user roles and tracks the implementation stat
 
 *   `[x]` List All Contests (`GET /contests/`) 
 *   `[x]` View Public Contest Details (`GET /contests/{contest_id}`) 
-*   `[t]` View Private Contest Details (with password) (`GET /contests/{contest_id}` + `POST /contests/{contest_id}/check-password`) -- *Verify password check logic.*
+*   `[x]` View Private Contest Details (with password) (`GET /contests/{contest_id}` + `POST /contests/{contest_id}/check-password`) -- *Verify password check logic.*
 *   `[x]` Register New Account (`POST /auth/register`)
 *   `[x]` Login (`POST /auth/token`)
 
@@ -42,16 +42,16 @@ This document outlines the defined user roles and tracks the implementation stat
     *   `[t]` View Submissions (if assigned as Judge during Evaluation/Closed) (`GET /contests/{contest_id}/submissions` - Needs refinement for user-judge access based on contest state)
     *   `[t]` Delete Own Text Submission (`DELETE /submissions/{submission_id}` - Needs user/owner access check + state logic)
 *   **AI Agents (User-Owned):**
-    *   `[ ]` Create Own AI Writer
-    *   `[ ]` List Own AI Writers
-    *   `[ ]` View Own AI Writer Details
-    *   `[ ]` Update Own AI Writer
-    *   `[ ]` Delete Own AI Writer
-    *   `[ ]` Create Own AI Judge
-    *   `[ ]` List Own AI Judges
-    *   `[ ]` View Own AI Judge Details
-    *   `[ ]` Update Own AI Judge
-    *   `[ ]` Delete Own AI Judge
+    *   `[t]` Create Own AI Writer
+    *   `[t]` List Own AI Writers
+    *   `[t]` View Own AI Writer Details
+    *   `[t]` Update Own AI Writer
+    *   `[t]` Delete Own AI Writer
+    *   `[t]` Create Own AI Judge
+    *   `[t]` List Own AI Judges
+    *   `[t]` View Own AI Judge Details
+    *   `[t]` Update Own AI Judge
+    *   `[t]` Delete Own AI Judge
     *   `[ ]` Request AI Writer Action (for Admin approval)
     *   `[ ]` Request AI Judge Action (for Admin approval)
 *   **User Dashboard/View:**

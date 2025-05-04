@@ -2,13 +2,18 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import select # Import select
-from sqlalchemy.orm import noload # NEW: Import noload
+from sqlalchemy.orm import noload, selectinload # UPDATED imports
 from typing import List, Optional
 from datetime import datetime, timezone
+import openai # For type hinting client dependency
+import anthropic # For type hinting client dependency
 
 from ... import models, schemas # CORRECTED: Use three dots
 from ...database import get_db_session # CORRECTED: Use three dots
 from ... import security # CORRECTED: Use three dots
+from ..dependencies import get_openai_client, get_anthropic_client, get_settings # Import client dependencies and settings
+from ..config.settings import Settings # Import Settings for type hinting
+from ..services import ai_service # Import the new AI service module
 
 # --- Router for AI Writers ---
 writer_router = APIRouter(
@@ -249,131 +254,162 @@ async def delete_user_ai_writer(
     summary="Generate Text with User AI Writer",
     description="Triggers text generation using the specified User AI Writer, deducting credits."
 )
-async def generate_text(
+async def generate_text_with_user_writer( # Renamed for clarity
     writer_id: int,
     request_data: schemas.AIWriterGenerateRequest, # Use the new request schema
     session: AsyncSession = Depends(get_db_session),
     current_user: models.User = Depends(security.get_current_active_user),
-    # Assuming AI service dependencies are available or need to be added
-    # openai_client: openai.AsyncOpenAI | None = Depends(get_openai_client), 
-    # anthropic_client: anthropic.AsyncAnthropic | None = Depends(get_anthropic_client)
+    # Inject AI clients and settings
+    settings: Settings = Depends(get_settings),
+    openai_client: Optional[openai.AsyncOpenAI] = Depends(get_openai_client),
+    anthropic_client: Optional[anthropic.AsyncAnthropic] = Depends(get_anthropic_client)
 ):
     """
-    Executes text generation using a user-owned AI Writer.
-    Requires ownership.
-    Checks credits, performs generation, deducts credits, and logs to CostLedger.
+    Generates text using a specific User AI Writer and deducts credits.
+
+    - **writer_id**: The ID of the UserAIWriter to use.
+    - **request_data**: Specifies the model_id to use for generation.
+    - **session**: Database session dependency.
+    - **current_user**: Authenticated user dependency.
+    - **settings**: Application settings dependency.
+    - **openai_client**: OpenAI client dependency.
+    - **anthropic_client**: Anthropic client dependency.
     """
-    # 1. Verify Ownership
-    writer = await session.get(models.UserAIWriter, writer_id)
-    if not writer:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="AI Writer not found")
-    if writer.owner_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to use this AI Writer")
-
-    # --- Transaction Start --- 
+    ledger_entry = None # Initialize ledger entry
+    
+    # Start transaction block
     try:
-        # 2. Lock user row and get current credits
-        user_result = await session.execute(
-            select(models.User).where(models.User.id == current_user.id).with_for_update()
+        # 1. Fetch the writer and verify ownership
+        writer = await session.get(models.UserAIWriter, writer_id,
+                                   options=[selectinload(models.UserAIWriter.owner)]) # Load owner for credits
+        if not writer:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="AI Writer not found")
+        
+        if writer.owner_id != current_user.id:
+            # Even admins cannot trigger *user-owned* agents directly (unless requirements change)
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to use this AI Writer")
+
+        # 2. Lock the user row for credit update
+        # Fetch the owner directly with FOR UPDATE to ensure atomicity
+        user_stmt = select(models.User).where(models.User.id == current_user.id).with_for_update()
+        user_result = await session.execute(user_stmt)
+        locked_user = user_result.scalar_one_or_none()
+        if not locked_user:
+             # This should not happen if current_user is valid, but defensive check
+             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        
+        current_balance = locked_user.credits
+
+        # 3. (Optional) Pre-check cost (can be complex, skip for now, rely on post-check)
+        # model_config = ai_service.get_model_config(request_data.model_id, settings)
+        # if model_config: ... estimate cost ...
+        # if estimated_cost > current_balance: raise HTTPException(402...)
+
+        # 4. Call the AI service function
+        # Pass clients and settings to the service
+        generation_result = await ai_service.perform_ai_generation(
+            writer=writer,
+            model_id=request_data.model_id,
+            db=session, # Pass session if service needs it
+            settings=settings,
+            openai_client=openai_client,
+            anthropic_client=anthropic_client,
+            # generation_context= { ... } # Add context if needed
         )
-        user_to_charge = user_result.scalar_one()
-        current_balance = user_to_charge.credits
 
-        # 3. Estimate Cost (Placeholder - Requires actual cost calculation logic)
-        # This is tricky before the actual API call. Maybe use a fixed estimate or a rate?
-        # For now, let's assume a placeholder cost or skip pre-check and rely on post-check.
-        estimated_cost_credits = 10 # Placeholder: Replace with actual estimation logic
+        # 5. Handle AI service result
+        if not generation_result['success']:
+            # AI call failed, rollback is handled in finally, return error
+            error_detail = generation_result.get('error', 'AI generation failed.')
+            # Determine appropriate status code based on error type if possible
+            status_code = status.HTTP_503_SERVICE_UNAVAILABLE if "API Error" in error_detail else status.HTTP_500_INTERNAL_SERVER_ERROR
+            raise HTTPException(status_code=status_code, detail=error_detail)
         
-        # 4. Pre-check Credits (Optional but recommended)
-        if current_balance < estimated_cost_credits:
-             raise HTTPException(
-                 status_code=status.HTTP_402_PAYMENT_REQUIRED, 
-                 detail=f"Insufficient credits. Estimated cost: {estimated_cost_credits}, Balance: {current_balance}"
-             )
-
-        # 5. Execute AI Generation Call (Placeholder - Requires AI service integration)
-        # This function should return the generated text, actual token usage, and real monetary cost.
-        # ai_result = await ai_services.call_writer_generation(
-        #     writer=writer, 
-        #     model_id=request_data.model_id, 
-        #     # Pass other params from request_data... 
-        # )
-        # Placeholder result:
-        ai_result = {
-            "success": True,
-            "generated_text": f"Generated text using {writer.name} and model {request_data.model_id}.",
-            "prompt_tokens": 150,
-            "completion_tokens": 300,
-            "real_cost_usd": 0.0015 # Example real cost
-        }
+        # 6. AI call successful - Calculate Actual Credit Cost
+        prompt_tokens = generation_result.get('prompt_tokens')
+        completion_tokens = generation_result.get('completion_tokens')
+        monetary_cost = generation_result.get('monetary_cost')
+        generated_text = generation_result.get('generated_text')
         
-        if not ai_result.get("success"): 
-             # Rollback needed? Probably not as nothing committed yet.
-             raise HTTPException(status_code=500, detail="AI generation failed.") # Improve error handling
+        if prompt_tokens is None or completion_tokens is None:
+             # This shouldn't happen if success is True, but handle defensively
+             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="AI service succeeded but token counts are missing.")
 
-        # 6. Calculate Actual Credit Cost (Placeholder - Requires cost model)
-        # Map real_cost_usd or token usage to credit cost.
-        # Example: 1000 credits per $0.01 USD?
-        real_cost = ai_result.get("real_cost_usd")
-        # Simple placeholder: 1 credit per 100 total tokens? Or based on real_cost?
-        actual_credit_cost = (ai_result["prompt_tokens"] + ai_result["completion_tokens"]) // 100 # PLACEHOLDER
-        if actual_credit_cost <= 0: actual_credit_cost = 1 # Minimum cost of 1 credit?
+        actual_credit_cost = ai_service.calculate_credit_cost(
+            monetary_cost=monetary_cost,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            settings=settings
+        )
 
-        # 7. Final Credit Check (Crucial after getting actual cost)
+        # 7. Final Credit Check
         if current_balance < actual_credit_cost:
-            # Rollback likely not needed as nothing is committed yet.
+            # Not enough credits, rollback is handled in finally
             raise HTTPException(
-                status_code=status.HTTP_402_PAYMENT_REQUIRED, 
-                detail=f"Insufficient credits for actual cost. Required: {actual_credit_cost}, Balance: {current_balance}"
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail=f"Insufficient credits. Required: {actual_credit_cost}, Available: {current_balance}"
             )
 
-        # 8. Deduct Credits and Update User
-        new_balance = current_balance - actual_credit_cost
-        user_to_charge.credits = new_balance
-        session.add(user_to_charge)
-
-        # 9. Create CostLedger Entry
+        # 8. Deduct Credits and Create CostLedger Entry
+        locked_user.credits -= actual_credit_cost
+        resulting_balance = locked_user.credits
+        
         ledger_entry = models.CostLedger(
-            user_id=user_to_charge.id,
+            user_id=locked_user.id,
             action_type='ai_generate',
             credits_change=-actual_credit_cost,
-            real_cost=real_cost,
-            description=f"AI generation using writer '{writer.name}' (ID: {writer.id}) with model {request_data.model_id}.",
+            real_cost=monetary_cost,
+            description=f"Generation using User AI Writer '{writer.name}' (ID: {writer.id}) with model {request_data.model_id}. Tokens: P{prompt_tokens}/C{completion_tokens}.",
             related_entity_type='user_ai_writer',
             related_entity_id=writer.id,
-            resulting_balance=new_balance
-            # Consider adding tokens to description or separate fields if needed
+            resulting_balance=resulting_balance
         )
+        
+        session.add(locked_user)
         session.add(ledger_entry)
 
-        # 10. Commit Transaction
+        # 9. Commit Transaction
         await session.commit()
-        await session.refresh(user_to_charge) # Refresh to get potentially updated state
-        await session.refresh(ledger_entry) # Refresh to get the ledger entry ID
+        await session.refresh(locked_user) # Refresh user to get updated balance if needed by response
+        await session.refresh(ledger_entry) # Refresh ledger to get its ID
 
-        # 11. Return Success Response
+        # 10. Return Success Response
         return schemas.AIWriterGenerateResponse(
             action_type='ai_generate',
-            user_id=user_to_charge.id,
+            user_id=locked_user.id,
             credits_spent=actual_credit_cost,
-            remaining_credits=new_balance,
-            real_cost=real_cost,
+            remaining_credits=resulting_balance,
+            real_cost=monetary_cost,
             cost_ledger_id=ledger_entry.id,
-            generated_text=ai_result["generated_text"]
+            generated_text=generated_text if generated_text is not None else "",
         )
 
-    except HTTPException as http_exc: # Re-raise HTTPExceptions directly
-        await session.rollback() # Ensure rollback on handled errors too
+    except HTTPException as http_exc:
+        # If an HTTPException was raised (e.g., 403, 404, 402, 500/503 from AI fail),
+        # rollback is handled in finally, just re-raise it.
         raise http_exc
-    except Exception as e: # Catch unexpected errors
-        await session.rollback()
-        # Log the error for debugging
-        print(f"ERROR during AI generation for user {current_user.id}, writer {writer_id}: {e}")
+    except Exception as e:
+        # Catch any other unexpected errors
+        print(f"ERROR during AI Generation endpoint: {e}")
+        # Rollback handled in finally
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
             detail=f"An unexpected error occurred during AI generation: {e}"
         )
-    # --- Transaction End ---
+    finally:
+        # Ensure rollback if commit didn't happen or an error occurred before commit
+        # Check if ledger_entry was created and committed successfully
+        if ledger_entry is None or ledger_entry not in session:
+             try:
+                 # Check if session is active before rollback
+                 if session.is_active:
+                     await session.rollback()
+                     print("Transaction rolled back due to error or insufficient funds in AI generation.")
+             except Exception as rollback_err:
+                 print(f"Error during rollback: {rollback_err}")
+        # Always close the session if it was created by this endpoint scope
+        # (FastAPI handles session closing with Depends(get_db_session))
+        # await session.close() # Usually not needed with FastAPI Depends
 
 # --- Router for AI Judges ---
 judge_router = APIRouter(
@@ -600,124 +636,167 @@ async def delete_user_ai_judge(
     summary="Evaluate Contest with User AI Judge",
     description="Triggers contest evaluation using the specified User AI Judge, deducting credits."
 )
-async def evaluate_submissions(
+async def evaluate_submissions_with_user_judge( # Renamed for clarity
     judge_id: int,
     request_data: schemas.AIJudgeEvaluateRequest, # Use the new request schema
     session: AsyncSession = Depends(get_db_session),
     current_user: models.User = Depends(security.get_current_active_user),
-    # Assuming AI service dependencies are available or need to be added
-    # openai_client: openai.AsyncOpenAI | None = Depends(get_openai_client), 
-    # anthropic_client: anthropic.AsyncAnthropic | None = Depends(get_anthropic_client)
+     # Inject AI clients and settings
+    settings: Settings = Depends(get_settings),
+    openai_client: Optional[openai.AsyncOpenAI] = Depends(get_openai_client),
+    anthropic_client: Optional[anthropic.AsyncAnthropic] = Depends(get_anthropic_client)
 ):
     """
-    Executes contest evaluation using a user-owned AI Judge.
-    Requires ownership.
-    Checks credits, performs evaluation, deducts credits, and logs to CostLedger.
+    Evaluates contest submissions using a specific User AI Judge and deducts credits.
+
+    - **judge_id**: The ID of the UserAIJudge to use.
+    - **request_data**: Specifies the contest_id and model_id to use.
+    - **session**: Database session dependency.
+    - **current_user**: Authenticated user dependency.
+    - **settings**: Application settings dependency.
+    - **openai_client**: OpenAI client dependency.
+    - **anthropic_client**: Anthropic client dependency.
     """
-    # 1. Verify Ownership
-    judge = await session.get(models.UserAIJudge, judge_id)
-    if not judge:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="AI Judge not found")
-    if judge.owner_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to use this AI Judge")
+    ledger_entry = None # Initialize ledger entry
+    evaluation_successful = False # Track if AI evaluation part succeeded
+    db_votes_prepared = False # Track if Vote objects were added to session
 
-    # --- Transaction Start ---
     try:
-        # 2. Lock user row and get current credits
-        user_result = await session.execute(
-            select(models.User).where(models.User.id == current_user.id).with_for_update()
-        )
-        user_to_charge = user_result.scalar_one()
-        current_balance = user_to_charge.credits
+        # 1. Fetch the judge and verify ownership
+        judge = await session.get(models.UserAIJudge, judge_id,
+                                  options=[selectinload(models.UserAIJudge.owner)]) # Load owner for credits
+        if not judge:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="AI Judge not found")
+            
+        if judge.owner_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to use this AI Judge")
 
-        # 3. Estimate Cost (Placeholder - Requires actual cost calculation logic based on contest/submissions)
-        estimated_cost_credits = 50 # Placeholder: Replace with actual estimation logic
+        # 2. Lock the user row for credit update
+        user_stmt = select(models.User).where(models.User.id == current_user.id).with_for_update()
+        user_result = await session.execute(user_stmt)
+        locked_user = user_result.scalar_one_or_none()
+        if not locked_user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
         
-        # 4. Pre-check Credits (Optional)
-        if current_balance < estimated_cost_credits:
-             raise HTTPException(
-                 status_code=status.HTTP_402_PAYMENT_REQUIRED, 
-                 detail=f"Insufficient credits. Estimated cost: {estimated_cost_credits}, Balance: {current_balance}"
-             )
+        current_balance = locked_user.credits
+        contest_id = request_data.contest_id
+        model_id = request_data.model_id
 
-        # 5. Execute AI Evaluation Call (Placeholder - Requires AI service integration)
-        # This function should handle evaluating submissions for the contest_id,
-        # return status, actual token usage, and real monetary cost.
-        # ai_result = await ai_services.call_judge_evaluation(
-        #     judge=judge, 
-        #     contest_id=request_data.contest_id,
-        #     model_id=request_data.model_id,
-        #     # Pass other params...
-        # )
-        # Placeholder result:
-        ai_result = {
-            "success": True,
-            "status": "completed",
-            "message": f"Evaluation for contest {request_data.contest_id} completed successfully by {judge.name}.",
-            "prompt_tokens": 1500,
-            "completion_tokens": 3000,
-            "real_cost_usd": 0.015 
-        }
+        # 3. (Optional) Pre-check (Skipped for now)
 
-        if not ai_result.get("success"): 
-             raise HTTPException(status_code=500, detail=ai_result.get("message", "AI evaluation failed."))
+        # 4. Call the AI service function for evaluation
+        evaluation_result = await ai_service.perform_ai_evaluation(
+            judge=judge,
+            contest_id=contest_id,
+            model_id=model_id,
+            db=session, # Pass the session for DB operations within the service
+            settings=settings,
+            openai_client=openai_client,
+            anthropic_client=anthropic_client
+        )
+        
+        evaluation_successful = evaluation_result['success']
+        db_votes_prepared = evaluation_result.get('db_votes_added', False)
 
-        # 6. Calculate Actual Credit Cost (Placeholder)
-        real_cost = ai_result.get("real_cost_usd")
-        actual_credit_cost = (ai_result["prompt_tokens"] + ai_result["completion_tokens"]) // 100 # PLACEHOLDER
-        if actual_credit_cost <= 0: actual_credit_cost = 1 
+        # 5. Handle AI service result
+        if not evaluation_successful:
+            error_detail = evaluation_result.get('error', 'AI evaluation failed.')
+            status_code = status.HTTP_503_SERVICE_UNAVAILABLE if "API Error" in error_detail else status.HTTP_500_INTERNAL_SERVER_ERROR
+            # If DB votes were prepared but something else failed, rollback occurs in finally
+            raise HTTPException(status_code=status_code, detail=error_detail)
+        
+        # Check if votes were actually prepared by the service
+        if not db_votes_prepared:
+             # This might indicate an issue like no submissions found, handled within the service
+             # The service should return success=False in such cases, but double-check
+              raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                                detail="AI evaluation service reported success but failed to prepare votes.")
+
+        # 6. AI call successful - Calculate Actual Credit Cost
+        prompt_tokens = evaluation_result.get('prompt_tokens')
+        completion_tokens = evaluation_result.get('completion_tokens')
+        monetary_cost = evaluation_result.get('monetary_cost')
+        status_message = evaluation_result.get('status_message', 'Evaluation completed.')
+        # parsed_votes_data = evaluation_result.get('parsed_votes', []) # For logging/context
+
+        if prompt_tokens is None or completion_tokens is None:
+             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="AI service succeeded but token counts are missing.")
+
+        actual_credit_cost = ai_service.calculate_credit_cost(
+            monetary_cost=monetary_cost,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            settings=settings
+        )
 
         # 7. Final Credit Check
         if current_balance < actual_credit_cost:
             raise HTTPException(
-                status_code=status.HTTP_402_PAYMENT_REQUIRED, 
-                detail=f"Insufficient credits for actual cost. Required: {actual_credit_cost}, Balance: {current_balance}"
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail=f"Insufficient credits. Required: {actual_credit_cost}, Available: {current_balance}"
             )
 
-        # 8. Deduct Credits and Update User
-        new_balance = current_balance - actual_credit_cost
-        user_to_charge.credits = new_balance
-        session.add(user_to_charge)
-
-        # 9. Create CostLedger Entry
+        # 8. Deduct Credits and Create CostLedger Entry
+        locked_user.credits -= actual_credit_cost
+        resulting_balance = locked_user.credits
+        
         ledger_entry = models.CostLedger(
-            user_id=user_to_charge.id,
+            user_id=locked_user.id,
             action_type='ai_evaluate',
             credits_change=-actual_credit_cost,
-            real_cost=real_cost,
-            description=f"AI evaluation for contest {request_data.contest_id} using judge '{judge.name}' (ID: {judge.id}) with model {request_data.model_id}.",
+            real_cost=monetary_cost,
+            description=f"Evaluation for Contest ID {contest_id} using User AI Judge '{judge.name}' (ID: {judge.id}) with model {model_id}. Tokens: P{prompt_tokens}/C{completion_tokens}.",
             related_entity_type='user_ai_judge',
             related_entity_id=judge.id,
-            resulting_balance=new_balance
+            # Add related contest info?
+            # related_entity_type_2='contest', # Need a better way if multiple relations
+            # related_entity_id_2=contest_id, 
+            resulting_balance=resulting_balance
         )
+        
+        session.add(locked_user)
         session.add(ledger_entry)
+        # Vote objects were already added to the session by the service function
 
-        # 10. Commit Transaction
+        # 9. Commit Transaction (includes user credit update, ledger entry, AND the votes)
         await session.commit()
-        await session.refresh(user_to_charge)
+        await session.refresh(locked_user)
         await session.refresh(ledger_entry)
+        # Refreshing Vote objects is usually not necessary unless needed in response
 
-        # 11. Return Success Response
+        # 10. Return Success Response
         return schemas.AIJudgeEvaluateResponse(
             action_type='ai_evaluate',
-            user_id=user_to_charge.id,
+            user_id=locked_user.id,
             credits_spent=actual_credit_cost,
-            remaining_credits=new_balance,
-            real_cost=real_cost,
+            remaining_credits=resulting_balance,
+            real_cost=monetary_cost,
             cost_ledger_id=ledger_entry.id,
-            contest_id=request_data.contest_id,
-            evaluation_status=ai_result["status"],
-            message=ai_result["message"]
+            contest_id=contest_id,
+            evaluation_status='completed', # Assuming sync completion for now
+            message=status_message,
         )
 
-    except HTTPException as http_exc: # Re-raise HTTPExceptions directly
-        await session.rollback()
+    except HTTPException as http_exc:
+        # If an HTTPException was raised (403, 404, 402, 50x), rollback handled in finally.
         raise http_exc
-    except Exception as e: # Catch unexpected errors
-        await session.rollback()
-        print(f"ERROR during AI evaluation for user {current_user.id}, judge {judge_id}: {e}")
+    except Exception as e:
+        # Catch any other unexpected errors
+        print(f"ERROR during AI Evaluation endpoint: {e}")
+        # Rollback handled in finally
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
             detail=f"An unexpected error occurred during AI evaluation: {e}"
         )
-    # --- Transaction End ---
+    finally:
+        # Ensure rollback if commit didn't happen or an error occurred
+        # Check if ledger_entry was created and committed successfully
+        if ledger_entry is None or ledger_entry not in session:
+            try:
+                 # Check if session is active before rollback
+                 if session.is_active:
+                    await session.rollback()
+                    print("Transaction rolled back due to error or insufficient funds in AI evaluation.")
+            except Exception as rollback_err:
+                 print(f"Error during rollback: {rollback_err}")
+        # await session.close() # Handled by FastAPI Depends

@@ -96,15 +96,19 @@ class CostLedgerRead(CostLedgerBase):
 ## 5. Endpoint Modifications
 
 ### 5.1. AI Action Endpoints (`/ai-writers/{writer_id}/generate`, `/ai-judges/{judge_id}/evaluate`) [Implemented - Placeholders]
+### 5.1. AI Action Endpoints (`/ai-writers/{writer_id}/generate`, `/ai-judges/{judge_id}/evaluate`) [Implemented]
 
 *   Located in `backend/app/routers/ai_agents.py`.
 *   **Logic Update:**
-    1.  Perform existing checks (ownership, estimate cost, check user balance).
-    2.  Execute the AI service call.
-    3.  If successful:
-        *   Calculate `actual_credit_cost` and `real_cost` (if applicable).
+    1.  Perform existing checks (ownership).
+    2.  **Start transaction.**
+    3.  Fetch the user with `select...for_update()`.
+    4.  **(Optional) Pre-check credits.** (Currently skipped in implementation, relies on post-check)
+    5.  Execute the AI service call (`perform_ai_generation` or `perform_ai_evaluation`).
+    6.  If successful:
+        *   Calculate `actual_credit_cost` and `real_cost` from service result.
         *   **Atomically (within the DB transaction):**
-            *   Fetch the user with `select...for_update()`.
+            *   Fetch the user with `select...for_update()`. # Already fetched and locked
             *   Verify `user.credits >= actual_credit_cost` (after AI call). Raise 402 if check fails.
             *   Update `user.credits = user.credits - actual_credit_cost`.
             *   Create `CostLedger` entry:
@@ -118,8 +122,12 @@ class CostLedgerRead(CostLedgerBase):
                 *   `resulting_balance = user.credits` (after deduction)
             *   Add the new `CostLedger` record to the session (`db.add(ledger_entry)`).
             *   Add the updated `User` record to the session (`db.add(user)`).
+            *   **If evaluation, Vote objects are already added to the session by the service.**
             *   Commit the transaction (`await db.commit()`).
-    4.  Return success response.
+    7.  Return success response (containing generated text or evaluation status, cost info).
+    8.  **If AI service call fails or insufficient credits:**
+        *   **Rollback transaction automatically via `finally` block.**
+        *   Return appropriate error response (e.g., 500, 503, 402).
 
 ### 5.2. Admin Credit Management (`PUT /admin/users/{user_id}/credits`) [Implemented]
 

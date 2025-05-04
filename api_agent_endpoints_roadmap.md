@@ -139,7 +139,7 @@ Implemented in `backend/app/routers/admin.py`.
 
 --- 
 
-## User-Triggered AI Actions (New Endpoints) [Implemented - Placeholders]
+## User-Triggered AI Actions (New Endpoints) [Implemented]
 
 These endpoints allow users to spend credits to execute AI actions. Implemented likely in `backend/app/routers/ai_agents.py` or a dedicated action router.
 
@@ -151,15 +151,16 @@ These endpoints allow users to spend credits to execute AI actions. Implemented 
     *   **Output Schema:** `AIWriterGenerateResponse` (contains generated text, `credits_spent`, `remaining_credits`, `cost_ledger_id`, etc.)
     *   **Action:**
         1.  Verify ownership (`writer_id` belongs to `current_user`).
-        2.  Lock user row `with_for_update()`.
-        3.  (Optional) Estimate potential credit cost and perform pre-check against `user.credits`.
-        4.  Execute AI generation call (using selected `model_id` and writer's prompts). **[Placeholder]**
-        5.  Calculate actual credit cost based on usage/cost model. **[Placeholder]**
-        6.  Verify `user.credits` >= actual cost. Raise 402 Payment Required if insufficient.
-        7.  Deduct actual cost from `user.credits`.
-        8.  Create `CostLedger` entry logging the transaction details (user, action, change, cost, balance, related entity).
-        9.  Commit the transaction.
-        10. Return generated text and transaction details.
+        2.  Start transaction.
+        3.  Lock user row `with_for_update()`.
+        4.  (Optional) Estimate potential credit cost and perform pre-check against `user.credits`. (Skipped in current implementation)
+        5.  Execute AI generation service call (`perform_ai_generation`). [Implemented]
+        6.  Calculate actual credit cost based on service result and cost model. [Implemented]
+        7.  Verify `user.credits` >= actual cost. Raise 402 Payment Required if insufficient.
+        8.  Deduct actual cost from `user.credits`.
+        9.  Create `CostLedger` entry logging the transaction details.
+        10. Commit the transaction.
+        11. Return generated text and transaction details in response schema.
     *   **Status Codes:** 200 OK, 400 Bad Request, 401 Unauthorized, 402 Payment Required, 403 Forbidden (Not owner), 404 Not Found (Writer), 500/503 Internal Server Error (AI call failed).
 
 ### AI Judge Action
@@ -168,18 +169,18 @@ These endpoints allow users to spend credits to execute AI actions. Implemented 
     *   **Roles:** User (Owner of the judge)
     *   **Input Schema:** `AIJudgeEvaluateRequest` (defines `contest_id`, `model_id`)
     *   **Output Schema:** `AIJudgeEvaluateResponse` (confirms evaluation status, `credits_spent`, `remaining_credits`, `cost_ledger_id`, etc.)
-    *   **Action:** (Similar logic to writer action)
+    *   **Action:**
         1.  Verify ownership (`judge_id` belongs to `current_user`).
-        2.  Lock user row `with_for_update()`.
-        3.  (Optional) Estimate potential credit cost and perform pre-check.
-        4.  Execute AI evaluation call for the contest. **[Placeholder]**
-        5.  Calculate actual credit cost based on total usage/cost model. **[Placeholder]**
-        6.  Verify `user.credits` >= actual cost. Raise 402 if insufficient.
-        7.  Deduct actual cost from `user.credits`.
-        8.  Create `CostLedger` entry.
-        9.  Commit the transaction.
-        10. Store evaluation results (handled by AI service call).
-        11. Return confirmation and transaction details.
+        2.  Start transaction.
+        3.  Lock user row `with_for_update()`.
+        4.  (Optional) Estimate potential credit cost and perform pre-check. (Skipped in current implementation)
+        5.  Execute AI evaluation service call (`perform_ai_evaluation`, includes fetching data, calling LLM, parsing, preparing Vote objects in session). [Implemented]
+        6.  Calculate actual credit cost based on service result and cost model. [Implemented]
+        7.  Verify `user.credits` >= actual cost. Raise 402 if insufficient.
+        8.  Deduct actual cost from `user.credits`.
+        9.  Create `CostLedger` entry.
+        10. Commit the transaction (saves user update, ledger entry, and Vote objects).
+        11. Return confirmation and transaction details in response schema.
     *   **Status Codes:** 200 OK/202 Accepted (if async), 400 Bad Request, 401 Unauthorized, 402 Payment Required, 403 Forbidden, 404 Not Found (Judge/Contest), 500/503 Internal Server Error.
 
 ---

@@ -53,8 +53,8 @@ This document outlines the defined user roles and tracks the implementation stat
     *   `[t]` View Own AI Judge Details
     *   `[t]` Update Own AI Judge
     *   `[t]` Delete Own AI Judge
-    *   `[t]` Execute AI Writer Action (Consumes Credits) (`POST /ai-writers/{writer_id}/generate`) [Placeholders]
-    *   `[t]` Execute AI Judge Action (Consumes Credits) (`POST /ai-judges/{judge_id}/evaluate`) [Placeholders]
+    *   `[t]` Execute AI Writer Action (Consumes Credits) (`POST /ai-writers/{writer_id}/generate`) [Implemented]
+    *   `[t]` Execute AI Judge Action (Consumes Credits) (`POST /ai-judges/{judge_id}/evaluate`) [Implemented]
 *   **User Dashboard/View:**
     *   `[ ]` View contests participated in (as author/judge)
     *   `[ ]` View own submitted texts

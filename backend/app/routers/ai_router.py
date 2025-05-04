@@ -24,7 +24,7 @@ from ... import security # Import security for admin dependency
 #         await session.close()
 
 from ..schemas.ai_schemas import GenerateTextRequest, GenerateTextResponse, AIEvaluationResult
-from ..services import ai_services # Import the ai_services module
+from ..services import ai_service # Import the ai_service module
 
 router = APIRouter(
     tags=["AI"],
@@ -73,7 +73,7 @@ async def generate_text_endpoint(
     # )
 
     # ORIGINAL IMPLEMENTATION - Uncomment when database is ready
-    result = await ai_services.generate_text(
+    result = await ai_service.generate_text(
         session=session,
         contest_id=request_data.contest_id,
         ai_writer_id=request_data.ai_writer_id,

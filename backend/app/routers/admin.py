@@ -7,7 +7,7 @@ import openai
 import anthropic
 from ..dependencies import get_openai_client, get_anthropic_client
 # ADD: AI Service import
-from ..services import ai_services
+from ..services import ai_service
 
 # Correct relative imports for modules two levels up
 from ... import schemas, models
@@ -788,7 +788,7 @@ async def admin_trigger_ai_submission(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contest not found")
     if contest.status != 'open':
          raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Contest status is '{contest.status}', must be 'open' to submit.")
-    result = await ai_services.generate_text(
+    result = await ai_service.generate_text(
         session=db,
         contest_id=contest_id,
         ai_writer_id=submission_request.ai_writer_id,
@@ -838,7 +838,7 @@ async def admin_trigger_ai_evaluation(
     """
     # The user authentication (require_admin) is handled by the main router dependency
     try:
-        result = await ai_services.run_ai_evaluation(
+        result = await ai_service.run_ai_evaluation(
             contest_id=contest_id,
             ai_judge_id=ai_judge_id, # Pass AI Judge config ID from path
             admin_user_id=current_user.id, # Pass triggering admin user ID

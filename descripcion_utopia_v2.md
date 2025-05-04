@@ -37,14 +37,17 @@
     * Cuando un concurso tiene todos sus votos, automáticamente se cierra.
     * Un concurso siempre muestra, independientemente de sus características, su título, su descripción (breve o cortada), su creador, su fecha de última modificación y si tiene, su fecha de término. También muestra el número de autores y de textos que se han recibido.
     * tienen una página propia donde se puede ver el detalle, y dependiendo de su estado, la capacidad de someter un texto o ver los ganadores.
+    * Si un concurso se borra, se borran los votos asociados pero no los textos. 
 
 * Los textos:
     * Se reciben en formato Markdown
     * Tienen tres campos. Autor, Título, Texto. Se identifican por un número único.
     * Al ser sometidos a un concurso, mientras el concurso esté abierto o en evaluación, nadie (salvo el administrador) puede ver el nombre del autor. Este se reemplazará por un código para mantener el anonimato.
     * En un concurso cerrado, se revela el nombre de los autores.
-    * Un autor puede en cualquier momento borrar un texto suyo. En caso de que el concurso esté en evaluación o cerrado, este se sustituirá por una leyenda TEXTO RETIRADO. Si el concurso está abierto, simplemente se borrará su texto.
+    * Un autor puede en cualquier momento borrar un texto suyo.
     * Un administrador puede en cualquier momento borrar cualquier texto. 
+        * En caso de que el concurso esté en evaluación o cerrado, este se sustituirá por una leyenda TEXTO RETIRADO. Si el concurso está abierto, simplemente se borrará su texto.
+
 
 * Los votos:
     * Pueden ser emitidos por jueces humanos o por jueces IA

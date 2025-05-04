@@ -66,6 +66,7 @@ class User(Base):
     password_hash: Mapped[Optional[str]] = mapped_column(String(256), nullable=True) # Set nullable=False? Ensure it's always set on creation.
     role: Mapped[str] = mapped_column(String(10), index=True, default='user') # Default to 'user' on creation
     judge_type: Mapped[str] = mapped_column(String(10), default='human') # 'human' or 'ai' (AI type now managed by separate AIJudge model)
+    credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default='0') # User credit balance
     
     # Relationships (adjust lazy loading, use Mapped)
     # Use back_populates for bidirectional relationships
@@ -362,6 +363,44 @@ class AIWritingRequest(Base):
 
     def __repr__(self):
         return f'<AIWritingRequest for Contest {self.contest_id} by Writer {self.ai_writer_id}>'
+
+# --- NEW Cost Ledger Model ---
+
+class CostLedger(Base):
+    __tablename__ = 'cost_ledger'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    
+    # Foreign Key to User - Keeping user_id even if user is deleted
+    # Omitting ForeignKey() here intentionally to avoid automatic constraint creation by default
+    # Review Alembic migration script carefully to ensure NO ACTION or RESTRICT behavior, or no FK constraint.
+    user_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)
+    
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, default=lambda: datetime.now(timezone.utc))
+    
+    action_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True) # e.g., 'ai_evaluate', 'ai_generate', 'admin_credit_adjust'
+    
+    credits_change: Mapped[int] = mapped_column(Integer, nullable=False) # Positive for addition, negative for deduction
+    
+    # Optional: Track real cost if available/needed (Using Float as per plan example)
+    real_cost: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    
+    # Store context about the action
+    description: Mapped[Optional[str]] = mapped_column(String(255), nullable=True) # e.g., "Evaluation for Contest 123", "Generation by Writer 45"
+    
+    # Reference to the specific entity triggering the cost (optional but helpful)
+    related_entity_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True) # e.g., 'contest', 'user_ai_judge', 'user_ai_writer'
+    related_entity_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    
+    # Store the resulting credit balance after the transaction (optional, for easier history view)
+    resulting_balance: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    # NOTE: No relationship() defined back to User to prevent cascade delete issues.
+    # Querying will be done directly on user_id.
+
+    def __repr__(self):
+        return f'<CostLedger {self.id}: User {self.user_id}, Action {self.action_type}, Change {self.credits_change}>'
+
 
 # --- Association Objects for detailed judge assignments (Optional but helpful) ---
 # These allow easy access to the 'ai_model' field from the association table

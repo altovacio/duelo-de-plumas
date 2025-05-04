@@ -162,6 +162,123 @@ async def delete_user_admin(
     print(f"---> Commit successful for user {user_id} deletion") # DEBUG
     return None # FastAPI handles 204 No Content automatically
 
+# ADDED: Endpoint for updating user credits
+@router.put("/users/{user_id}/credits", response_model=schemas.UserPublic, summary="Update User Credits (Admin)")
+async def admin_update_user_credits(
+    user_id: int,
+    credit_update: schemas.AdminUserCreditUpdate,
+    db: AsyncSession = Depends(get_db_session),
+    current_admin: models.User = Depends(security.require_admin) # Ensure we get the admin performing the action
+):
+    """(Admin) Sets or adjusts the credit balance for a specific user and logs the transaction.
+    
+    Requires admin privileges.
+    Uses AdminUserCreditUpdate schema which allows either setting an absolute value (`credits`)
+    or adding/subtracting (`add_credits`).
+    Logs the change in the CostLedger.
+    """
+    # Use select for update to lock the user row during the transaction
+    result = await db.execute(
+        select(models.User).where(models.User.id == user_id).with_for_update()
+    )
+    user_to_update = result.scalar_one_or_none()
+
+    if not user_to_update:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail=f"User with id {user_id} not found"
+        )
+
+    # Determine the change and the new balance
+    original_balance = user_to_update.credits
+    credits_change = 0
+    description_detail = ""
+
+    if credit_update.credits is not None: # Set absolute value
+        new_balance = credit_update.credits
+        credits_change = new_balance - original_balance
+        description_detail = f"set credits to {new_balance}"
+    elif credit_update.add_credits is not None: # Add/subtract value
+        credits_change = credit_update.add_credits
+        new_balance = original_balance + credits_change
+        if new_balance < 0:
+            # Prevent negative balance through adjustments unless explicitly allowed?
+            # For now, let's allow it as admin might need to zero out or fix issues.
+            pass # Or raise HTTPException(status_code=400, detail="Adjustment results in negative balance")
+        op_type = "added" if credits_change > 0 else "subtracted"
+        description_detail = f"{op_type} {abs(credits_change)} credits"
+    else:
+        # This case should be prevented by the schema validator, but handle defensively
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid request: Must provide either 'credits' or 'add_credits'"
+        )
+
+    # Update user credits
+    user_to_update.credits = new_balance
+
+    # Create CostLedger entry
+    ledger_entry = models.CostLedger(
+        user_id=user_to_update.id,
+        action_type='admin_credit_adjust',
+        credits_change=credits_change,
+        real_cost=None, # No real cost associated with admin adjustments
+        description=f"Admin '{current_admin.username}' {description_detail}. Original balance: {original_balance}.",
+        related_entity_type='user', # The entity acted upon is the user itself
+        related_entity_id=current_admin.id, # Could store the admin ID here for tracking
+        resulting_balance=new_balance
+    )
+
+    db.add(user_to_update)
+    db.add(ledger_entry)
+
+    try:
+        await db.commit()
+        await db.refresh(user_to_update)
+        # Optionally refresh ledger_entry if its ID is needed later
+        # await db.refresh(ledger_entry)
+        return user_to_update
+    except Exception as e:
+        await db.rollback()
+        # Log the error
+        print(f"Error updating user credits for user {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update user credits and log transaction."
+        )
+
+# ADDED: Endpoint for retrieving user credit history
+@router.get("/users/{user_id}/credit-history", response_model=List[schemas.CostLedgerRead], summary="Get User Credit History (Admin)")
+async def admin_get_user_credit_history(
+    user_id: int,
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db_session)
+):
+    """(Admin) Retrieves the credit transaction history for a specific user from the CostLedger.
+    
+    Requires admin privileges.
+    Results are ordered by timestamp descending.
+    """
+    # Check if user exists (optional, but good practice)
+    user_exists = await db.get(models.User, user_id)
+    if not user_exists:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail=f"User with id {user_id} not found"
+        )
+        
+    stmt = (
+        select(models.CostLedger)
+        .where(models.CostLedger.user_id == user_id)
+        .order_by(models.CostLedger.timestamp.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    ledger_entries = result.scalars().all()
+    return ledger_entries
+
 # --- AI Writer Management ---
 
 @router.get("/ai-writers", response_model=List[schemas.AIWriterAdminView])
@@ -558,44 +675,59 @@ async def admin_get_ai_costs_summary(
     recent_limit: int = Query(10, description="Number of recent evaluations/requests to return"),
     db: AsyncSession = Depends(get_db_session)
 ):
-    """Calculates and returns a summary of AI API costs and token usage."""
+    """Calculates and returns a summary of AI API costs and token usage.
+    
+    Uses CostLedger for cost aggregation and AIEvaluation/AIWritingRequest for token counts and recent records.
+    """
     summary = schemas.AICostsSummary()
     
-    # Aggregate Evaluation Costs
-    eval_stmt = select(
-        func.sum(models.AIEvaluation.cost).label("total_cost"),
+    # --- Aggregate Costs from CostLedger --- 
+    eval_cost_stmt = select(func.sum(models.CostLedger.real_cost)).where(
+        models.CostLedger.action_type == 'ai_evaluate',
+        models.CostLedger.real_cost.isnot(None)
+    )
+    eval_cost_result = (await db.execute(eval_cost_stmt)).scalar_one_or_none() or 0.0
+    summary.evaluation_cost = eval_cost_result
+
+    write_cost_stmt = select(func.sum(models.CostLedger.real_cost)).where(
+        models.CostLedger.action_type == 'ai_generate',
+        models.CostLedger.real_cost.isnot(None)
+    )
+    write_cost_result = (await db.execute(write_cost_stmt)).scalar_one_or_none() or 0.0
+    summary.writing_cost = write_cost_result
+
+    summary.total_cost = summary.evaluation_cost + summary.writing_cost
+
+    # --- Aggregate Token Counts from Original Tables (If needed) --- 
+    eval_token_stmt = select(
         func.sum(models.AIEvaluation.prompt_tokens).label("total_prompt"),
         func.sum(models.AIEvaluation.completion_tokens).label("total_completion")
     )
-    eval_result = (await db.execute(eval_stmt)).first()
-    if eval_result and eval_result.total_cost is not None:
-        summary.evaluation_cost = eval_result.total_cost
-        summary.evaluation_prompt_tokens = eval_result.total_prompt or 0
-        summary.evaluation_completion_tokens = eval_result.total_completion or 0
-        summary.total_cost += summary.evaluation_cost
+    eval_token_result = (await db.execute(eval_token_stmt)).first()
+    if eval_token_result:
+        summary.evaluation_prompt_tokens = eval_token_result.total_prompt or 0
+        summary.evaluation_completion_tokens = eval_token_result.total_completion or 0
         summary.total_prompt_tokens += summary.evaluation_prompt_tokens
         summary.total_completion_tokens += summary.evaluation_completion_tokens
 
-    # Aggregate Writing Costs
-    write_stmt = select(
-        func.sum(models.AIWritingRequest.cost).label("total_cost"),
+    write_token_stmt = select(
         func.sum(models.AIWritingRequest.prompt_tokens).label("total_prompt"),
         func.sum(models.AIWritingRequest.completion_tokens).label("total_completion")
     )
-    write_result = (await db.execute(write_stmt)).first()
-    if write_result and write_result.total_cost is not None:
-        summary.writing_cost = write_result.total_cost
-        summary.writing_prompt_tokens = write_result.total_prompt or 0
-        summary.writing_completion_tokens = write_result.total_completion or 0
-        summary.total_cost += summary.writing_cost
+    write_token_result = (await db.execute(write_token_stmt)).first()
+    if write_token_result:
+        summary.writing_prompt_tokens = write_token_result.total_prompt or 0
+        summary.writing_completion_tokens = write_token_result.total_completion or 0
         summary.total_prompt_tokens += summary.writing_prompt_tokens
         summary.total_completion_tokens += summary.writing_completion_tokens
-
-    # Aggregate Costs by Model (Combine both sources)
+        
+    # --- Aggregate Costs by Model (Requires joining or separate queries) --- 
+    # Option 1: Query CostLedger and group by description/related_entity? (Might be complex)
+    # Option 2: Keep querying original tables for model-specific cost/tokens (Simpler for now)
     model_costs = {}
     eval_model_stmt = select(
         models.AIEvaluation.ai_model,
-        func.sum(models.AIEvaluation.cost).label("cost"),
+        func.sum(models.AIEvaluation.cost).label("cost"), # Using AIEvaluation.cost here as CostLedger doesn't store model easily
         func.sum(models.AIEvaluation.prompt_tokens).label("prompt"),
         func.sum(models.AIEvaluation.completion_tokens).label("completion")
     ).group_by(models.AIEvaluation.ai_model)
@@ -609,7 +741,7 @@ async def admin_get_ai_costs_summary(
 
     write_model_stmt = select(
         models.AIWritingRequest.ai_model,
-        func.sum(models.AIWritingRequest.cost).label("cost"),
+        func.sum(models.AIWritingRequest.cost).label("cost"), # Using AIWritingRequest.cost here
         func.sum(models.AIWritingRequest.prompt_tokens).label("prompt"),
         func.sum(models.AIWritingRequest.completion_tokens).label("completion")
     ).group_by(models.AIWritingRequest.ai_model)
@@ -617,15 +749,20 @@ async def admin_get_ai_costs_summary(
     for row in write_model_results:
         if row.ai_model not in model_costs:
             model_costs[row.ai_model] = {"cost": 0.0, "prompt": 0, "completion": 0}
-        model_costs[row.ai_model]["cost"] += row.cost or 0.0
-        model_costs[row.ai_model]["prompt"] += row.prompt or 0
-        model_costs[row.ai_model]["completion"] += row.completion or 0
+        # Ensure cost is float, tokens are int, handling None
+        cost_val = float(row.cost) if row.cost is not None else 0.0
+        prompt_val = int(row.prompt) if row.prompt is not None else 0
+        completion_val = int(row.completion) if row.completion is not None else 0
+        
+        model_costs[row.ai_model]["cost"] += cost_val
+        model_costs[row.ai_model]["prompt"] += prompt_val
+        model_costs[row.ai_model]["completion"] += completion_val
 
     summary.cost_by_model = [
         schemas.ModelCostSummary(model_name=k, **v) for k, v in model_costs.items()
     ]
 
-    # Fetch Recent Records
+    # --- Fetch Recent Records (Keep using original tables for AIEvaluationPublic/AIWritingRequestPublic) --- 
     if recent_limit > 0:
         recent_eval_stmt = select(models.AIEvaluation).order_by(models.AIEvaluation.timestamp.desc()).limit(recent_limit)
         summary.recent_evaluations = (await db.scalars(recent_eval_stmt)).all()

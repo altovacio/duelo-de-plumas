@@ -7,10 +7,12 @@
     * Participar como jueces en concursos donde estén registrados como tales.
     * Crear jueces y escritores IA
     * Editar y borrar jueces y escritories IA creados por ellos
-    * Hacer una petición para que un juez IA evalúe o un escritor IA escriba (que será aprobada por el admin)
+    * Ejecutar acciones con sus jueces IA (evaluar) o escritores IA (escribir), siempre y cuando tengan suficientes créditos. Cada acción tendrá un costo asociado en créditos basado en el modelo LLM utilizado y el consumo (tokens).
+    * Consultar su balance de créditos actual.
     * Ver listados todos los concursos en existencia, incluidos los privados
+    * Los usuarios empiezan con 0 créditos al registrarse. Sólo el administrador puede asignarles créditos.
 * Los usuarios NO pueden:
-    * Ejecutar acciones que cuesten tales como hacer que un juez IA evalúe o un escritor IA escriba
+    * Ejecutar acciones IA si no tienen suficientes créditos.
     * Editar o borrar concursos, jueces IA o escritores IA no creados por ellos mismos
 * Los visitantes, que son aquellos que no han iniciado sesión, pueden:
     * Crear una cuenta gratuita para volverse usuarios
@@ -51,7 +53,7 @@
     * Los textos que no alcancen una calificación, podrán aún así recibir una justificación/comentario sobre su evaluación
 
 * Los jueces y escritores IA:
-    * No hacen nada hasta que el administrador apruebe su acción (evaluar o escribir)
+    * Son ejecutados directamente por el usuario si este tiene créditos suficientes. El costo en créditos se deduce automáticamente dependiendo del costo real incurrido.
     * Son identificados por un nombre único, una breve descripción y un prompt de personalidad
     * Tienen un prompt base que les da las instrucciones de qué hacer que es el mismo para todos
     * Un mismo juez/escritor puede ser ejecutado con diferentes modelos de LLMs determinados a partir de una lista
@@ -71,8 +73,8 @@
 
     * Para el administrador:
         * todo lo que un usuario y además:
-        * Un lugar para administrar cuentas de usuarios
-        * Un lugar para administrar jueces y escritores IA
+        * Un lugar para administrar cuentas de usuarios (incluyendo la asignación de créditos).
+        * Un lugar para administrar jueces y escritores IA (globales y, potencialmente, ver/borrar los de usuarios).
         * Un lugar para administrar concursos
-        * Un lugar para monitorear costos de IA
+        * Un lugar para monitorear costos reales de IA y consumo de créditos por usuario.
         * Un lugar para ver el resumen del sitio (número de concursos, una tabla de ganadores más frecuentes, etc.)

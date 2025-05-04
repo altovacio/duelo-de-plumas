@@ -31,6 +31,7 @@ This document outlines the defined user roles and tracks the implementation stat
 
 *   **Account:**
     *   `[x]` View Own Basic User Info (`GET /auth/users/me`) 
+    *   `[ ]` View Own Credit Balance (Part of `GET /auth/users/me`)
 *   **Contests:**
     *   `[x]` Create Contest (`POST /contests/`)
     *   `[ ]` Set Contest Restrictions (Judge participation, submission limits) (Part of `POST /contests/` & `PUT /contests/{contest_id}`)
@@ -52,8 +53,8 @@ This document outlines the defined user roles and tracks the implementation stat
     *   `[t]` View Own AI Judge Details
     *   `[t]` Update Own AI Judge
     *   `[t]` Delete Own AI Judge
-    *   `[ ]` Request AI Writer Action (for Admin approval)
-    *   `[ ]` Request AI Judge Action (for Admin approval)
+    *   `[t]` Execute AI Writer Action (Consumes Credits) (`POST /ai-writers/{writer_id}/generate`) [Placeholders]
+    *   `[t]` Execute AI Judge Action (Consumes Credits) (`POST /ai-judges/{judge_id}/evaluate`) [Placeholders]
 *   **User Dashboard/View:**
     *   `[ ]` View contests participated in (as author/judge)
     *   `[ ]` View own submitted texts
@@ -64,9 +65,10 @@ This document outlines the defined user roles and tracks the implementation stat
 
 *   All Public and Authenticated Features plus:
 *   **User Management:**
-    *   `[t]` List Users (`GET /admin/users/`)
-    *   `[p]` Create User (`POST /admin/users/` - Needs update to create 'user' or 'admin' roles, not 'Judge')
-    *   `[ ]` Edit User (Roles/Details)
+    *   `[t]` List Users (`GET /admin/users/`) (Update to include credits)
+    *   `[p]` Create User (`POST /admin/users/` - Needs update to create 'user' or 'admin' roles, not 'Judge', sets initial credits to 0)
+    *   `[ ]` Edit User (Roles/Details) 
+    *   `[t]` Assign/Modify User Credits (`PUT /admin/users/{user_id}/credits`)
     *   `[x]` Delete User (`DELETE /admin/users/{user_id}`)
 *   **Contest Management:**
     *   `[p]` View Any Contest Details (`GET /contests/{contest_id}`) -- *Ensure Admin overrides privacy/password.*
@@ -97,9 +99,8 @@ This document outlines the defined user roles and tracks the implementation stat
     *   `[t]` Trigger AI Submission Generation (`POST /admin/contests/{contest_id}/ai-submission`)
     *   `[t]` List AI Evaluation Results (`GET /admin/ai-evaluations`)
     *   `[t]` Get AI Evaluation Details (`GET /admin/ai-evaluations/{evaluation_id}`)
-    *   `[t]` Get AI Costs Summary (`GET /admin/ai-costs-summary`)
-    *   `[ ]` List User AI Action Requests
-    *   `[ ]` Approve/Reject User AI Action Requests
+    *   `[t]` Get AI Costs Summary (`GET /admin/ai-costs-summary`) 
+    *   `[t]` View User Credit Consumption (`GET /admin/users/{user_id}/credit-history`)
 *   **Site Overview:**
     *   `[ ]` Site Summary/Dashboard (Num contests, frequent winners, etc.)
 

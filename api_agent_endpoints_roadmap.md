@@ -6,10 +6,14 @@ This document outlines the required API endpoints for managing user-owned AI Wri
 
 **Implementation Steps:**
 
-1.  **Models:** Define `UserAIWriter` and `UserAIJudge` tables in `backend/models.py` with necessary fields (name, description, prompts, owner_id FK to users table, timestamps).
-2.  **Schemas:** Define Pydantic schemas (e.g., `UserAIWriterCreate`, `UserAIWriterUpdate`, `UserAIWriterRead`) in `backend/schemas.py` or potentially a new `backend/app/schemas/ai_agent_schemas.py`.
-3.  **Router:** Create a new router file `backend/app/routers/ai_agents.py`.
-4.  **Endpoints:** Implement the CRUD endpoints defined below within `ai_agents.py`.
+1.  **Models:** Define `UserAIWriter` and `UserAIJudge` tables in `backend/models.py` with necessary fields (name, description, prompts, owner_id FK to users table, timestamps). **Add a `credits` field (e.g., `Integer`, default 0) to the `User` model.**
+2.  **Schemas:** 
+    * Define Pydantic schemas (e.g., `UserAIWriterCreate`, `UserAIWriterUpdate`, `UserAIWriterRead`) in `backend/schemas.py` or potentially a new `backend/app/schemas/ai_agent_schemas.py`.
+    * **Update `UserPublic`, `UserDetail`, `UserMe` schemas to include the `credits` field.**
+    * **Define schemas for admin credit management (e.g., `AdminUserCreditUpdate`).**
+    * **Define schemas for the new AI action endpoints (request body, response).**
+3.  **Router:** Create a new router file `backend/app/routers/ai_agents.py` (if not already done).
+4.  **Endpoints:** Implement the CRUD endpoints defined below within `ai_agents.py`. **Implement the new AI action endpoints and credit management endpoints.**
 5.  **Dependencies:** Use `Depends(get_db_session)` for database access and `Depends(security.get_current_active_user)` for authentication.
 6.  **Authorization:** Inside each endpoint, perform checks: ensure the resource belongs to the `current_user` OR the `current_user` has the `admin` role.
 7.  **Main App:** Mount the new router in `backend/main.py`.
@@ -102,7 +106,85 @@ These endpoints in `backend/app/routers/admin.py` remain as is, managing globall
 
 ---
 
-## Future / Out of Scope (for this roadmap)
+## Credit Management & User Info
 
-*   Endpoints for requesting AI actions using user-owned agents (e.g., `/ai-writers/{writer_id}/request-action`). These might live in `ai_agents.py` or a separate action-focused router.
-*   Admin endpoints for listing, approving, or rejecting user AI action requests. 
+### Admin Credit Management
+
+Implemented in `backend/app/routers/admin.py`.
+
+1.  **`PUT /admin/users/{user_id}/credits` - Set/Update User Credits**
+    *   **Roles:** Admin
+    *   **Input Schema:** `AdminUserCreditUpdate` (e.g., `{"credits": 1000}` or `{"add_credits": 500}`)
+    *   **Output Schema:** `UserPublic` (showing updated balance)
+    *   **Action:** Finds the user by `user_id`, locks the row, updates their `credits` field based on input schema, creates a `CostLedger` entry for the transaction, and commits. Needs validation (e.g., non-negative credits if setting absolute).
+    *   **Status Codes:** 200 OK, 400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found (User), 500 Internal Server Error.
+
+### User Information Endpoints (Updates)
+
+1.  **`GET /auth/users/me` (Update)**
+    *   **Router:** `backend/app/routers/auth.py`
+    *   **Output Schema:** `UserMe` (Update this schema to include `credits: int`).
+    *   **Action:** Retrieve current user's details, including their credit balance.
+
+2.  **`GET /admin/users/` (Update)**
+    *   **Router:** `backend/app/routers/admin.py`
+    *   **Output Schema:** `List[UserPublic]` (Update `UserPublic` schema to include `credits: int`).
+    *   **Action:** List users, ensuring credit balance is included.
+
+3.  **`GET /admin/users/{user_id}` (Update - If it exists)**
+    *   *(Assumption: An endpoint like this might exist or be added for viewing specific user details as admin)*
+    *   **Router:** `backend/app/routers/admin.py`
+    *   **Output Schema:** `UserDetail` (Update `UserDetail` schema to include `credits: int`).
+    *   **Action:** Get specific user details, including credit balance.
+
+--- 
+
+## User-Triggered AI Actions (New Endpoints) [Implemented - Placeholders]
+
+These endpoints allow users to spend credits to execute AI actions. Implemented likely in `backend/app/routers/ai_agents.py` or a dedicated action router.
+
+### AI Writer Action
+
+1.  **`POST /ai-writers/{writer_id}/generate` - Generate Text**
+    *   **Roles:** User (Owner of the writer)
+    *   **Input Schema:** `AIWriterGenerateRequest` (defines `model_id`, potentially others)
+    *   **Output Schema:** `AIWriterGenerateResponse` (contains generated text, `credits_spent`, `remaining_credits`, `cost_ledger_id`, etc.)
+    *   **Action:**
+        1.  Verify ownership (`writer_id` belongs to `current_user`).
+        2.  Lock user row `with_for_update()`.
+        3.  (Optional) Estimate potential credit cost and perform pre-check against `user.credits`.
+        4.  Execute AI generation call (using selected `model_id` and writer's prompts). **[Placeholder]**
+        5.  Calculate actual credit cost based on usage/cost model. **[Placeholder]**
+        6.  Verify `user.credits` >= actual cost. Raise 402 Payment Required if insufficient.
+        7.  Deduct actual cost from `user.credits`.
+        8.  Create `CostLedger` entry logging the transaction details (user, action, change, cost, balance, related entity).
+        9.  Commit the transaction.
+        10. Return generated text and transaction details.
+    *   **Status Codes:** 200 OK, 400 Bad Request, 401 Unauthorized, 402 Payment Required, 403 Forbidden (Not owner), 404 Not Found (Writer), 500/503 Internal Server Error (AI call failed).
+
+### AI Judge Action
+
+1.  **`POST /ai-judges/{judge_id}/evaluate` - Evaluate Contest Submissions**
+    *   **Roles:** User (Owner of the judge)
+    *   **Input Schema:** `AIJudgeEvaluateRequest` (defines `contest_id`, `model_id`)
+    *   **Output Schema:** `AIJudgeEvaluateResponse` (confirms evaluation status, `credits_spent`, `remaining_credits`, `cost_ledger_id`, etc.)
+    *   **Action:** (Similar logic to writer action)
+        1.  Verify ownership (`judge_id` belongs to `current_user`).
+        2.  Lock user row `with_for_update()`.
+        3.  (Optional) Estimate potential credit cost and perform pre-check.
+        4.  Execute AI evaluation call for the contest. **[Placeholder]**
+        5.  Calculate actual credit cost based on total usage/cost model. **[Placeholder]**
+        6.  Verify `user.credits` >= actual cost. Raise 402 if insufficient.
+        7.  Deduct actual cost from `user.credits`.
+        8.  Create `CostLedger` entry.
+        9.  Commit the transaction.
+        10. Store evaluation results (handled by AI service call).
+        11. Return confirmation and transaction details.
+    *   **Status Codes:** 200 OK/202 Accepted (if async), 400 Bad Request, 401 Unauthorized, 402 Payment Required, 403 Forbidden, 404 Not Found (Judge/Contest), 500/503 Internal Server Error.
+
+---
+
+-Endpoints for requesting AI actions using user-owned agents (e.g., `/ai-writers/{writer_id}/request-action`). These might live in `ai_agents.py` or a separate action-focused router.
+-Admin endpoints for listing, approving, or rejecting user AI action requests. 
++*Admin endpoints for directly triggering AI actions (`POST /admin/contests/.../evaluate`, `POST /admin/contests/.../ai-submission`) may be kept for administrative override/testing, potentially ignoring credit costs.* 
++*Endpoints for users to view their detailed credit consumption history.* 

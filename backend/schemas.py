@@ -41,10 +41,12 @@ class UserUpdate(ModelBase):
 
 # Public representation (omits password_hash)
 class UserPublic(UserBase, ModelPublic): # Inherit from UserBase first
+    credits: int # Add credits field
     pass # id is inherited from ModelPublic
 
 # Detailed representation for admin or self (could include more)
 class UserDetail(UserPublic):
+    credits: int # Add credits field (inherited from UserPublic technically, but explicit here for clarity)
     # Example: Add relationships if needed, ensure they use Public schemas
     # judged_contests: List['ContestPublic'] = [] # Avoid circular imports initially
     pass
@@ -55,6 +57,7 @@ class UserMe(ModelBase):
     username: str
     email: EmailStr
     role: str
+    credits: int # Add credits field
 
     class Config:
         from_attributes = True
@@ -391,3 +394,87 @@ SubmissionDetail.model_rebuild()
 SubmissionRead.model_rebuild()
 # VotePublic.model_rebuild()
 # ... rebuild others as needed ... 
+
+# --- Cost Ledger Schemas ---
+
+class CostLedgerBase(BaseModel):
+    user_id: int
+    timestamp: datetime
+    action_type: str
+    credits_change: int
+    real_cost: Optional[float] = None
+    description: Optional[str] = Field(None, max_length=255)
+    related_entity_type: Optional[str] = Field(None, max_length=50)
+    related_entity_id: Optional[int] = None
+    resulting_balance: Optional[int] = None
+
+# Schema for reading ledger entries
+class CostLedgerRead(CostLedgerBase):
+    id: int
+    
+    model_config = {
+        "from_attributes": True
+    }
+
+# --- Admin Credit Management Schemas ---
+
+class AdminUserCreditUpdate(BaseModel):
+    """Schema for admin to set or adjust user credits."""
+    # Option 1: Set absolute value
+    credits: Optional[int] = Field(None, ge=0, description="Set the user's credit balance to this absolute value.")
+    # Option 2: Add/Subtract value (mutually exclusive with setting absolute)
+    add_credits: Optional[int] = Field(None, description="Add (positive value) or subtract (negative value) credits from the current balance.")
+
+    @model_validator(mode='before')
+    @classmethod
+    def check_mutual_exclusion(cls, values: dict) -> dict:
+        credits_val = values.get('credits')
+        add_credits_val = values.get('add_credits')
+        
+        if credits_val is not None and add_credits_val is not None:
+            raise ValueError('Cannot set absolute credits and add/subtract credits simultaneously.')
+        if credits_val is None and add_credits_val is None:
+            raise ValueError('Either "credits" or "add_credits" must be provided.')
+        return values
+
+# --- User AI Action Schemas ---
+
+class AIActionRequestBase(BaseModel):
+    """Base schema for triggering a user-owned AI agent action."""
+    model_id: str = Field(..., description="The specific LLM model ID to use for this action (e.g., 'gpt-4-turbo')")
+    # Add other common parameters if needed, like custom prompts/context?
+
+class AIWriterGenerateRequest(AIActionRequestBase):
+    # Add writer-specific parameters if any
+    # context_text: Optional[str] = Field(None, description="Additional context for the generation task.")
+    pass
+
+class AIJudgeEvaluateRequest(AIActionRequestBase):
+    """Schema for requesting an AI Judge evaluation."""
+    contest_id: int = Field(..., description="The ID of the contest to evaluate.")
+    # Add judge-specific parameters if any 
+    # e.g., submission_ids: Optional[List[int]] = None # To evaluate only specific submissions?
+
+class AIActionResponseBase(BaseModel):
+    """Base response for AI actions, including cost info."""
+    action_type: str
+    user_id: int
+    credits_spent: int
+    remaining_credits: int
+    real_cost: Optional[float] = None
+    cost_ledger_id: int # ID of the corresponding ledger entry
+    
+    model_config = {
+        "from_attributes": True # Allow mapping from potential result objects
+    }
+
+class AIWriterGenerateResponse(AIActionResponseBase):
+    generated_text: str
+    # Include any other relevant output from the generation
+
+class AIJudgeEvaluateResponse(AIActionResponseBase):
+    contest_id: int
+    evaluation_status: str = Field(..., description="Status of the evaluation (e.g., 'completed', 'failed', 'pending')")
+    message: str 
+    # Potentially include evaluation IDs or summary stats
+    # evaluation_ids: List[int] = [] 

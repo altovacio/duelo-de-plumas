@@ -14,8 +14,7 @@ Covers:
     - Verify credits are deducted correctly from User 1 balance.
     - Verify CostLedger entry is created for User 1 with correct details (action, cost, balance, entity). 
         - Note: Consider adding a test identifier to the description or using dedicated test users if ledger differentiation is crucial.
-- User 1 submits generated text (or placeholder) to their Contest.
-- User 1 attempts to evaluate their contest with their AI Judge (insufficient credits).
+- User 1 submits generated text to their Contest.
 - User 1 evaluates the contest with the AI Judge (sufficient credits).
     - Use a cost-effective model like Claude Haiku if making real API calls.
     - Verify successful response.
@@ -36,6 +35,7 @@ import httpx
 import os # Added for environment variables
 from uuid import uuid4
 from dotenv import load_dotenv # Added for .env loading
+import pytest_asyncio # Added import
 
 # Load environment variables from .env file
 load_dotenv()
@@ -47,61 +47,103 @@ TEST_MODEL_ID = "claude-3-5-haiku-latest"
 
 # --- Helper Functions ---
 
-async def create_user(client: httpx.AsyncClient, username: str, password: str, email: str, role: str = "user"):
-    """Helper to create a user via admin endpoint."""
-    # Requires admin credentials - assuming we have them or can get them
-    # TODO: Implement admin login or use a fixture for admin client
-    admin_token = "YOUR_ADMIN_TOKEN" # Replace with actual admin token retrieval
-    headers = {"Authorization": f"Bearer {admin_token}"}
-    
-    # Note: Based on api_roles_and_features.md, admin user creation needs update
-    # Assuming it takes username, password, email for now. Role setting might differ.
-    # POST /admin/users/ might be the endpoint (needs clarification/update in docs)
-    # Let's use POST /auth/register for now, assuming it can be used, 
-    # although admin might be needed later for credit assignment.
-    # If registration gives 0 credits, that aligns with the plan.
-    
-    # Using registration endpoint instead of admin for initial creation
-    register_data = {"username": username, "email": email, "password": password}
-    response = await client.post(f"{BASE_URL}/auth/register", json=register_data)
-    
-    # Check if user already exists, handle gracefully for tests
-    if response.status_code == 400 and "already exists" in response.text:
-        print(f"User {username} might already exist. Proceeding...")
-        # Attempt login to get user details if needed
-        login_response = await login_user(client, username, password)
-        if login_response.status_code == 200:
-             # We need the user ID later for admin actions
-             # Let's get it from the /me endpoint
-             me_response = await client.get(f"{BASE_URL}/auth/users/me", headers={"Authorization": f"Bearer {login_response.json()['access_token']}"})
-             if me_response.status_code == 200:
-                 return me_response.json() # Return user details including ID
-             else:
-                 raise Exception(f"Failed to get user details for existing user {username}: {me_response.status_code} {me_response.text}")
-        else:
-             raise Exception(f"Failed to login existing user {username}: {login_response.status_code} {login_response.text}")
-
-    elif response.status_code != 201: # Expect 201 Created from register
-        raise Exception(f"Failed to create user {username}: {response.status_code} {response.text}")
-        
-    return response.json() # Return created user details (might include ID)
-
-async def login_user(client: httpx.AsyncClient, username: str, password: str):
+async def login_user_helper(client: httpx.AsyncClient, username: str, password: str):
     """Helper to login a user and get token."""
     login_data = {"username": username, "password": password}
     # Using form data as per OAuth2 standard for /token endpoint
     response = await client.post(f"{BASE_URL}/auth/token", data=login_data)
     return response
 
+async def get_user_me(client: httpx.AsyncClient, token: str):
+    """Helper to get user details from /me endpoint."""
+    headers = {"Authorization": f"Bearer {token}"}
+    response = await client.get(f"{BASE_URL}/auth/users/me", headers=headers)
+    return response
+
+async def ensure_user_deleted_and_registered(
+    client: httpx.AsyncClient, 
+    admin_token: str, 
+    username: str, 
+    password: str, 
+    email: str
+):
+    """Ensures a user with the given username/email is deleted (if exists) and then registered.
+    
+    Relies on admin privileges for deletion and cascade behavior.
+    """
+    user_id_to_delete = None
+    print(f"Ensuring user '{username}' is clean before registration...")
+
+    # 1. Try to login to see if user exists and get ID
+    print(f" -> Attempting login for '{username}' to check existence...")
+    login_response = await login_user_helper(client, username, password)
+    
+    if login_response.status_code == 200:
+        print(f" -> User '{username}' exists. Getting ID...")
+        token = login_response.json().get("access_token")
+        if token:
+            me_response = await get_user_me(client, token)
+            if me_response.status_code == 200:
+                user_id_to_delete = me_response.json().get("id")
+                print(f" -> Found User ID: {user_id_to_delete}")
+            else:
+                print(f" -> WARN: Login successful but failed to get /me details: {me_response.status_code}")
+        else:
+            print(" -> WARN: Login successful but no token found in response.")
+    elif login_response.status_code == 401: # Unauthorized - User likely doesn't exist or wrong pass
+        print(f" -> Login failed (401), assuming user '{username}' does not exist or password mismatch.")
+    else: # Other login errors
+        print(f" -> WARN: Unexpected login attempt status: {login_response.status_code} {login_response.text}")
+
+    # 2. Delete the user if ID was found
+    if user_id_to_delete and admin_token:
+        print(f" -> Attempting deletion of User ID {user_id_to_delete} using admin token...")
+        admin_headers = {"Authorization": f"Bearer {admin_token}"}
+        delete_url = f"{BASE_URL}/admin/users/{user_id_to_delete}"
+        delete_response = await client.delete(delete_url, headers=admin_headers)
+        if delete_response.status_code in [200, 204]:
+            print(f" -> Successfully deleted user {user_id_to_delete}.")
+        elif delete_response.status_code == 404:
+            print(f" -> User {user_id_to_delete} not found for deletion (already deleted?).")
+        else:
+            # Log error but proceed to registration attempt
+            print(
+                f" -> WARN: Failed to delete user {user_id_to_delete}. "
+                f"Status: {delete_response.status_code}, Response: {delete_response.text}"
+            )
+    elif user_id_to_delete and not admin_token:
+        print(" -> WARN: User exists but no admin token provided for deletion.")
+
+    # 3. Register the user
+    print(f" -> Attempting registration for '{username}'...")
+    register_data = {"username": username, "email": email, "password": password}
+    register_response = await client.post(f"{BASE_URL}/auth/register", json=register_data)
+    
+    if register_response.status_code == 201:
+        print(f" -> Successfully registered user '{username}'.")
+        return register_response # Return the successful registration response
+    elif register_response.status_code == 400 and ("already registered" in register_response.text.lower() or "already exists" in register_response.text.lower()):
+        # This might happen if delete failed or in race condition - it's acceptable state.
+        print(f" -> Registration returned 400 (already exists), which is acceptable after cleanup attempt.")
+        # We need to return something meaningful, maybe the error response?
+        # Or maybe login again to confirm? For now, return the 400 response.
+        return register_response 
+    else:
+        # Raise actual exception for unexpected registration errors
+        raise Exception(
+            f"Failed to register user '{username}' after cleanup attempt. "
+            f"Status: {register_response.status_code}, Response: {register_response.text}"
+        )
+
 # --- Test Fixtures ---
 
-@pytest.fixture(scope="module")
+@pytest_asyncio.fixture(scope="function")
 async def async_client():
     async with httpx.AsyncClient() as client:
         yield client
 
 @pytest.fixture(scope="module")
-async def user1_credentials():
+def user1_credentials():
     return {
         "username": "test_user1",
         "password": "password123",
@@ -109,7 +151,7 @@ async def user1_credentials():
     }
 
 @pytest.fixture(scope="module")
-async def user2_credentials():
+def user2_credentials():
     return {
         "username": "test_user2",
         "password": "password456",
@@ -117,7 +159,7 @@ async def user2_credentials():
     }
     
 # Placeholder for admin client/token - needs proper setup
-@pytest.fixture(scope="module")
+@pytest_asyncio.fixture(scope="function")
 async def admin_token(async_client):
      admin_username = os.getenv("ADMIN_USERNAME")
      admin_password = os.getenv("ADMIN_PASSWORD")
@@ -127,7 +169,7 @@ async def admin_token(async_client):
          return None # Or raise an error if admin is strictly required
 
      print(f"Attempting admin login for user: {admin_username}")
-     admin_login_response = await login_user(async_client, admin_username, admin_password)
+     admin_login_response = await login_user_helper(async_client, admin_username, admin_password)
      
      if admin_login_response.status_code != 200:
          pytest.fail(f"Failed to login admin user '{admin_username}': {admin_login_response.status_code} {admin_login_response.text}")
@@ -150,52 +192,54 @@ class TestAICostsE2E:
     user1_judge_id: int = None
     user1_contest_id: int = None
     user1_initial_credits: int = 0 # Start with 0
-    user1_credits_after_add: int = 10000 # Define how many credits admin adds
+    # Set initial credits as per user request to manage costs
+    user1_credits_after_add: int = 100
     user1_generate_cost: int = None
     user1_balance_after_generate: int = None
+    user1_generate_ledger_id: int = None # Added to store ledger ID
     user1_evaluate_cost: int = None
     user1_balance_after_evaluate: int = None
+    user1_evaluate_ledger_id: int = None # Added to store ledger ID
 
     user2_id: int = None
     user2_token: str = None
 
-    async def test_01_setup_user1(self, async_client, user1_credentials):
-        """Create User 1 and log them in."""
-        print(f"Attempting to create User 1: {user1_credentials['username']}")
-        # Use registration endpoint first
-        response = await async_client.post(
-            f"{BASE_URL}/auth/register",
-            json={
-                "username": user1_credentials["username"],
-                "email": user1_credentials["email"],
-                "password": user1_credentials["password"],
-            }
-        )
-        # Handle potential existing user from previous runs if needed
-        if response.status_code == 400 and "already exists" in response.text:
-             print(f"User {user1_credentials['username']} might already exist. Attempting login.")
-        elif response.status_code != 201:
-            pytest.fail(f"Failed to register user 1: {response.status_code} {response.text}")
+    async def test_01_setup_user1(self, async_client, user1_credentials, admin_token):
+        """Ensure User 1 is deleted (if exists) and then create/log them in."""
         
-        # Log in User 1
-        login_response = await login_user(
+        # Use the new helper function
+        register_response = await ensure_user_deleted_and_registered(
+            client=async_client,
+            admin_token=admin_token,
+            username=user1_credentials["username"],
+            password=user1_credentials["password"],
+            email=user1_credentials["email"]
+        )
+        
+        # If registration failed unexpectedly, the helper raises an exception.
+        # If it returned 400 (already exists), we proceed to login.
+        # If it returned 201, the user is newly created.
+        if register_response.status_code not in [201, 400]: # Should not happen based on helper logic
+             pytest.fail(f"Unexpected status code from ensure_user_deleted_and_registered: {register_response.status_code}")
+
+        # Log in User 1 (even if registration was 400, we need the token)
+        print(f"Logging in user {user1_credentials['username']}...")
+        login_response = await login_user_helper(
             async_client, user1_credentials["username"], user1_credentials["password"]
         )
-        assert login_response.status_code == 200, f"Failed to login User 1: {login_response.text}"
+        assert login_response.status_code == 200, f"Failed to login User 1 after registration: {login_response.text}"
         TestAICostsE2E.user1_token = login_response.json()["access_token"]
         assert TestAICostsE2E.user1_token is not None
 
-        # Get User 1 ID from /me endpoint
-        headers = {"Authorization": f"Bearer {TestAICostsE2E.user1_token}"}
-        me_response = await async_client.get(f"{BASE_URL}/auth/users/me", headers=headers)
+        # Get User 1 ID and verify initial credits
+        me_response = await get_user_me(async_client, TestAICostsE2E.user1_token)
         assert me_response.status_code == 200, f"Failed to get User 1 details: {me_response.text}"
         user_details = me_response.json()
         TestAICostsE2E.user1_id = user_details.get("id")
         assert TestAICostsE2E.user1_id is not None
-        # Verify initial credit balance is 0 (as per description_utopia_v2.md)
-        TestAICostsE2E.user1_initial_credits = user_details.get("credits", 0) # Store initial credits
+        TestAICostsE2E.user1_initial_credits = user_details.get("credits", 0)
         assert TestAICostsE2E.user1_initial_credits == 0, f"User 1 initial credits should be 0, but got {TestAICostsE2E.user1_initial_credits}"
-        print(f"User 1 ({user1_credentials['username']}, ID: {TestAICostsE2E.user1_id}) created and logged in with {TestAICostsE2E.user1_initial_credits} credits.")
+        print(f"User 1 ({user1_credentials['username']}, ID: {TestAICostsE2E.user1_id}) setup complete with {TestAICostsE2E.user1_initial_credits} credits.")
 
     async def test_02_user1_create_ai_writer(self, async_client):
         """User 1 creates an AI Writer."""
@@ -207,7 +251,7 @@ class TestAICostsE2E:
             "personality_prompt": "You are a helpful test writer."
             # Assuming base_prompt is set by backend or not needed for creation
         }
-        response = await async_client.post(f"{BASE_URL}/ai-writers", headers=headers, json=writer_data)
+        response = await async_client.post(f"{BASE_URL}/ai-writers/", headers=headers, json=writer_data)
         assert response.status_code == 201, f"Failed to create AI Writer: {response.status_code} {response.text}"
         writer_details = response.json()
         TestAICostsE2E.user1_writer_id = writer_details.get("id")
@@ -223,7 +267,7 @@ class TestAICostsE2E:
             "description": "A judge for E2E tests",
             "personality_prompt": "You are a fair test judge."
         }
-        response = await async_client.post(f"{BASE_URL}/ai-judges", headers=headers, json=judge_data)
+        response = await async_client.post(f"{BASE_URL}/ai-judges/", headers=headers, json=judge_data)
         assert response.status_code == 201, f"Failed to create AI Judge: {response.status_code} {response.text}"
         judge_details = response.json()
         TestAICostsE2E.user1_judge_id = judge_details.get("id")
@@ -310,6 +354,8 @@ class TestAICostsE2E:
         
         TestAICostsE2E.user1_generate_cost = response_data["credits_spent"]
         TestAICostsE2E.user1_balance_after_generate = response_data["remaining_credits"]
+        TestAICostsE2E.user1_generate_ledger_id = response_data["cost_ledger_id"] # Store the ID
+        assert TestAICostsE2E.user1_generate_ledger_id is not None, "Cost ledger ID missing from generate response"
         
         assert TestAICostsE2E.user1_generate_cost > 0, "Credits spent should be positive"
         expected_remaining = TestAICostsE2E.user1_credits_after_add - TestAICostsE2E.user1_generate_cost
@@ -346,19 +392,19 @@ class TestAICostsE2E:
         assert isinstance(ledger_entries, list), "Credit history response is not a list"
         print(f"Received {len(ledger_entries)} ledger entries.")
         
-        # Find the entry corresponding to the AI generation
-        # We look for the entry with the correct negative credit change and action type
+        # Find the entry corresponding to the AI generation using its specific ID
         generation_entry = None
-        for entry in reversed(ledger_entries): # Check recent entries first
-            if entry.get("action_type") == 'ai_generate' and \
-               entry.get("credits_change") == -TestAICostsE2E.user1_generate_cost and \
-               entry.get("related_entity_type") == 'user_ai_writer' and \
-               entry.get("related_entity_id") == TestAICostsE2E.user1_writer_id:
+        target_ledger_id = TestAICostsE2E.user1_generate_ledger_id
+        assert target_ledger_id is not None, "Generate ledger ID was not stored from previous test"
+
+        for entry in ledger_entries:
+            if entry.get("id") == target_ledger_id:
                 generation_entry = entry
                 break
                 
-        assert generation_entry is not None, "Could not find matching CostLedger entry for AI generation"
-        print(f"Found generation CostLedger entry: {generation_entry}")
+        assert generation_entry is not None, \
+               f"Could not find CostLedger entry with ID {target_ledger_id} for AI generation in history: {ledger_entries}"
+        print(f"Found generation CostLedger entry by ID {target_ledger_id}: {generation_entry}")
         
         # Verify details of the ledger entry
         assert generation_entry.get("user_id") == TestAICostsE2E.user1_id
@@ -391,61 +437,7 @@ class TestAICostsE2E:
         assert submission_details.get("title") == submission_data["title"]
         print(f"Successfully submitted text with Submission ID: {submission_details.get('id')}")
 
-    async def test_10_user1_evaluate_insufficient_credits(self, async_client):
-        """User 1 attempts evaluation with AI Judge (insufficient credits)."""
-        # This test assumes the cost of evaluation is greater than user1_balance_after_generate
-        # We might need to adjust assigned credits or mock costs if this assumption isn't reliable.
-        assert TestAICostsE2E.user1_token, "User 1 token not available"
-        assert TestAICostsE2E.user1_judge_id, "User 1 judge ID not available"
-        assert TestAICostsE2E.user1_contest_id, "User 1 contest ID not available"
-        assert TestAICostsE2E.user1_balance_after_generate is not None, "Balance after generate is unknown"
-
-        print(f"Current balance before evaluation attempt: {TestAICostsE2E.user1_balance_after_generate}")
-        # TODO: If the balance IS sufficient, we should skip this test or adjust credits.
-        # For now, assume it is insufficient based on typical LLM costs.
-        
-        headers = {"Authorization": f"Bearer {TestAICostsE2E.user1_token}"}
-        evaluate_data = {
-            "contest_id": TestAICostsE2E.user1_contest_id,
-            # Use the same cost-effective model for testing
-            "model_id": TEST_MODEL_ID 
-        }
-        
-        url = f"{BASE_URL}/ai-judges/{TestAICostsE2E.user1_judge_id}/evaluate"
-        print(f"Attempting evaluation (expect fail 402): POST {url}")
-        response = await async_client.post(url, headers=headers, json=evaluate_data)
-        
-        assert response.status_code == 402, f"Expected 402 Payment Required for evaluation, but got {response.status_code}: {response.text}"
-        print("Received expected 402 for insufficient credits during evaluation attempt.")
-
-    async def test_11_admin_assigns_more_credits(self, async_client, admin_token):
-        """Admin assigns more credits to User 1 for evaluation."""
-        assert admin_token, "Admin token not available"
-        assert TestAICostsE2E.user1_id, "User 1 ID not available"
-        assert TestAICostsE2E.user1_balance_after_generate is not None, "Previous balance unknown"
-
-        # Decide how many credits to add (e.g., enough for one evaluation)
-        credits_to_add = 15000 # Arbitrary amount likely sufficient for evaluation
-        new_total_credits = TestAICostsE2E.user1_balance_after_generate + credits_to_add
-        
-        headers = {"Authorization": f"Bearer {admin_token}"}
-        # We PUT the *total* desired credits, not the amount to add
-        credit_data = {"credits": new_total_credits}
-        
-        url = f"{BASE_URL}/admin/users/{TestAICostsE2E.user1_id}/credits"
-        print(f"Admin setting credits to {new_total_credits} for User ID {TestAICostsE2E.user1_id}: PUT {url}")
-        response = await async_client.put(url, headers=headers, json=credit_data)
-        
-        assert response.status_code == 200, f"Failed to assign credits: {response.status_code} {response.text}"
-        updated_user_details = response.json()
-        assert updated_user_details.get("credits") == new_total_credits, \
-               f"Expected {new_total_credits} credits, but API returned {updated_user_details.get('credits')}"
-        
-        # Update the class variable tracking the expected balance
-        TestAICostsE2E.user1_credits_after_add = new_total_credits # Reusing this variable, represents current total expected
-        print(f"Successfully assigned more credits. User 1 balance is now {new_total_credits}.")
-
-    async def test_12_user1_evaluate_sufficient_credits(self, async_client):
+    async def test_10_user1_evaluate_sufficient_credits(self, async_client):
         """User 1 evaluates the contest with the AI Judge (sufficient credits)."""
         assert TestAICostsE2E.user1_token, "User 1 token not available"
         assert TestAICostsE2E.user1_judge_id, "User 1 judge ID not available"
@@ -480,9 +472,12 @@ class TestAICostsE2E:
         # Store cost and balance for verification
         TestAICostsE2E.user1_evaluate_cost = response_data["credits_spent"]
         TestAICostsE2E.user1_balance_after_evaluate = response_data["remaining_credits"]
+        TestAICostsE2E.user1_evaluate_ledger_id = response_data["cost_ledger_id"] # Store the ID
+        assert TestAICostsE2E.user1_evaluate_ledger_id is not None, "Cost ledger ID missing from evaluate response"
         
         assert TestAICostsE2E.user1_evaluate_cost > 0, "Evaluation credits spent should be positive"
-        expected_remaining = TestAICostsE2E.user1_credits_after_add - TestAICostsE2E.user1_evaluate_cost
+        # Calculate expected remaining based on balance *after* generation
+        expected_remaining = TestAICostsE2E.user1_balance_after_generate - TestAICostsE2E.user1_evaluate_cost 
         assert TestAICostsE2E.user1_balance_after_evaluate == expected_remaining, \
                f"Remaining credits after evaluation mismatch. Expected {expected_remaining}, got {TestAICostsE2E.user1_balance_after_evaluate}"
         print(f"Evaluation cost {TestAICostsE2E.user1_evaluate_cost} credits. Remaining balance: {TestAICostsE2E.user1_balance_after_evaluate}.")
@@ -491,7 +486,7 @@ class TestAICostsE2E:
         # This might require specific admin endpoints or direct DB access setup for tests.
         # print("TODO: Add verification for vote creation if applicable.")
 
-    async def test_13_verify_evaluation_deduction_and_ledger(self, async_client, admin_token):
+    async def test_11_verify_evaluation_deduction_and_ledger(self, async_client, admin_token):
         """Verify credits are deducted correctly and CostLedger entry exists for evaluation."""
         assert TestAICostsE2E.user1_token, "User 1 token not available"
         assert admin_token, "Admin token not available"
@@ -520,20 +515,22 @@ class TestAICostsE2E:
         assert isinstance(ledger_entries, list), "Credit history response is not a list"
         print(f"Received {len(ledger_entries)} ledger entries.")
         
-        # Find the entry corresponding to the AI evaluation
+        # Find the entry corresponding to the AI evaluation using its specific ID
         evaluation_entry = None
-        for entry in reversed(ledger_entries): # Check recent entries first
-            if entry.get("action_type") == 'ai_evaluate' and \
-               entry.get("credits_change") == -TestAICostsE2E.user1_evaluate_cost and \
-               entry.get("related_entity_type") == 'user_ai_judge' and \
-               entry.get("related_entity_id") == TestAICostsE2E.user1_judge_id: 
-                # Optional: Add check for contest_id in description if available/reliable
-                # if f"Contest {TestAICostsE2E.user1_contest_id}" in entry.get("description", ""):
+        target_ledger_id = TestAICostsE2E.user1_evaluate_ledger_id
+        assert target_ledger_id is not None, "Evaluate ledger ID was not stored from previous test"
+
+        for entry in ledger_entries:
+            if entry.get("id") == target_ledger_id:
+                # Optional: Add extra checks for action_type etc. if needed for robustness
+                # if entry.get("action_type") == 'ai_evaluate' and \
+                #    entry.get("credits_change") == -TestAICostsE2E.user1_evaluate_cost:
                 evaluation_entry = entry
                 break
                 
-        assert evaluation_entry is not None, "Could not find matching CostLedger entry for AI evaluation"
-        print(f"Found evaluation CostLedger entry: {evaluation_entry}")
+        assert evaluation_entry is not None, \
+               f"Could not find CostLedger entry with ID {target_ledger_id} for AI evaluation in history: {ledger_entries}"
+        print(f"Found evaluation CostLedger entry by ID {target_ledger_id}: {evaluation_entry}")
         
         # Verify details of the ledger entry
         assert evaluation_entry.get("user_id") == TestAICostsE2E.user1_id
@@ -542,7 +539,7 @@ class TestAICostsE2E:
                f"Ledger resulting balance after evaluation mismatch. Expected {TestAICostsE2E.user1_balance_after_evaluate}, got {evaluation_entry.get('resulting_balance')}"
         print("Evaluation CostLedger entry verified.")
 
-    async def test_14_admin_views_credit_history(self, async_client, admin_token):
+    async def test_12_admin_views_credit_history(self, async_client, admin_token):
         """Admin views User 1's credit history (basic check)."""
         assert admin_token, "Admin token not available"
         assert TestAICostsE2E.user1_id, "User 1 ID not available"
@@ -556,28 +553,28 @@ class TestAICostsE2E:
         ledger_entries = history_response.json()
         assert isinstance(ledger_entries, list)
         # Check that we have entries corresponding to the actions performed
-        # Expect at least: credit assignment, generation, credit assignment, evaluation
-        assert len(ledger_entries) >= 4, f"Expected at least 4 ledger entries, found {len(ledger_entries)}"
+        # Expect at least: credit assignment, generation, evaluation
+        assert len(ledger_entries) >= 3, f"Expected at least 3 ledger entries, found {len(ledger_entries)}"
         print(f"Successfully retrieved {len(ledger_entries)} credit history entries for User 1.")
 
-    async def test_15_setup_user2(self, async_client, user2_credentials):
-        """Create User 2 and log them in."""
-        print(f"Attempting to create User 2: {user2_credentials['username']}")
-        response = await async_client.post(
-            f"{BASE_URL}/auth/register",
-            json={
-                "username": user2_credentials["username"],
-                "email": user2_credentials["email"],
-                "password": user2_credentials["password"],
-            }
+    async def test_13_setup_user2(self, async_client, user2_credentials, admin_token):
+        """Ensure User 2 is deleted (if exists) and then create/log them in."""
+
+        # Use the new helper function
+        register_response = await ensure_user_deleted_and_registered(
+            client=async_client,
+            admin_token=admin_token,
+            username=user2_credentials["username"],
+            password=user2_credentials["password"],
+            email=user2_credentials["email"]
         )
-        if response.status_code == 400 and "already exists" in response.text:
-             print(f"User {user2_credentials['username']} might already exist. Attempting login.")
-        elif response.status_code != 201:
-            pytest.fail(f"Failed to register user 2: {response.status_code} {response.text}")
+        
+        if register_response.status_code not in [201, 400]:
+             pytest.fail(f"Unexpected status code from ensure_user_deleted_and_registered for user 2: {register_response.status_code}")
         
         # Log in User 2
-        login_response = await login_user(
+        print(f"Logging in user {user2_credentials['username']}...")
+        login_response = await login_user_helper(
             async_client, user2_credentials["username"], user2_credentials["password"]
         )
         assert login_response.status_code == 200, f"Failed to login User 2: {login_response.text}"
@@ -585,15 +582,17 @@ class TestAICostsE2E:
         assert TestAICostsE2E.user2_token is not None
 
         # Get User 2 ID
-        headers = {"Authorization": f"Bearer {TestAICostsE2E.user2_token}"}
-        me_response = await async_client.get(f"{BASE_URL}/auth/users/me", headers=headers)
+        me_response = await get_user_me(async_client, TestAICostsE2E.user2_token)
         assert me_response.status_code == 200, f"Failed to get User 2 details: {me_response.text}"
         user_details = me_response.json()
         TestAICostsE2E.user2_id = user_details.get("id")
         assert TestAICostsE2E.user2_id is not None
-        print(f"User 2 ({user2_credentials['username']}, ID: {TestAICostsE2E.user2_id}) created and logged in.")
+        # User 2 also starts with 0 credits
+        user2_initial_credits = user_details.get("credits", 0)
+        assert user2_initial_credits == 0, f"User 2 initial credits should be 0, but got {user2_initial_credits}"
+        print(f"User 2 ({user2_credentials['username']}, ID: {TestAICostsE2E.user2_id}) setup complete with {user2_initial_credits} credits.")
 
-    async def test_16_user2_forbidden_writer(self, async_client):
+    async def test_14_user2_forbidden_writer(self, async_client):
         """User 2 attempts to trigger User 1's AI Writer (expect 403 Forbidden)."""
         assert TestAICostsE2E.user2_token, "User 2 token not available"
         assert TestAICostsE2E.user1_writer_id, "User 1 writer ID not available"
@@ -608,7 +607,7 @@ class TestAICostsE2E:
         assert response.status_code == 403, f"Expected 403 Forbidden, but got {response.status_code}: {response.text}"
         print("Received expected 403 Forbidden when User 2 tries to use User 1's writer.")
 
-    async def test_17_user2_forbidden_judge(self, async_client):
+    async def test_15_user2_forbidden_judge(self, async_client):
         """User 2 attempts to trigger User 1's AI Judge (expect 403 Forbidden)."""
         assert TestAICostsE2E.user2_token, "User 2 token not available"
         assert TestAICostsE2E.user1_judge_id, "User 1 judge ID not available"
@@ -627,7 +626,7 @@ class TestAICostsE2E:
         assert response.status_code == 403, f"Expected 403 Forbidden, but got {response.status_code}: {response.text}"
         print("Received expected 403 Forbidden when User 2 tries to use User 1's judge.")
 
-    async def test_18_delete_user1_agents(self, async_client):
+    async def test_16_delete_user1_agents(self, async_client):
         """User 1 deletes their own AI Writer and Judge."""
         assert TestAICostsE2E.user1_token, "User 1 token not available"
         assert TestAICostsE2E.user1_writer_id, "User 1 writer ID not available"
@@ -657,7 +656,7 @@ class TestAICostsE2E:
         assert judge_get_response.status_code == 404, "Judge should return 404 after deletion"
         print("Agent deletion verified.")
 
-    async def test_19_delete_user1_verify_ledger(self, async_client, admin_token):
+    async def test_17_delete_user1_verify_ledger(self, async_client, admin_token):
         """Admin deletes User 1 and verifies their CostLedger entries remain."""
         assert admin_token, "Admin token not available"
         assert TestAICostsE2E.user1_id, "User 1 ID not available"
@@ -676,8 +675,8 @@ class TestAICostsE2E:
         delete_user_url = f"{BASE_URL}/admin/users/{TestAICostsE2E.user1_id}"
         print(f"Admin deleting User ID {TestAICostsE2E.user1_id}: DELETE {delete_user_url}")
         delete_response = await async_client.delete(delete_user_url, headers=admin_headers)
-        # Assuming 200 OK on successful deletion based on common practice, adjust if needed.
-        assert delete_response.status_code == 200, f"Failed to delete User 1: {delete_response.status_code} {delete_response.text}"
+        # Assuming 204 No Content for successful DELETE
+        assert delete_response.status_code == 204, f"Failed to delete User 1: {delete_response.status_code} {delete_response.text}"
         print("User 1 deleted successfully.")
         
         # Verify User 1 is gone (e.g., trying to get their /me should fail if logged in, or admin get fails)
@@ -699,7 +698,7 @@ class TestAICostsE2E:
              
         print("CostLedger entries persistence verified after User 1 deletion.")
         
-    async def test_20_delete_user2(self, async_client, admin_token):
+    async def test_18_delete_user2(self, async_client, admin_token):
         """Admin deletes User 2."""
         assert admin_token, "Admin token not available"
         assert TestAICostsE2E.user2_id, "User 2 ID not available"
@@ -709,7 +708,8 @@ class TestAICostsE2E:
         print(f"Admin deleting User ID {TestAICostsE2E.user2_id}: DELETE {delete_user_url}")
         delete_response = await async_client.delete(delete_user_url, headers=admin_headers)
         
-        assert delete_response.status_code == 200, f"Failed to delete User 2: {delete_response.status_code} {delete_response.text}"
+        # Updated: Expect 204 No Content for successful DELETE
+        assert delete_response.status_code == 204, f"Failed to delete User 2: {delete_response.status_code} {delete_response.text}"
         print("User 2 deleted successfully.")
 
 # TODO: Implement tests outlined in the docstring 

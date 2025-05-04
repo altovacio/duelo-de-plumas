@@ -261,12 +261,13 @@ async def admin_get_user_credit_history(
     Results are ordered by timestamp descending.
     """
     # Check if user exists (optional, but good practice)
-    user_exists = await db.get(models.User, user_id)
-    if not user_exists:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, 
-            detail=f"User with id {user_id} not found"
-        )
+    # REMOVED: User existence check - We want history even for deleted users
+    # user_exists = await db.get(models.User, user_id)
+    # if not user_exists:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_404_NOT_FOUND, 
+    #         detail=f"User with id {user_id} not found"
+    #     )
         
     stmt = (
         select(models.CostLedger)

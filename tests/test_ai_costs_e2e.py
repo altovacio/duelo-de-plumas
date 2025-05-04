@@ -708,7 +708,6 @@ class TestAICostsE2E:
         print(f"Admin deleting User ID {TestAICostsE2E.user2_id}: DELETE {delete_user_url}")
         delete_response = await async_client.delete(delete_user_url, headers=admin_headers)
         
-        # Updated: Expect 204 No Content for successful DELETE
         assert delete_response.status_code == 204, f"Failed to delete User 2: {delete_response.status_code} {delete_response.text}"
         print("User 2 deleted successfully.")
 

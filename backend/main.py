@@ -19,6 +19,8 @@ from .app.routers import main as main_router
 from .app.routers import admin as admin_router
 # ADD: Import submission router
 from .app.routers import submission # Use consistent path
+# ADD: Import the new roadmap router
+from .app.routers import roadmap as roadmap_router # NEW
 # ADD: Import the new AI agents router
 from .app.routers.ai_agents import writer_router, judge_router # NEW: Import specific routers
 # ADD: Import the database module
@@ -77,6 +79,7 @@ app.include_router(admin_router.router) # Uses prefix '/admin' defined in the ro
 # Include the new user-owned AI agent router
 app.include_router(writer_router) # NEW: Mount the writer router
 app.include_router(judge_router) # NEW: Mount the judge router
+app.include_router(roadmap_router.router) # NEW: Mount the roadmap router
 
 # --- Static Files and Frontend Serving ---
 

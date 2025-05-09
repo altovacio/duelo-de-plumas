@@ -14,6 +14,7 @@ from ... import security # CORRECTED: Use three dots
 from ..dependencies import get_openai_client, get_anthropic_client, get_settings # Import client dependencies and settings
 from ..config.settings import Settings # Import Settings for type hinting
 from ..services import ai_service # Import the new AI service module
+from ..services import credit_service # Import the new credit service module
 
 # --- Router for AI Writers ---
 writer_router = APIRouter(
@@ -301,7 +302,7 @@ async def generate_text_with_user_writer( # Renamed for clarity
         current_balance = locked_user.credits
 
         # 3. (Optional) Pre-check cost (can be complex, skip for now, rely on post-check)
-        # model_config = ai_service.get_model_config(request_data.model_id, settings)
+        # model_config = credit_service.get_model_config(request_data.model_id, settings)
         # if model_config: ... estimate cost ...
         # if estimated_cost > current_balance: raise HTTPException(402...)
 
@@ -335,11 +336,11 @@ async def generate_text_with_user_writer( # Renamed for clarity
              # This shouldn't happen if success is True, but handle defensively
              raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="AI service succeeded but token counts are missing.")
 
-        actual_credit_cost = ai_service.calculate_credit_cost(
-            monetary_cost=monetary_cost,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            settings=settings
+        actual_credit_cost = credit_service.calculate_credit_cost(
+            request_data.model_id,
+            prompt_tokens,
+            completion_tokens,
+            settings
         )
 
         # 7. Final Credit Check
@@ -350,35 +351,31 @@ async def generate_text_with_user_writer( # Renamed for clarity
                 detail=f"Insufficient credits. Required: {actual_credit_cost}, Available: {current_balance}"
             )
 
-        # 8. Deduct Credits and Create CostLedger Entry
-        locked_user.credits -= actual_credit_cost
-        resulting_balance = locked_user.credits
-        
-        ledger_entry = models.CostLedger(
-            user_id=locked_user.id,
-            action_type='ai_generate',
+        # 8. Record credit transaction and update user
+        ledger_entry = await credit_service.record_credit_transaction_and_update_user(
+            db=session,
+            user_id=current_user.id,
             credits_change=-actual_credit_cost,
-            real_cost=monetary_cost,
+            action_type='ai_generate',
+            settings=settings,
             description=f"Generation using User AI Writer '{writer.name}' (ID: {writer.id}) with model {request_data.model_id}. Tokens: P{prompt_tokens}/C{completion_tokens}.",
+            real_cost=monetary_cost,
             related_entity_type='user_ai_writer',
             related_entity_id=writer.id,
-            resulting_balance=resulting_balance
+            metadata={'prompt_tokens': prompt_tokens, 'completion_tokens': completion_tokens}
         )
-        
-        session.add(locked_user)
-        session.add(ledger_entry)
 
         # 9. Commit Transaction
         await session.commit()
-        await session.refresh(locked_user) # Refresh user to get updated balance if needed by response
+        # User is already refreshed by the credit service
         await session.refresh(ledger_entry) # Refresh ledger to get its ID
 
         # 10. Return Success Response
         return schemas.AIWriterGenerateResponse(
             action_type='ai_generate',
-            user_id=locked_user.id,
+            user_id=current_user.id,
             credits_spent=actual_credit_cost,
-            remaining_credits=resulting_balance,
+            remaining_credits=ledger_entry.resulting_balance,
             real_cost=monetary_cost,
             cost_ledger_id=ledger_entry.id,
             generated_text=generated_text if generated_text is not None else "",
@@ -722,11 +719,11 @@ async def evaluate_submissions_with_user_judge( # Renamed for clarity
         if prompt_tokens is None or completion_tokens is None:
              raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="AI service succeeded but token counts are missing.")
 
-        actual_credit_cost = ai_service.calculate_credit_cost(
-            monetary_cost=monetary_cost,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            settings=settings
+        actual_credit_cost = credit_service.calculate_credit_cost(
+            model_id,
+            prompt_tokens,
+            completion_tokens,
+            settings
         )
 
         # 7. Final Credit Check
@@ -736,40 +733,34 @@ async def evaluate_submissions_with_user_judge( # Renamed for clarity
                 detail=f"Insufficient credits. Required: {actual_credit_cost}, Available: {current_balance}"
             )
 
-        # 8. Deduct Credits and Create CostLedger Entry
-        locked_user.credits -= actual_credit_cost
-        resulting_balance = locked_user.credits
-        
-        ledger_entry = models.CostLedger(
-            user_id=locked_user.id,
-            action_type='ai_evaluate',
+        # 8. Record credit transaction and update user
+        ledger_entry = await credit_service.record_credit_transaction_and_update_user(
+            db=session,
+            user_id=current_user.id,
             credits_change=-actual_credit_cost,
-            real_cost=monetary_cost,
+            action_type='ai_evaluate',
+            settings=settings,
             description=f"Evaluation for Contest ID {contest_id} using User AI Judge '{judge.name}' (ID: {judge.id}) with model {model_id}. Tokens: P{prompt_tokens}/C{completion_tokens}.",
+            real_cost=monetary_cost,
             related_entity_type='user_ai_judge',
             related_entity_id=judge.id,
-            # Add related contest info?
-            # related_entity_type_2='contest', # Need a better way if multiple relations
-            # related_entity_id_2=contest_id, 
-            resulting_balance=resulting_balance
+            metadata={'prompt_tokens': prompt_tokens, 'completion_tokens': completion_tokens, 'contest_id': contest_id}
         )
         
-        session.add(locked_user)
-        session.add(ledger_entry)
         # Vote objects were already added to the session by the service function
 
         # 9. Commit Transaction (includes user credit update, ledger entry, AND the votes)
         await session.commit()
-        await session.refresh(locked_user)
+        # User is already refreshed by the credit service
         await session.refresh(ledger_entry)
         # Refreshing Vote objects is usually not necessary unless needed in response
 
         # 10. Return Success Response
         return schemas.AIJudgeEvaluateResponse(
             action_type='ai_evaluate',
-            user_id=locked_user.id,
+            user_id=current_user.id,
             credits_spent=actual_credit_cost,
-            remaining_credits=resulting_balance,
+            remaining_credits=ledger_entry.resulting_balance,
             real_cost=monetary_cost,
             cost_ledger_id=ledger_entry.id,
             contest_id=contest_id,

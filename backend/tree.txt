@@ -1,0 +1,47 @@
+[34;42mbackend[0m
+├── [34;42mapp[0m
+│   ├── [01;32m__init__.py[0m
+│   ├── [34;42mconfig[0m
+│   │   ├── [01;32mai_model_costs.json[0m
+│   │   ├── [01;32mai_params.py[0m
+│   │   ├── [01;32mprompt_templates.py[0m
+│   │   └── [01;32msettings.py[0m
+│   ├── [01;32mdependencies.py[0m
+│   ├── [34;42mrouters[0m
+│   │   ├── [01;32m__init__.py[0m
+│   │   ├── [01;32madmin.py[0m
+│   │   ├── [01;32mai_agents.py[0m
+│   │   ├── [01;32mauth.py[0m
+│   │   ├── [01;32mcontest.py[0m
+│   │   ├── [01;32mmain.py[0m
+│   │   ├── [01;32mroadmap.py[0m
+│   │   └── [01;32msubmission.py[0m
+│   ├── [34;42mschemas[0m
+│   │   ├── [01;32m__init__.py[0m
+│   │   ├── [01;32mai_schemas.py[0m
+│   │   ├── [01;32mmain_schemas.py[0m
+│   │   └── [01;32mroadmap_schemas.py[0m
+│   └── [34;42mservices[0m
+│       ├── [01;32m__init__.py[0m
+│       ├── [01;32mai_service.py[0m
+│       └── [01;32mroadmap_service.py[0m
+├── [01;32mdatabase.py[0m
+├── [01;32mfastapi_config.py[0m
+├── [01;32mmain.py[0m
+├── [34;42mmigrations[0m
+│   ├── [01;32mREADME[0m
+│   ├── [01;32menv.py[0m
+│   ├── [01;32mscript.py.mako[0m
+│   └── [34;42mversions[0m
+│       ├── [01;32m826760318eb7_add_contest_restrictions_flags.py[0m
+│       ├── [01;32mafd526263dc8_add_credits_to_user_and_create_cost_.py[0m
+│       ├── [01;32mdfbf9f5cc2b5_add_useraiwriter_and_useraijudge_models.py[0m
+│       └── [01;32meab5c6370991_initial_database_schema_from_current_.py[0m
+├── [01;32mmodels.py[0m
+├── [01;32mrequirements.txt[0m
+├── [01;32mroadmap_items.json[0m
+├── [01;32mschemas.py[0m
+├── [01;32msecurity.py[0m
+└── [01;32mtree.txt[0m
+
+7 directories, 37 files

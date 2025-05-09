@@ -12,107 +12,10 @@ from ..config.settings import Settings, AIModelConfig
 from ..dependencies import get_settings # To access settings instance
 # Import the base prompts from the new file
 from ..config.prompt_templates import BASE_WRITER_INSTRUCTION_PROMPT, BASE_JUDGE_INSTRUCTION_PROMPT
+# Import credit service functions
+from ..services.credit_service import get_model_config, count_tokens, calculate_monetary_cost, calculate_credit_cost
 
 # --- Helper Functions ---
-
-def get_model_config(model_id: str, settings: Settings) -> Optional[AIModelConfig]:
-    """Retrieves the configuration for a specific model_id from settings."""
-    return settings.AI_MODELS.get(model_id)
-
-def count_tokens(text: str, model_id: str, settings: Settings) -> int:
-    """
-    Calculates the token count for the given text based on the model.
-    Uses tiktoken with fallbacks for models not directly supported by tiktoken.
-    """
-    model_config = get_model_config(model_id, settings)
-    if not model_config:
-        # Default or fallback if model info is missing
-        # Simple word count as a rough estimate? Or raise error?
-        # For now, let's try a default encoding
-        try:
-            encoding = tiktoken.get_encoding("cl100k_base") # Common default
-            return len(encoding.encode(text))
-        except Exception:
-            return len(text.split()) # Very rough fallback: word count
-
-    # Determine the appropriate tiktoken encoding based on provider/model
-    # See: https://github.com/openai/tiktoken/blob/main/tiktoken/model.py
-    encoding_name = "cl100k_base" # Default for newer OpenAI models
-    if model_config.provider == "openai":
-        # Add logic for older models if needed, e.g., based on api_name
-        if "gpt-3.5" in model_config.api_name or "gpt-4" in model_config.api_name:
-            encoding_name = "cl100k_base"
-        # else: handle other specific OpenAI models
-    # elif model_config.provider == "anthropic":
-        # Anthropic tokenization might differ, cl100k_base is often a reasonable approximation
-        # If precise Anthropic token counts are needed, their specific library/method should be used.
-        # For now, we use cl100k_base as an estimate.
-        # pass 
-
-    try:
-        encoding = tiktoken.get_encoding(encoding_name)
-        tokens = encoding.encode(text)
-        return len(tokens)
-    except Exception as e:
-        print(f"Error getting tiktoken encoding {encoding_name} for model {model_id}: {e}. Falling back.")
-        # Fallback if encoding fails
-        try:
-            encoding = tiktoken.get_encoding("cl100k_base")
-            return len(encoding.encode(text))
-        except Exception:
-            return len(text.split()) # Final fallback: word count
-
-def calculate_monetary_cost(model_id: str, prompt_tokens: int, completion_tokens: int, settings: Settings) -> Optional[float]:
-    """
-    Calculates the estimated monetary cost (e.g., in USD) based on token counts
-    and pricing information from settings. Returns None if cost cannot be determined.
-    """
-    model_config = get_model_config(model_id, settings)
-    if not model_config:
-        return None # Cannot calculate cost without model info
-
-    cost = 0.0
-    calculated = False
-
-    # Check for cost per 1k tokens first (more common)
-    if model_config.cost_per_1k_prompt_tokens is not None and model_config.cost_per_1k_completion_tokens is not None:
-        cost += (prompt_tokens / 1000) * model_config.cost_per_1k_prompt_tokens
-        cost += (completion_tokens / 1000) * model_config.cost_per_1k_completion_tokens
-        calculated = True
-    # Fallback to cost per token if 1k costs aren't defined
-    elif model_config.cost_per_prompt_token is not None and model_config.cost_per_completion_token is not None:
-        cost += prompt_tokens * model_config.cost_per_prompt_token
-        cost += completion_tokens * model_config.cost_per_completion_token
-        calculated = True
-
-    return cost if calculated else None
-
-def calculate_credit_cost(monetary_cost: Optional[float], prompt_tokens: int, completion_tokens: int, settings: Settings) -> int:
-    """
-    Translates monetary cost and/or token counts into the integer credit cost
-    based on the configured credit cost model settings.
-    Handles potential None for monetary_cost and ensures a minimum credit cost.
-    """
-    credit_cost = 0
-
-    if monetary_cost is not None and settings.CREDITS_PER_DOLLAR > 0:
-        # Calculate based on USD cost
-        credit_cost = int(monetary_cost * settings.CREDITS_PER_DOLLAR)
-    # else:
-        # Add alternative calculation based on CREDITS_PER_1K_TOKENS if needed
-        # if settings.CREDITS_PER_1K_PROMPT_TOKENS is not None and settings.CREDITS_PER_1K_COMPLETION_TOKENS is not None:
-        #     credit_cost += int((prompt_tokens / 1000) * settings.CREDITS_PER_1K_PROMPT_TOKENS)
-        #     credit_cost += int((completion_tokens / 1000) * settings.CREDITS_PER_1K_COMPLETION_TOKENS)
-        # else:
-            # Fallback if no cost model applies? Maybe charge minimum?
-            # For now, if monetary cost is None and no token cost is defined, cost is 0 before minimum.
-
-    # Apply minimum cost
-    # Ensure cost is at least the minimum, but also at least 0 if calculation yielded negative (shouldn't happen)
-    final_cost = max(settings.MINIMUM_CREDIT_COST, credit_cost)
-    
-    return max(0, final_cost) # Ensure non-negative
-
 
 async def call_llm_api(
     prompt: str,

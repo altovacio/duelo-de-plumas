@@ -89,7 +89,8 @@ class Settings(BaseSettings):
     )
 
     # Application settings
-    APP_NAME: str = "Duelo de Plumas v2"
+    APP_NAME: str = "Duelo de Plumas"
+    APP_VERSION: str = "2.0"
     SECRET_KEY: SecretStr = Field(..., description="Secret key for signing session data, JWTs, etc.")
     DEBUG: bool = False
     # CORS settings (example, adjust as needed)
@@ -110,49 +111,9 @@ class Settings(BaseSettings):
         default_factory=lambda: load_ai_models_from_file(AI_COSTS_FILE),
         description="Configuration for available AI models, loaded from ai_model_costs.json"
     )
-    # AI_MODELS: Dict[str, AIModelConfig] = Field(default_factory=lambda: {
-    #     "gpt-4-turbo": AIModelConfig(
-    #         provider="openai",
-    #         api_name="gpt-4-turbo",
-    #         cost_per_1k_prompt_tokens=0.01,
-    #         cost_per_1k_completion_tokens=0.03,
-    #         features=["generate", "evaluate"]
-    #     ),
-    #     "gpt-3.5-turbo": AIModelConfig(
-    #         provider="openai",
-    #         api_name="gpt-3.5-turbo",
-    #         cost_per_1k_prompt_tokens=0.0005,
-    #         cost_per_1k_completion_tokens=0.0015,
-    #         features=["generate", "evaluate"]
-    #     ),
-    #     "claude-3-opus": AIModelConfig(
-    #         provider="anthropic",
-    #         api_name="claude-3-opus-20240229",
-    #         cost_per_1k_prompt_tokens=0.015,
-    #         cost_per_1k_completion_tokens=0.075,
-    #         features=["generate", "evaluate"]
-    #     ),
-    #      "claude-3-sonnet": AIModelConfig(
-    #         provider="anthropic",
-    #         api_name="claude-3-sonnet-20240229",
-    #         cost_per_1k_prompt_tokens=0.003,
-    #         cost_per_1k_completion_tokens=0.015,
-    #         features=["generate", "evaluate"]
-    #     ),
-    #      "claude-3-haiku": AIModelConfig(
-    #         provider="anthropic",
-    #         api_name="claude-3-haiku-20240307",
-    #         cost_per_1k_prompt_tokens=0.00025,
-    #         cost_per_1k_completion_tokens=0.00125,
-    #         features=["generate", "evaluate"]
-    #     ),
-    # }, description="Configuration for available AI models")
 
     # --- Credit System Configuration ---
     CREDITS_PER_DOLLAR: int = Field(100, description="How many credits correspond to 1 USD of AI cost.")
-    # Alternative cost model: Credits per token (if not using USD conversion)
-    # CREDITS_PER_1K_PROMPT_TOKENS: Optional[int] = Field(None, description="Base credits charged per 1k prompt tokens if USD cost is unavailable.")
-    # CREDITS_PER_1K_COMPLETION_TOKENS: Optional[int] = Field(None, description="Base credits charged per 1k completion tokens if USD cost is unavailable.")
     MINIMUM_CREDIT_COST: int = Field(1, description="Minimum credits charged for any successful AI action, even if calculated cost is lower.")
     
     # JWT settings (example, needs implementation)

@@ -71,8 +71,13 @@ duelo-de-plumas/
 │   │   │   ├── contest_service.py
 │   │   │   ├── vote_service.py # Enhanced to handle multiple vote types
 │   │   │   ├── agent_service.py
-│   │   │   ├── ai_service.py   # Integration with AI models (OpenAI, etc.)
+│   │   │   ├── ai_service.py   # Integration with AI models (OpenAI, etc.) - Now uses strategies
 │   │   │   ├── ai_provider_service.py  # Specific AI provider implementations
+│   │   │   ├── ai_strategies/  # NEW: Directory for AI execution strategies
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── base_strategy.py       # Strategy interfaces
+│   │   │   │   ├── writer_strategies.py   # Concrete writer strategies
+│   │   │   │   └── judge_strategies.py    # Concrete judge strategies
 │   │   │   └── credit_service.py # Credit management logic
 │   │   │
 │   │   └── utils/              # Utility functions
@@ -80,6 +85,8 @@ duelo-de-plumas/
 │   │       ├── markdown_utils.py # Markdown processing
 │   │       ├── validation_utils.py # Input validation helpers
 │   │       ├── ai_models.py    # AI model configuration utilities
+│   │       ├── judge_prompts.py # AI Judge prompt structures
+│   │       ├── writer_prompts.py # AI Writer prompt structures
 │   │       └── ai_model_costs.json # AI model definitions and pricing
 │   │
 │   ├── migrations/             # Database migrations (Alembic)

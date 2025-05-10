@@ -1,6 +1,7 @@
 from typing import List, Dict, Optional
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+import re
 
 from app.db.repositories.agent_repository import AgentRepository
 from app.db.repositories.contest_repository import ContestRepository
@@ -160,8 +161,8 @@ class AgentService:
         db: Session, request: AgentExecuteJudge, current_user_id: int
     ) -> List[AgentExecutionResponse]:
         """Execute a judge agent on a contest."""
-        # Verify the agent exists and is a judge agent
-        agent = await AgentRepository.get_agent(db, request.agent_id)
+        agent = AgentRepository.get_agent_by_id(db, request.agent_id)
+        
         if not agent:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -171,32 +172,28 @@ class AgentService:
         if agent.type != "judge":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="This operation requires a judge agent"
+                detail=f"Agent with id {request.agent_id} is not a judge agent"
             )
             
-        # Verify the user owns the agent or is an admin
         if agent.owner_id != current_user_id and not UserRepository.is_admin(db, current_user_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You don't have permission to use this agent"
             )
             
-        # Verify the contest exists
-        contest = await ContestRepository.get_contest(db, request.contest_id)
+        contest = ContestRepository.get_contest_by_id(db, request.contest_id)
         if not contest:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Contest not found"
             )
             
-        # Verify the contest is in evaluation state
         if contest.state != "evaluation":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="AI judging can only be performed when the contest is in evaluation state"
             )
             
-        # Verify the user is a judge for this contest
         judge_assignment = db.query(ContestJudge).filter(
             ContestJudge.contest_id == request.contest_id,
             ContestJudge.judge_id == current_user_id
@@ -208,62 +205,39 @@ class AgentService:
                 detail="You are not assigned as a judge for this contest"
             )
             
-        # Get all texts in the contest
-        texts = await ContestRepository.get_contest_texts(db, request.contest_id)
-        if not texts:
+        texts_in_contest = ContestRepository.get_texts_for_contest(db, contest.id)
+        if not texts_in_contest:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No texts found in this contest"
+                detail=f"Contest #{contest.id} has no texts to judge."
             )
             
-        # Prepare text data for AI service
-        text_data = []
-        for ct in texts:
-            text_data.append({
-                "id": ct.text.id,
-                "title": ct.text.title,
-                "content": ct.text.content
-            })
-            
-        # Check if we have enough texts for a proper ranking
-        if len(text_data) < 1:
+        text_data_for_ai = [
+            {"id": text.id, "title": text.title, "content": text.content}
+            for text in texts_in_contest
+        ]
+
+        estimated_input_tokens = len(agent.prompt) + len(contest.description) + sum(len(t.content) for t in texts_in_contest)
+        estimated_cost = AIService.estimate_cost(request.model, estimated_input_tokens * 2)
+
+        if not CreditService.has_sufficient_credits(db, current_user_id, estimated_cost):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Contest must have at least 1 text for AI judging"
+                detail=f"Insufficient credits. Required approx: {estimated_cost}"
             )
-            
-        # Estimate token usage for this operation
-        estimated_tokens = AIService.estimate_tokens_for_judging(
-            model=request.model,
-            prompt_length=len(agent.prompt),
-            contest_desc_length=len(contest.description),
-            texts=text_data
-        )
         
-        # Estimate cost based on tokens
-        estimated_cost = AIService.estimate_cost(request.model, estimated_tokens)
-        
-        # Check if user has enough credits
-        user = await UserRepository.get_user_by_id(db, current_user_id)
-        if user.credits < estimated_cost:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Insufficient credits. This operation requires approximately {estimated_cost} credits."
-            )
-            
+        execution_response_list = []
+
         try:
-            # Call AI service to judge contest texts
-            judge_results, tokens_used, cost_rate = await AIService.judge_contest(
+            parsed_votes_from_ai, tokens_used, cost_rate = await AIService.judge_contest(
                 model=request.model,
-                judge_prompt=agent.prompt,
+                personality_prompt=agent.prompt,
                 contest_description=contest.description,
-                texts=text_data
+                texts=text_data_for_ai
             )
             
-            # Calculate actual cost based on tokens used
             actual_cost = AIService.estimate_cost(request.model, tokens_used)
             
-            # Deduct credits
             CreditService.deduct_credits(
                 db=db,
                 user_id=current_user_id,
@@ -274,48 +248,53 @@ class AgentService:
                 model_cost_rate=cost_rate
             )
             
-            # Create an agent execution record
-            execution = AgentRepository.create_agent_execution(
+            created_vote_ids = []
+            if parsed_votes_from_ai:
+                for vote_data_from_ai in parsed_votes_from_ai:
+                    vote_create_schema = VoteCreate(
+                        text_id=vote_data_from_ai["text_id"],
+                        text_place=vote_data_from_ai.get("text_place"),
+                        comment=vote_data_from_ai["comment"],
+                        is_ai_vote=True,
+                        ai_model=request.model,
+                        ai_version=agent.version
+                    )
+                    created_vote = VoteService.create_vote(db, vote_create_schema, contest.id, current_user_id)
+                    created_vote_ids.append(created_vote.id)
+            
+            execution_status = "completed" if parsed_votes_from_ai else "failed_to_parse_or_empty_response"
+            if not parsed_votes_from_ai and tokens_used > 0:
+                 execution_status = "completed_with_empty_parsed_result"
+            elif not parsed_votes_from_ai and tokens_used == 0:
+                 execution_status = "failed_before_llm_call_or_empty_response"
+
+            main_execution = AgentRepository.create_agent_execution(
                 db=db,
                 agent_id=agent.id,
                 owner_id=current_user_id,
                 execution_type="judge",
                 model=request.model,
-                status="completed",
-                credits_used=actual_cost
+                status=execution_status, 
+                credits_used=actual_cost,
             )
-            
-            # Submit votes for the contest - no need to delete previous votes
-            # as the vote_service will handle deleting previous AI votes with the same model
-            for result in judge_results:
-                vote_data = VoteCreate(
-                    text_id=result["text_id"],
-                    text_place=result.get("text_place"),  # May be None for non-podium texts
-                    comment=result["comment"],
-                    is_ai_vote=True,
-                    ai_model=request.model,
-                    ai_version=agent.version
-                )
-                # Submit vote
-                await VoteService.create_vote(
-                    db=db, 
-                    contest_id=contest.id, 
-                    vote_data=vote_data, 
-                    judge_id=current_user_id  # AI votes are owned by the user who ran the agent
-                )
-                
-            return AgentExecutionResponse(
-                id=execution.id,
+            execution_response_list.append(AgentExecutionResponse.from_orm(main_execution))
+
+            return execution_response_list
+
+        except HTTPException as http_exc:
+            raise http_exc
+        except Exception as e:
+            failed_execution = AgentRepository.create_agent_execution(
+                db=db,
                 agent_id=agent.id,
                 owner_id=current_user_id,
                 execution_type="judge",
-                status="completed",
-                credits_used=actual_cost,
-                result_id=contest.id  # Result ID is the contest ID for judge agents
+                model=request.model,
+                status="failed",
+                error_message=str(e),
+                credits_used=0
             )
-            
-        except Exception as e:
-            # Log the error and return a clean error message
+            logger.error(f"Error executing judge agent {agent.id} for contest {contest.id}: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error executing judge agent: {str(e)}"
@@ -326,7 +305,6 @@ class AgentService:
         db: Session, request: AgentExecuteWriter, current_user_id: int
     ) -> Dict:
         """Execute a writer agent to generate a text."""
-        # Get agent and check permissions
         agent = AgentRepository.get_agent_by_id(db, request.agent_id)
         
         if not agent:
@@ -335,71 +313,99 @@ class AgentService:
                 detail=f"Agent with id {request.agent_id} not found"
             )
         
-        # Check if agent is public or owned by user
         if agent.owner_id != current_user_id and not agent.is_public:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You don't have access to this agent"
             )
         
-        # Check if agent is a writer
         if agent.type != "writer":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Agent with id {request.agent_id} is not a writer agent"
             )
         
-        # Build prompt
-        prompt = agent.prompt
-        
-        if request.title:
-            prompt += f"\n\nTitle: {request.title}"
-        
-        if request.description:
-            prompt += f"\n\nDescription: {request.description}"
-        
-        # Estimate the cost of this operation
-        estimated_cost = AIService.estimate_cost(request.model, len(prompt) * 2)  # Rough estimate
-        
-        # Check if user has enough credits
+        contest_description_for_ai = request.contest_description
+
+        estimated_input_tokens = len(agent.prompt) + \
+                                 (len(contest_description_for_ai) if contest_description_for_ai else 0) + \
+                                 (len(request.title) if request.title else 0) + \
+                                 (len(request.description) if request.description else 0)
+        estimated_cost = AIService.estimate_cost(request.model, estimated_input_tokens * 3)
+
         if not CreditService.has_sufficient_credits(db, current_user_id, estimated_cost):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Insufficient credits. Required: {estimated_cost}"
+                detail=f"Insufficient credits. Required approx: {estimated_cost}"
             )
-        
+
         try:
-            # Call AI service to generate text
-            generated_text, tokens_used, cost_rate = await AIService.generate_text(
+            generated_content, tokens_used, cost_rate = await AIService.generate_text(
                 model=request.model,
-                prompt=prompt,
-                system_message="You are a creative writer. Write an original text based on the given instructions and personality."
+                personality_prompt=agent.prompt,
+                contest_description=contest_description_for_ai,
+                user_guidance_title=request.title, 
+                user_guidance_description=request.description,
             )
             
-            # Calculate actual cost based on tokens used
             actual_cost = AIService.estimate_cost(request.model, tokens_used)
             
-            # Deduct credits
             CreditService.deduct_credits(
                 db=db,
                 user_id=current_user_id,
                 amount=actual_cost,
-                description=f"AI Writer: Generation using {request.model}",
+                description=f"AI Writer: Generation using {request.model} for agent {agent.name}",
                 ai_model=request.model,
                 tokens_used=tokens_used,
                 model_cost_rate=cost_rate
             )
             
-            # Create the text
-            text_data = TextCreate(
-                title=request.title or f"AI Generated Text by {agent.name}",
-                content=generated_text,
-                author=f"AI Agent: {agent.name}" 
+            # Parse title and content based on the new expected format from WRITER_BASE_PROMPT
+            # Expected format:
+            # Title: [The Title]
+            # Text: [The Content ...]
+            title_from_ai = None
+            content_from_ai = generated_content # Default to full content if parsing fails
+
+            title_match = re.search(r"^Title:\s*(.*?)$", generated_content, re.MULTILINE)
+            if title_match:
+                title_from_ai = title_match.group(1).strip()
+                # Try to get text following the title line
+                text_block_match = re.search(r"^Text:\s*(.*)", generated_content[title_match.end():].strip(), re.DOTALL | re.MULTILINE)
+                if text_block_match:
+                    content_from_ai = text_block_match.group(1).strip()
+                else:
+                    # If "Text:" not found after "Title:", assume rest of string (after title line) is content
+                    # This handles cases where "Text:" might be missing but title is present
+                    potential_content = generated_content[title_match.end():].strip()
+                    if potential_content.lower().startswith("text:"):
+                         content_from_ai = potential_content[len("text:"):].strip()
+                    else:
+                         content_from_ai = potential_content
+            else:
+                # If "Title:" prefix is not found, assume the first line is the title (old behavior as fallback)
+                # and the rest is content, or the whole thing is content if no newline.
+                parts = generated_content.split('\n', 1)
+                title_from_ai = parts[0].strip()
+                if len(parts) > 1:
+                    content_from_ai = parts[1].strip()
+                else:
+                    # If no newline, and no "Title:" prefix, it's ambiguous.
+                    # Default to no specific title, and all is content.
+                    # This case should be rare if LLM follows prompt.
+                    title_from_ai = None # Or keep parts[0] as title and content_from_ai as empty/same?
+                    content_from_ai = parts[0].strip()
+
+            final_title = request.title or title_from_ai or f"AI Generated Text by {agent.name}"
+
+            text_create_data = TextCreate(
+                title=final_title,
+                content=content_from_ai,
+                author=f"AI Agent: {agent.name} (Model: {request.model})" 
             )
             
-            created_text = TextService.create_text(db, text_data, current_user_id)
+            created_text = TextService.create_text(db=db, text_data=text_create_data, owner_id=current_user_id)
             
-            # Create an agent execution record
             execution = AgentRepository.create_agent_execution(
                 db=db,
                 agent_id=agent.id,
@@ -415,10 +421,10 @@ class AgentService:
                 "execution": AgentExecutionResponse.from_orm(execution),
                 "text": created_text
             }
-            
+        except HTTPException as http_exc:
+            raise http_exc
         except Exception as e:
-            # Record failed execution
-            execution = AgentRepository.create_agent_execution(
+            failed_execution = AgentRepository.create_agent_execution(
                 db=db,
                 agent_id=agent.id,
                 owner_id=current_user_id,
@@ -426,12 +432,12 @@ class AgentService:
                 model=request.model,
                 status="failed",
                 error_message=str(e),
-                credits_used=0  # No credits used for failed execution
+                credits_used=0 
             )
-            
+            logger.error(f"Error executing writer agent {agent.id}: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to execute writer agent: {str(e)}"
+                detail=f"Error executing writer agent: {str(e)}"
             )
     
     @staticmethod
@@ -455,14 +461,12 @@ class AgentService:
                 detail=f"Agent with id {agent_id} not found"
             )
         
-        # Check if agent is public
         if not agent.is_public:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only clone public agents"
             )
         
-        # Create a new agent based on the public one
         agent_data = AgentCreate(
             name=f"{agent.name} (Cloned)",
             description=agent.description,

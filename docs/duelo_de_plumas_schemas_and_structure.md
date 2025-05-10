@@ -107,8 +107,8 @@ class ContestBase(BaseModel):
     
 class ContestCreate(ContestBase):
     end_date: Optional[datetime] = None
-    judge_restrictions: bool = False  # Whether judges can participate as authors
-    author_restrictions: bool = False  # Whether authors can submit multiple texts
+    judge_restrictions: bool = False  # Whether judges can participate as text submitters
+    owner_restrictions: bool = False  # Whether users can submit multiple texts
     
 class ContestResponse(ContestBase):
     id: int

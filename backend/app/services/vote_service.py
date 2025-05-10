@@ -64,29 +64,49 @@ class VoteService:
                 detail="Points must be 1, 2, or 3 (third place, second place, or first place)"
             )
         
-        # Check if the judge has already used this point value in this contest
-        existing_votes = await VoteRepository.get_votes_by_judge_and_contest(db, judge_id, contest_id)
-        
-        # Check if the judge is trying to vote for the same text twice
-        if any(vote.text_id == vote_data.text_id for vote in existing_votes):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Judge has already voted for this text in this contest"
+        # Handle differently based on whether this is a human or AI vote
+        if vote_data.is_ai_vote:
+            # For AI votes, we first delete any existing votes from this judge with the same AI model
+            if not vote_data.ai_model:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="AI votes must specify the AI model used"
+                )
+                
+            # Delete existing AI votes with this model
+            await VoteRepository.delete_ai_votes(db, judge_id, contest_id, vote_data.ai_model)
+            
+            # Get current AI votes for this model after deletion
+            existing_votes = await VoteRepository.get_ai_votes_by_judge_and_contest(
+                db, judge_id, contest_id, vote_data.ai_model
             )
-        
-        # Check if the judge is trying to assign the same points to multiple texts
-        if any(vote.points == vote_data.points for vote in existing_votes):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Judge has already assigned {vote_data.points} points to another text"
-            )
+            
+            # Check if the AI is trying to vote for the same text twice (shouldn't happen after deletion)
+            if any(vote.text_id == vote_data.text_id for vote in existing_votes):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="AI has already voted for this text in this contest with the same model"
+                )
+            
+            # Check if the AI is trying to assign the same points to multiple texts
+            if any(vote.points == vote_data.points for vote in existing_votes):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"AI has already assigned {vote_data.points} points to another text in this contest"
+                )
+        else:
+            # For human votes, delete any existing votes by this judge in this contest
+            await VoteRepository.delete_human_votes(db, judge_id, contest_id)
+            
+            # Get current human votes after deletion (should be empty)
+            existing_votes = await VoteRepository.get_human_votes_by_judge_and_contest(db, judge_id, contest_id)
         
         # Create the vote
         vote_dict = vote_data.dict()
         vote = await VoteRepository.create_vote(db, vote_dict, judge_id, contest_id)
         
-        # Update the has_voted flag if the judge has completed all three votes
-        if len(existing_votes) + 1 == 3:  # Now has 3 votes
+        # For human votes, update the has_voted flag if the judge has completed all three votes
+        if not vote_data.is_ai_vote and len(existing_votes) + 1 == 3:  # Now has all 3 human votes
             judge_assignment.has_voted = True
             db.commit()
             
@@ -185,15 +205,16 @@ class VoteService:
                 detail="Cannot delete votes from closed contests"
             )
         
-        # Update the judge's has_voted status
-        judge_assignment = db.query(ContestJudge).filter(
-            ContestJudge.contest_id == vote.contest_id,
-            ContestJudge.judge_id == vote.judge_id
-        ).first()
-        
-        if judge_assignment and judge_assignment.has_voted:
-            judge_assignment.has_voted = False
-            db.commit()
+        # Update the judge's has_voted status if this is a human vote
+        if not vote.is_ai_vote:
+            judge_assignment = db.query(ContestJudge).filter(
+                ContestJudge.contest_id == vote.contest_id,
+                ContestJudge.judge_id == vote.judge_id
+            ).first()
+            
+            if judge_assignment and judge_assignment.has_voted:
+                judge_assignment.has_voted = False
+                db.commit()
         
         success = await VoteRepository.delete_vote(db, vote_id)
         

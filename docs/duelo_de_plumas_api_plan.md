@@ -73,7 +73,7 @@ The RESTful endpoints will be grouped by resources. Each group will enforce prop
 - POST `/contests/{contest_id}/submissions`  
   - Submits a text entry to a contest  
   - Input: text_id to be submitted
-  - Validates that the contest is open, text belongs to the user, and checks contest restrictions (e.g., if authors can submit multiple texts)
+  - Validates that the contest is open, text belongs to the user, and checks contest restrictions (e.g., if users can submit multiple texts)
 - GET `/contests/{contest_id}/submissions`  
   - Lists all text submissions for a contest
   - Visibility rules: if the contest is open, only the creator/administrator sees full details; others view anonymized information

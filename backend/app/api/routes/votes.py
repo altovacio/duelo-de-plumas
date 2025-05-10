@@ -29,7 +29,16 @@ async def create_vote(
     - The contest must be in the evaluation state
     - The user must be a judge for the contest
     - The text must be part of the contest
-    - A judge can only assign 1st, 2nd, and 3rd place (3, 2, and 1 points respectively) once each
+    
+    **Human Votes:**
+    - A judge can only assign one 1st, 2nd, and 3rd place (3, 2, and 1 points respectively)
+    - When a human judge votes again, all previous votes are deleted first
+    
+    **AI Votes:**
+    - Users can submit multiple votes using different AI judges (agents)
+    - When voting with an AI model that was previously used, all previous votes with that model are deleted first
+    - The same restrictions apply to each AI model (one 1st, 2nd, and 3rd place per model)
+    - The same user can have multiple sets of votes in a contest: one as a human judge and multiple as AI judges
     """
     return await VoteService.create_vote(
         db=db,
@@ -52,7 +61,7 @@ async def get_votes_by_contest(
     """
     Get all votes for a specific contest.
     
-    - Only the contest creator, assigned judges, and admins can view votes
+    - Only the contest creator, assigned judges, and admins can view votes for a contest
     """
     return await VoteService.get_votes_by_contest(
         db=db,
@@ -76,6 +85,7 @@ async def get_votes_by_judge(
     Get votes submitted by a specific judge in a contest.
     
     - Only the contest creator, the judge themselves, and admins can view a judge's votes
+    - Will return all votes by the judge, including both human and AI votes
     """
     return await VoteService.get_votes_by_judge(
         db=db,

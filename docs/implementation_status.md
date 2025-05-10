@@ -14,7 +14,7 @@ The following is a comparison between the planned structure (from project_struct
 | **User Management** | ✅ | User model, routes, repository and service implemented |
 | **Text Management** | ✅ | Text model, routes, repository and service implemented |
 | **Contest Management** | ✅ | Contest model, routes, repository and service implemented |
-| **Voting System** | ✅ | Vote model, routes, repository and service implemented |
+| **Voting System** | ✅ | Vote model, routes, repository and service implemented with enhanced multi-vote capabilities |
 | **AI Agent System** | ✅ | Agent models, routes, repository and service implemented with mock AI integration |
 | **Credit System** | ✅ | Credit transaction tracking, admin management implemented |
 | **Dashboard** | ✅ | Basic dashboard with credit information implemented |
@@ -52,7 +52,7 @@ duelo-de-plumas/
 │   │   │   │   ├── users.py                     ✅
 │   │   │   │   ├── texts.py                     ✅
 │   │   │   │   ├── contests.py                  ✅
-│   │   │   │   ├── votes.py                     ✅
+│   │   │   │   ├── votes.py                     ✅ (Updated with multi-vote support)
 │   │   │   │   ├── agents.py                    ✅
 │   │   │   │   ├── admin.py                     ✅
 │   │   │   │   └── dashboard.py                 ✅
@@ -75,7 +75,7 @@ duelo-de-plumas/
 │   │   │   │   ├── contest.py                   ✅
 │   │   │   │   ├── contest_text.py              ✅
 │   │   │   │   ├── contest_judge.py             ✅
-│   │   │   │   ├── vote.py                      ✅
+│   │   │   │   ├── vote.py                      ✅ (Updated with multi-vote capabilities)
 │   │   │   │   ├── agent.py                     ✅
 │   │   │   │   ├── agent_execution.py           ✅
 │   │   │   │   └── credit_transaction.py        ✅
@@ -85,7 +85,7 @@ duelo-de-plumas/
 │   │   │       ├── user_repository.py           ✅
 │   │   │       ├── text_repository.py           ✅
 │   │   │       ├── contest_repository.py        ✅
-│   │   │       ├── vote_repository.py           ✅
+│   │   │       ├── vote_repository.py           ✅ (Updated for AI and human vote management)
 │   │   │       ├── agent_repository.py          ✅
 │   │   │       └── credit_repository.py         ✅
 │   │   │
@@ -105,8 +105,8 @@ duelo-de-plumas/
 │   │   │   ├── user_service.py                  ✅
 │   │   │   ├── text_service.py                  ✅
 │   │   │   ├── contest_service.py               ✅
-│   │   │   ├── vote_service.py                  ✅
-│   │   │   ├── agent_service.py                 ✅
+│   │   │   ├── vote_service.py                  ✅ (Enhanced to handle multiple vote types)
+│   │   │   ├── agent_service.py                 ✅ (Updated to work with multi-vote system)
 │   │   │   ├── ai_service.py                    ✅ (Updated with real implementations)
 │   │   │   ├── ai_provider_service.py           ✅ (New file with OpenAI and Anthropic providers)
 │   │   │   └── credit_service.py                ✅
@@ -137,3 +137,13 @@ duelo-de-plumas/
 ├── docker-compose.yml                           ✅
 └── README.md                                    ✅
 ```
+
+## Recent Updates
+
+### Voting System Enhancement (July 2024)
+The voting system has been enhanced to support multi-voting capabilities with the following features:
+- Users can now have multiple votes in a contest: one as a human judge and multiple as different AI judges
+- When a user votes again using the same AI model, previous votes are automatically removed
+- The system properly tracks and distinguishes between human and AI votes
+- Vote uniqueness is now enforced by judge, contest, text, vote type (human/AI), and AI model
+- Vote deletion handling improves to accommodate both human and AI votes

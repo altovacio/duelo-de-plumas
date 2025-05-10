@@ -1,30 +1,30 @@
 [
     {
-      "id": "gpt-4.1-preview",
+      "id": "gpt-4.1-2025-04-14",
       "name": "GPT-4.1",
       "provider": "OpenAI",
       "context_window_k": 1000,
       "input_cost_usd_per_1k_tokens": 0.002,
       "output_cost_usd_per_1k_tokens": 0.008,
-      "available": false
+      "available": true
     },
     {
-      "id": "gpt-4.1-mini-preview",
+      "id": "gpt-4.1-mini-2025-04-14",
       "name": "GPT-4.1 mini",
       "provider": "OpenAI",
       "context_window_k": 1000,
       "input_cost_usd_per_1k_tokens": 0.0004,
       "output_cost_usd_per_1k_tokens": 0.0016,
-      "available": false
+      "available": true
     },
     {
-      "id": "gpt-4.1-nano-preview",
+      "id": "gpt-4.1-nano-2025-04-14",
       "name": "GPT-4.1 nano",
       "provider": "OpenAI",
       "context_window_k": 1000,
       "input_cost_usd_per_1k_tokens": 0.0001,
       "output_cost_usd_per_1k_tokens": 0.0004,
-      "available": false
+      "available": true
     },
     {
       "id": "xai-grok-3",
@@ -180,21 +180,21 @@
       "available": false
     },
     {
-      "id": "gpt-4o",
-      "name": "GPT-4o (omni)",
+      "id": "o3-2025-04-16",
+      "name": "OpenAI o3",
       "provider": "OpenAI",
-      "context_window_k": 128,
-      "input_cost_usd_per_1k_tokens": 0.005,
-      "output_cost_usd_per_1k_tokens": 0.015,
+      "context_window_k": 200,
+      "input_cost_usd_per_1k_tokens": 0.010,
+      "output_cost_usd_per_1k_tokens": 0.040,
       "available": true
     },
     {
-      "id": "gpt-4o-mini",
-      "name": "GPT-4o mini",
+      "id": "o4-mini-2025-04-16",
+      "name": "o4-mini",
       "provider": "OpenAI",
-      "context_window_k": 128,
-      "input_cost_usd_per_1k_tokens": 0.00015,
-      "output_cost_usd_per_1k_tokens": 0.0006,
+      "context_window_k": 200,
+      "input_cost_usd_per_1k_tokens": 0.00110,
+      "output_cost_usd_per_1k_tokens": 0.00440,
       "available": true
     },
     {
@@ -294,6 +294,24 @@
       "context_window_k": 2000,
       "input_cost_usd_per_1k_tokens": 0.0012,
       "output_cost_usd_per_1k_tokens": 0.005,
+      "available": false
+    },
+    {
+      "id": "gpt-4o",
+      "name": "GPT-4o (omni)",
+      "provider": "OpenAI",
+      "context_window_k": 128,
+      "input_cost_usd_per_1k_tokens": 0.005,
+      "output_cost_usd_per_1k_tokens": 0.015,
+      "available": false
+    },
+    {
+      "id": "gpt-4o-mini",
+      "name": "GPT-4o mini",
+      "provider": "OpenAI",
+      "context_window_k": 128,
+      "input_cost_usd_per_1k_tokens": 0.00015,
+      "output_cost_usd_per_1k_tokens": 0.0006,
       "available": false
     }
   ] 

@@ -295,12 +295,12 @@ class ContestService:
                 detail="You don't have permission to remove this text"
             )
             
-        # Check if contest is not in closed state
-        if contest.state == "closed" and not is_admin:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot remove texts from closed contests"
-            )
+        # # Check if contest is not in closed state
+        # if contest.state == "closed" and not is_admin:
+        #     raise HTTPException(
+        #         status_code=status.HTTP_400_BAD_REQUEST,
+        #         detail="Cannot remove texts from closed contests"
+        #     )
             
         # Remove the text
         return ContestRepository.remove_text_from_contest(

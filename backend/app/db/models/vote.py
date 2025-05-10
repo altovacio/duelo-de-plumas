@@ -31,7 +31,7 @@ class Vote(Base):
     
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
-    # Create a unique constraint so a judge can't vote for the same text in a contest multiple times
+    # Create a unique constraint that accounts for multiple vote types from same judge
     __table_args__ = (
-        Index("vote_unique", judge_id, contest_id, text_id, unique=True),
+        Index("vote_unique_with_ai", judge_id, contest_id, text_id, is_ai_vote, ai_model, unique=True),
     ) 

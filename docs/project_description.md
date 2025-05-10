@@ -64,7 +64,7 @@ En específico:
 * Los concursos se definen de manera obligatoria por un título y una descripción (que tiene las indicaciones para el concurso). Se identifican por un número único de concurso irrepetible.
 * El título y descripción se editan en formato Markdown
 * Los concursos tienen, de manera opcional, un número mínimo requerido de votos y un listado de jueces asignados. 
-* Los concursos tienen, de manera opcional, la posibilidad de restringir que los jueces asignados no participen como autores, o que los autores no puedan meter más de un texto. El administrador queda exento de estas restricciones.
+* Los concursos tienen, de manera opcional, la posibilidad de restringir que los jueces asignados no participen como autores, o que los usuarios no puedan meter más de un texto. El administrador queda exento de estas restricciones.
 * Los concursos tienen una carátula y un detalle. 
     * En la carátula va el título, breve descripción, número de participantes, fecha de última modificación, fecha de término [si hay], su tipo y su estado. La carátula es visible a todos.
     * En el detalle se ve todo lo de la carátula más la descripción completa y:
@@ -96,6 +96,9 @@ En específico:
 
 ### Los votos:
 * Pueden ser emitidos por jueces humanos o por jueces IA
+* Un usuario puede emitir múltiples votos en un concurso: uno como juez humano y múltiples utilizando distintos jueces IA
+* Un juez, ya sea humano o IA, solo puede participar en un concurso si está registrado como juez por el creador del concurso
+* Si un juez vota por segunda vez en el mismo concurso, sus votos anteriores serán eliminados primero
 * Se asignan 3 puntos a un primer lugar, 2 puntos a un segundo lugar y 1 punto a un tercer lugar.
 * Junto con cada voto, se da una justificación/comentario acerca del voto emitido
 * Los textos que no alcancen una calificación, podrán aún así recibir una justificación/comentario sobre su evaluación

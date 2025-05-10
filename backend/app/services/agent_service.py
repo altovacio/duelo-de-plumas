@@ -20,6 +20,8 @@ from app.services.ai_service import AIService
 from app.services.credit_service import CreditService
 from app.services.text_service import TextService
 from app.services.vote_service import VoteService
+from app.db.repositories.user_repository import UserRepository
+from app.db.models.contest_judge import ContestJudge
 
 
 class AgentService:
@@ -158,67 +160,97 @@ class AgentService:
         db: Session, request: AgentExecuteJudge, current_user_id: int
     ) -> List[AgentExecutionResponse]:
         """Execute a judge agent on a contest."""
-        # Get agent and check permissions
-        agent = AgentRepository.get_agent_by_id(db, request.agent_id)
-        
+        # Verify the agent exists and is a judge agent
+        agent = await AgentRepository.get_agent(db, request.agent_id)
         if not agent:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Agent with id {request.agent_id} not found"
+                detail="Agent not found"
             )
-        
-        # Check if agent is public or owned by user
-        if agent.owner_id != current_user_id and not agent.is_public:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don't have access to this agent"
-            )
-        
-        # Check if agent is a judge
+            
         if agent.type != "judge":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Agent with id {request.agent_id} is not a judge agent"
+                detail="This operation requires a judge agent"
             )
-        
-        # Get contest
-        contest = ContestRepository.get_contest_by_id(db, request.contest_id)
+            
+        # Verify the user owns the agent or is an admin
+        if agent.owner_id != current_user_id and not UserRepository.is_admin(db, current_user_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to use this agent"
+            )
+            
+        # Verify the contest exists
+        contest = await ContestRepository.get_contest(db, request.contest_id)
         if not contest:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Contest with id {request.contest_id} not found"
+                detail="Contest not found"
             )
-        
-        # Check if contest is in evaluation state
+            
+        # Verify the contest is in evaluation state
         if contest.state != "evaluation":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Contest is not in evaluation state"
+                detail="AI judging can only be performed when the contest is in evaluation state"
             )
+            
+        # Verify the user is a judge for this contest
+        judge_assignment = db.query(ContestJudge).filter(
+            ContestJudge.contest_id == request.contest_id,
+            ContestJudge.judge_id == current_user_id
+        ).first()
         
-        # Get texts in contest
-        texts = ContestRepository.get_contest_texts(db, request.contest_id)
+        if not judge_assignment:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not assigned as a judge for this contest"
+            )
+            
+        # Get all texts in the contest
+        texts = await ContestRepository.get_contest_texts(db, request.contest_id)
         if not texts:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Contest has no texts to evaluate"
+                detail="No texts found in this contest"
             )
-        
-        # Estimate the cost of this operation
-        # For simplicity, we'll use a fixed cost based on the number of texts and model
-        text_data = [{"id": text.id, "title": text.title, "content": text.content} for text in texts]
-        texts_combined_length = sum(len(text.content) for text in texts)
-        
-        # Check if user has enough credits
-        estimated_cost = AIService.estimate_cost(request.model, texts_combined_length)
-        
-        # Check if user has enough credits
-        if not CreditService.has_sufficient_credits(db, current_user_id, estimated_cost):
+            
+        # Prepare text data for AI service
+        text_data = []
+        for ct in texts:
+            text_data.append({
+                "id": ct.text.id,
+                "title": ct.text.title,
+                "content": ct.text.content
+            })
+            
+        # Check if we have enough texts for a proper ranking (need at least 3)
+        if len(text_data) < 3:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Insufficient credits. Required: {estimated_cost}"
+                detail="Contest must have at least 3 texts for AI judging"
             )
+            
+        # Estimate token usage for this operation
+        estimated_tokens = AIService.estimate_tokens_for_judging(
+            model=request.model,
+            prompt_length=len(agent.prompt),
+            contest_desc_length=len(contest.description),
+            texts=text_data
+        )
         
+        # Estimate cost based on tokens
+        estimated_cost = AIService.estimate_cost(request.model, estimated_tokens)
+        
+        # Check if user has enough credits
+        user = await UserRepository.get_user_by_id(db, current_user_id)
+        if user.credits < estimated_cost:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Insufficient credits. This operation requires approximately {estimated_cost} credits."
+            )
+            
         try:
             # Call AI service to judge contest texts
             judge_results, tokens_used, cost_rate = await AIService.judge_contest(
@@ -253,7 +285,8 @@ class AgentService:
                 credits_used=actual_cost
             )
             
-            # Submit votes for the contest
+            # Submit votes for the contest - no need to delete previous votes
+            # as the vote_service will handle deleting previous AI votes with the same model
             for result in judge_results:
                 vote_data = VoteCreate(
                     text_id=result["text_id"],
@@ -274,7 +307,10 @@ class AgentService:
             return AgentExecutionResponse.from_orm(execution)
             
         except Exception as e:
-            # Record failed execution
+            # Log the error
+            print(f"Error in AI judging: {str(e)}")
+            
+            # Create a failed execution record
             execution = AgentRepository.create_agent_execution(
                 db=db,
                 agent_id=agent.id,
@@ -283,12 +319,12 @@ class AgentService:
                 model=request.model,
                 status="failed",
                 error_message=str(e),
-                credits_used=0  # No credits used for failed execution
+                credits_used=0  # No credits used if failed
             )
             
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to execute judge agent: {str(e)}"
+                detail=f"AI judging failed: {str(e)}"
             )
     
     @staticmethod

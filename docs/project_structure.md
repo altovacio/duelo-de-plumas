@@ -16,7 +16,7 @@ duelo-de-plumas/
 │   │   │   │   ├── users.py    # User management endpoints
 │   │   │   │   ├── texts.py    # Text management endpoints
 │   │   │   │   ├── contests.py # Contest management endpoints
-│   │   │   │   ├── votes.py    # Voting endpoints
+│   │   │   │   ├── votes.py    # Voting endpoints (supports multi-vote system)
 │   │   │   │   ├── agents.py   # AI agent endpoints
 │   │   │   │   ├── admin.py    # Admin-only endpoints
 │   │   │   │   └── dashboard.py # User dashboard endpoints
@@ -37,7 +37,7 @@ duelo-de-plumas/
 │   │   │   │   ├── user.py
 │   │   │   │   ├── text.py
 │   │   │   │   ├── contest.py
-│   │   │   │   ├── vote.py
+│   │   │   │   ├── vote.py     # Enhanced to support multiple votes by same judge
 │   │   │   │   ├── agent.py
 │   │   │   │   ├── agent_execution.py # Tracks AI agent executions
 │   │   │   │   ├── credit_transaction.py # Credit transaction tracking
@@ -49,7 +49,7 @@ duelo-de-plumas/
 │   │   │       ├── user_repository.py
 │   │   │       ├── text_repository.py
 │   │   │       ├── contest_repository.py
-│   │   │       ├── vote_repository.py
+│   │   │       ├── vote_repository.py # Updated for AI and human vote management
 │   │   │       ├── agent_repository.py
 │   │   │       └── credit_repository.py
 │   │   │
@@ -69,7 +69,7 @@ duelo-de-plumas/
 │   │   │   ├── user_service.py
 │   │   │   ├── text_service.py
 │   │   │   ├── contest_service.py
-│   │   │   ├── vote_service.py
+│   │   │   ├── vote_service.py # Enhanced to handle multiple vote types
 │   │   │   ├── agent_service.py
 │   │   │   ├── ai_service.py   # Integration with AI models (OpenAI, etc.)
 │   │   │   ├── ai_provider_service.py  # Specific AI provider implementations

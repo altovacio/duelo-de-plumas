@@ -38,6 +38,30 @@ class VoteRepository:
         ).all()
 
     @staticmethod
+    async def get_human_votes_by_judge_and_contest(db: Session, judge_id: int, contest_id: int) -> List[Vote]:
+        """Get human votes by a specific judge in a specific contest."""
+        return db.query(Vote).filter(
+            Vote.judge_id == judge_id,
+            Vote.contest_id == contest_id,
+            Vote.is_ai_vote == False
+        ).all()
+
+    @staticmethod
+    async def get_ai_votes_by_judge_and_contest(db: Session, judge_id: int, contest_id: int, 
+                                               ai_model: Optional[str] = None) -> List[Vote]:
+        """Get AI votes by a specific judge in a specific contest, optionally filtered by AI model."""
+        query = db.query(Vote).filter(
+            Vote.judge_id == judge_id,
+            Vote.contest_id == contest_id,
+            Vote.is_ai_vote == True
+        )
+        
+        if ai_model:
+            query = query.filter(Vote.ai_model == ai_model)
+            
+        return query.all()
+
+    @staticmethod
     async def get_votes_by_text(db: Session, text_id: int) -> List[Vote]:
         """Get all votes for a specific text."""
         return db.query(Vote).filter(Vote.text_id == text_id).all()
@@ -51,6 +75,41 @@ class VoteRepository:
             db.commit()
             return True
         return False
+
+    @staticmethod
+    async def delete_ai_votes(db: Session, judge_id: int, contest_id: int, ai_model: str) -> int:
+        """Delete all AI votes from a specific judge using a specific AI model in a contest.
+        Returns the number of votes deleted."""
+        votes = db.query(Vote).filter(
+            Vote.judge_id == judge_id,
+            Vote.contest_id == contest_id,
+            Vote.is_ai_vote == True,
+            Vote.ai_model == ai_model
+        ).all()
+        
+        count = len(votes)
+        for vote in votes:
+            db.delete(vote)
+        
+        db.commit()
+        return count
+
+    @staticmethod
+    async def delete_human_votes(db: Session, judge_id: int, contest_id: int) -> int:
+        """Delete all human votes from a specific judge in a contest.
+        Returns the number of votes deleted."""
+        votes = db.query(Vote).filter(
+            Vote.judge_id == judge_id,
+            Vote.contest_id == contest_id,
+            Vote.is_ai_vote == False
+        ).all()
+        
+        count = len(votes)
+        for vote in votes:
+            db.delete(vote)
+        
+        db.commit()
+        return count
 
     @staticmethod
     async def calculate_contest_results(db: Session, contest_id: int) -> None:

@@ -101,8 +101,25 @@ duelo-de-plumas/
 │   │
 │   ├── tests/                  # Backend tests
 │   │   ├── __init__.py
-│   │   ├── conftest.py
-│   │   ├── test_api/
+│   │   ├── conftest.py         # Pytest fixtures and shared E2E helpers
+│   │   ├── shared_test_state.py # Shared state for E2E tests (e.g., test_data dict)
+│   │   ├── e2e_test_plan_config.py # Stores the main E2E test plan string
+│   │   │
+│   │   ├── e2e_sec_01_setup_user_registration.py
+│   │   ├── e2e_sec_02_ai_agent_creation.py
+│   │   ├── e2e_sec_03_contest_creation_management.py
+│   │   ├── e2e_sec_04_text_creation.py
+│   │   ├── e2e_sec_05_text_submission.py
+│   │   ├── e2e_sec_06_evaluation_phase.py
+│   │   ├── e2e_sec_07_contest_closure_results.py
+│   │   ├── e2e_sec_08_cost_usage_monitoring_pre_cleanup.py
+│   │   ├── e2e_sec_09_cleanup_routine.py
+│   │   ├── e2e_sec_10_final_state_verification_post_cleanup.py
+│   │   │
+│   │   ├── # Original E2E test file (to be refactored/removed by user)
+│   │   ├── # end_to_end_test.py # User will move tests from here
+│   │   │
+│   │   ├── test_api/           # Unit/Integration tests for API routes (existing structure)
 │   │   │   ├── __init__.py
 │   │   │   ├── test_auth.py
 │   │   │   ├── test_users.py

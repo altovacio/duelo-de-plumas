@@ -126,9 +126,9 @@ duelo-de-plumas/
 │   ├── scripts/
 │   │   └── create_admin.py                      ✅
 │   │
-│   ├── tests/                                   ❌ (directory exists but no tests)
+│   ├── tests/                                   ✅
 │   │
-│   ├── .env                                     ❌ (needs to be created)
+│   ├── .env                                     ✅
 │   ├── Dockerfile                               ✅
 │   └── requirements.txt                         ✅
 │

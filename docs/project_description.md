@@ -1,3 +1,5 @@
+# Project Description
+
 Duelo de plumas.
 
 Es una plataforma de concursos literarios. Consta de un backend y un frontend. 
@@ -27,6 +29,7 @@ Hay tres tipos de usuarios: Administrador, Usuario y Visitante
         * Crear, editar y borrar escritores y jueces IA
         * Ejecutar acciones con sus jueces IA (evaluar) o escritores IA (escribir), siempre y cuando tengan suficientes créditos. Cada acción tendrá un costo asociado en créditos basado en el modelo LLM utilizado y el consumo (tokens).
         * Consultar su balance de créditos actual.
+        * Ver un historial detallado de todas las transacciones de créditos, incluyendo adiciones, deducciones, fechas y descripciones.
     * Participar como autores en concursos creados por otros usuarios siempre y cuando sean públicos o cuando sean privados y cuenten con la contraseña para tener acceso
     * Participar como jueces en concursos donde estén registrados como tales.
     * Los usuarios empiezan con 0 créditos al registrarse. Sólo el administrador puede asignarles créditos.
@@ -36,6 +39,7 @@ Hay tres tipos de usuarios: Administrador, Usuario y Visitante
 
 #### Administrador
 * Hay un admin que tiene control y acceso a todas las funcionalidades. Es un super usuario. No tiene ninguna restricción.
+* El administrador puede ver y gestionar todas las transacciones de créditos de todos los usuarios, incluyendo filtrar por tipo de transacción, fecha, modelo utilizado, etc.
 
 ### Eliminacion de un usuario
 * Cuando un usuario se elimina, se borran todos los concursos, textos, escritores y jueces IA que haya creado. Sin embargo, el registro de los costos y de sus créditos queda guardado.
@@ -106,6 +110,13 @@ En específico:
 * Los jueces y escritores creados por un usuario sólo están disponibles para ese usuario.
 * Los jueces y escritores creados por un administrador aparecerán en una base pública, de la cual, un usuario podra generar una copia.
 * Los jueces y escritores se identifican por el dueño y un número 
+### Los jueces
+* Los jueces revisan todos los textos de un concurso, y después de haberlos revisado todos, los juzgan.
+* Para esto, los jueces necesitan todos los textos (sin autor ni dueño) de un concurso y la descripción del concurso, ya que esta da la pauta del mismo.
+### Los escritores
+* Los escritores producen un texto a la vez, basados en su personalidad. Pueden recibir como guía:
+      * (opcional) un título
+      * (opcional) una descripción del texto
 
 ## La página
 * La página cuenta:
@@ -121,7 +132,7 @@ En específico:
          * Ver el listado de concursos donde participa como juez
          * Lista de acciones urgentes por tomar (por ejemplo, concursos a evaluar)
          * Ver sus créditos disponibles
-         * Ver su historial de consumo de créditos.
+         * Ver su historial de consumo de créditos y un registro detallado de todas las transacciones (adiciones, deducciones).
     * Para usuarios se muestra todo lo que está disponible para visitantes y además:
         * Un listado de acciones urgentes (como concursos pendientes por evaluar) en la página de inicio
         * La posibilidad de participar en concursos.
@@ -132,5 +143,6 @@ En específico:
         * Un lugar para administrar cuentas de usuarios (incluyendo la asignación de créditos).
         * Un lugar para administrar jueces y escritores IA globales.
         * Un lugar para monitorear costos reales de IA y consumo de créditos por usuario.
+        * Un lugar para ver todas las transacciones de créditos con opciones de filtrado.
         * Un lugar para ver el resumen del sitio (número de concursos, una tabla de ganadores más frecuentes, etc.)
 

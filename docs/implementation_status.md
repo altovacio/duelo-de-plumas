@@ -248,18 +248,5 @@ duelo-de-plumas/
 | 8.03 | Admin checks User 2's credit history | ✅ |
 | 8.04 | User 1 checks their credit balance | ✅ |
 | 8.05 | User 2 checks their credit balance | ✅ |
-| 9. Cleanup Routine | Deleting Test Entities | ✅ |
-| 9.01 | User 2 tries to delete contest 1 (fails) | ✅ |
-| 9.02 | User 1 deletes contest 1 | ✅ |
-| 9.03 | User 2 attempts to delete judge1 (fails) | ✅ |
-| 9.04 | User 1 deletes their AI writer (writer1) | ✅ |
-| 9.05 | User 1 deletes their AI judge (judge1) | ✅ |
-| 9.06 | Admin deletes contest2 and contest3 | ✅ |
-| 9.07 | User 2 attempts to delete writer_global (fails) | ✅ |
-| 9.08 | Admin deletes global AI writer (writer_global) | ✅ |
-| 9.09 | Admin deletes global AI judge (judge_global) | ✅ |
-| 9.10 | User 1 deletes User 1 (Admin deletes User1 for test) | ✅ |
-| 9.11 | Admin deletes User 2 | ✅ |
-| 10. Final State Verification & Cost Monitoring (Post-Cleanup) | Final Checks | ✅ |
-| 10.01 | Verify all test entities are deleted | ✅ |
-| 10.02 | Admin checks AI costs summary (should be unaffected by deletions) | ✅ |
+| 9. Cleanup Routine | Deleting entities and checking permissions/cascade effects | ✅ (Reviewed and refactored duplicates) |
+| 10. Final State Verification & Cost Monitoring (Post-Cleanup) | Final system state checks |  |

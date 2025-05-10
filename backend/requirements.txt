@@ -1,14 +1,15 @@
 # Core FastAPI
-fastapi>=0.110.0
-uvicorn[standard]>=0.27.0 # Includes standard dependencies like websockets and httptools
+fastapi>=0.95.1
+uvicorn>=0.22.0
 
 # Pydantic (used by FastAPI and for settings)
-pydantic[email]>=2.6.0
+pydantic>=1.10.7
 pydantic-settings>=2.1.0
 
 # Database (SQLAlchemy Async)
-SQLAlchemy>=2.0.0
-alembic>=1.13.0 # Migrations
+sqlalchemy>=2.0.12
+psycopg2-binary>=2.9.6
+alembic>=1.10.4 # Migrations
 # Choose one or both async drivers based on your DB:
 asyncpg>=0.29.0   # For PostgreSQL
 aiosqlite>=0.19.0 # For SQLite
@@ -18,7 +19,7 @@ greenlet>=3.0.0   # Often needed by SQLAlchemy async operations
 Jinja2>=3.1.0
 
 # Forms (for HTML forms)
-python-multipart>=0.0.9
+python-multipart>=0.0.6
 
 # Authentication & Security
 passlib[bcrypt]>=1.7.4
@@ -28,7 +29,7 @@ python-jose[cryptography]>=3.3.0 # For JWT handling
 python-dotenv>=1.0.0
 
 # Email Validation (if needed beyond Pydantic)
-email-validator>=2.1.0
+email-validator>=2.0.0
 
 # AI Clients
 openai>=1.12.0
@@ -36,4 +37,16 @@ anthropic>=0.25.0 # Pinned due to potential breaking changes, check latest
 tiktoken>=0.6.0
 
 # Utilities
-Markdown>=3.5.0 
+Markdown>=3.4.3
+bleach>=6.0.0
+
+# Testing
+pytest>=7.3.1
+httpx>=0.24.0
+pytest-cov>=4.1.0
+
+# Development
+black>=23.3.0
+isort>=5.12.0
+flake8>=6.0.0
+mypy>=1.3.0 

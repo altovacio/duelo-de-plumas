@@ -12,7 +12,7 @@ The following is a comparison between the planned structure (from project_struct
 | **Auth System** | ✅ | JWT authentication implemented |
 | **Database Setup** | ✅ | SQLAlchemy with migrations configured |
 | **User Management** | ✅ | User model, routes, repository and service implemented |
-| **Text Management** | ❌ | Not implemented yet |
+| **Text Management** | ✅ | Text model, routes, repository and service implemented |
 | **Contest Management** | ❌ | Not implemented yet |
 | **Voting System** | ❌ | Not implemented yet |
 | **AI Agent System** | ❌ | Not implemented yet |
@@ -50,7 +50,7 @@ duelo-de-plumas/
 │   │   │   │   ├── __init__.py                  ✅
 │   │   │   │   ├── auth.py                      ✅
 │   │   │   │   ├── users.py                     ✅
-│   │   │   │   ├── texts.py                     ❌
+│   │   │   │   ├── texts.py                     ✅
 │   │   │   │   ├── contests.py                  ❌
 │   │   │   │   ├── votes.py                     ❌
 │   │   │   │   ├── agents.py                    ❌
@@ -71,7 +71,7 @@ duelo-de-plumas/
 │   │   │   ├── models/
 │   │   │   │   ├── __init__.py                  ✅
 │   │   │   │   ├── user.py                      ✅
-│   │   │   │   ├── text.py                      ❌
+│   │   │   │   ├── text.py                      ✅
 │   │   │   │   ├── contest.py                   ❌
 │   │   │   │   ├── vote.py                      ❌
 │   │   │   │   ├── agent.py                     ❌
@@ -80,9 +80,9 @@ duelo-de-plumas/
 │   │   │   │   └── contest_judge.py             ❌
 │   │   │   │
 │   │   │   └── repositories/
-│   │   │       ├── __init__.py                  ❌
+│   │   │       ├── __init__.py                  ✅
 │   │   │       ├── user_repository.py           ✅
-│   │   │       ├── text_repository.py           ❌
+│   │   │       ├── text_repository.py           ✅
 │   │   │       ├── contest_repository.py        ❌
 │   │   │       ├── vote_repository.py           ❌
 │   │   │       ├── agent_repository.py          ❌
@@ -91,7 +91,7 @@ duelo-de-plumas/
 │   │   ├── schemas/
 │   │   │   ├── __init__.py                      ✅
 │   │   │   ├── user.py                          ✅
-│   │   │   ├── text.py                          ❌
+│   │   │   ├── text.py                          ✅
 │   │   │   ├── contest.py                       ❌
 │   │   │   ├── vote.py                          ❌
 │   │   │   ├── agent.py                         ❌
@@ -102,7 +102,7 @@ duelo-de-plumas/
 │   │   │   ├── __init__.py                      ✅
 │   │   │   ├── auth_service.py                  ✅
 │   │   │   ├── user_service.py                  ✅
-│   │   │   ├── text_service.py                  ❌
+│   │   │   ├── text_service.py                  ✅
 │   │   │   ├── contest_service.py               ❌
 │   │   │   ├── vote_service.py                  ❌
 │   │   │   ├── agent_service.py                 ❌
@@ -110,9 +110,9 @@ duelo-de-plumas/
 │   │   │   └── credit_service.py                ❌
 │   │   │
 │   │   └── utils/
-│   │       ├── __init__.py                      ❌
-│   │       ├── markdown_utils.py                ❌
-│   │       └── validation_utils.py              ❌
+│   │       ├── __init__.py                      ✅
+│   │       ├── markdown_utils.py                ✅
+│   │       └── validation_utils.py              ✅
 │   │
 │   ├── migrations/                              ✅
 │   │   ├── versions/                            ✅ (empty)

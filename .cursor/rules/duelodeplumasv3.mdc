@@ -1,0 +1,9 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+-Before executing a python command, make sure you have the venv
+-If you create or delete a file, make sure to update docs/implementation_status.md and docs/project_structure.md (if modified)
+
+

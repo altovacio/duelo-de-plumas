@@ -6,7 +6,7 @@ from app.db.repositories.vote_repository import VoteRepository
 from app.db.repositories.contest_repository import ContestRepository
 from app.db.repositories.user_repository import UserRepository
 from app.schemas.vote import VoteCreate, VoteResponse
-from app.db.models import Contest, ContestJudge, User, ContestText
+from app.db.models import Contest, ContestJudge, User, ContestText, Vote
 
 
 class VoteService:
@@ -18,7 +18,7 @@ class VoteService:
         contest_id: int
     ) -> VoteResponse:
         """Create a new vote in a contest."""
-        # Get the contest to check its state
+        # Verify the contest exists and is in the evaluation state
         contest = await ContestRepository.get_contest(db, contest_id)
         if not contest:
             raise HTTPException(
@@ -26,14 +26,13 @@ class VoteService:
                 detail="Contest not found"
             )
             
-        # Verify the contest is in evaluation state
         if contest.state != "evaluation":
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, 
-                detail="Votes can only be submitted when the contest is in evaluation state"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Contest is not in evaluation state"
             )
-        
-        # Verify the user is a judge for this contest
+            
+        # Verify the judge is assigned to this contest
         judge_assignment = db.query(ContestJudge).filter(
             ContestJudge.contest_id == contest_id,
             ContestJudge.judge_id == judge_id
@@ -42,10 +41,10 @@ class VoteService:
         if not judge_assignment:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="User is not assigned as a judge for this contest"
+                detail="You are not assigned as a judge to this contest"
             )
-        
-        # Verify the text is part of this contest
+            
+        # Verify the text exists in this contest
         contest_text = db.query(ContestText).filter(
             ContestText.contest_id == contest_id,
             ContestText.text_id == vote_data.text_id
@@ -56,13 +55,35 @@ class VoteService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Text is not part of this contest"
             )
+            
+        # Get the total number of texts in the contest to handle smaller contests
+        total_texts = db.query(ContestText).filter(
+            ContestText.contest_id == contest_id
+        ).count()
         
-        # Verify the points are valid (1, 2, or 3)
-        if vote_data.points not in [1, 2, 3]:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Points must be 1, 2, or 3 (third place, second place, or first place)"
-            )
+        # Prepare data for vote creation from the input schema
+        vote_dict = vote_data.dict()
+        
+        # If text_place is provided, validate it
+        if vote_data.text_place is not None:
+            # Validate text_place (must be 1, 2, or 3)
+            if vote_data.text_place not in [1, 2, 3]:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Text place must be 1, 2, or 3 (first, second, or third place)"
+                )
+                
+            # Ensure we don't assign places beyond the number of texts
+            if vote_data.text_place > total_texts:
+                detail_msg = (
+                    f"Cannot assign place {vote_data.text_place} "
+                    f"when there are only {total_texts} texts"
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=detail_msg
+                )
+
         
         # Handle differently based on whether this is a human or AI vote
         if vote_data.is_ai_vote:
@@ -82,36 +103,72 @@ class VoteService:
             )
             
             # Check if the AI is trying to vote for the same text twice (shouldn't happen after deletion)
-            if any(vote.text_id == vote_data.text_id for vote in existing_votes):
+            if any(v.text_id == vote_data.text_id for v in existing_votes):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="AI has already voted for this text in this contest with the same model"
                 )
             
-            # Check if the AI is trying to assign the same points to multiple texts
-            if any(vote.points == vote_data.points for vote in existing_votes):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"AI has already assigned {vote_data.points} points to another text in this contest"
-                )
+            # If assigning a place, check if already assigned
+            if vote_data.text_place is not None:
+                if any(v.text_place == vote_data.text_place for v in existing_votes if v.text_place is not None):
+                    detail_msg = (
+                        f"AI has already assigned place {vote_data.text_place} "
+                        f"to another text in this contest"
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=detail_msg
+                    )
         else:
-            # For human votes, delete any existing votes by this judge in this contest
-            await VoteRepository.delete_human_votes(db, judge_id, contest_id)
+            # For human votes, we handle separately:
+            # 1. If it's a podium vote (1st, 2nd, 3rd), delete any previous vote with the same place
+            # 2. For non-podium votes, just check if we already commented on this text
             
-            # Get current human votes after deletion (should be empty)
-            existing_votes = await VoteRepository.get_human_votes_by_judge_and_contest(db, judge_id, contest_id)
+            if vote_data.text_place is not None:
+                # Delete any previous vote with the same place
+                await VoteRepository.delete_human_vote_by_place(db, judge_id, contest_id, vote_data.text_place)
+            else:
+                # For non-podium votes, check if we already commented on this text
+                existing_vote = db.query(Vote).filter(
+                    Vote.judge_id == judge_id,
+                    Vote.contest_id == contest_id,
+                    Vote.text_id == vote_data.text_id,
+                    Vote.is_ai_vote == False
+                ).first()
+                
+                if existing_vote:
+                    # If the vote exists, update it instead of creating a new one
+                    existing_vote.comment = vote_data.comment
+                    existing_vote.text_place = vote_data.text_place # If we allow updating place for non-podium to podium
+                    db.commit()
+                    db.refresh(existing_vote)
+                    return VoteResponse.from_orm(existing_vote)
         
-        # Create the vote
-        vote_dict = vote_data.dict()
+        # Create the vote using the prepared vote_dict
+        # vote_dict contains fields from VoteCreate schema that map to Vote model columns
         vote = await VoteRepository.create_vote(db, vote_dict, judge_id, contest_id)
         
-        # For human votes, update the has_voted flag if the judge has completed all three votes
-        if not vote_data.is_ai_vote and len(existing_votes) + 1 == 3:  # Now has all 3 human votes
-            judge_assignment.has_voted = True
-            db.commit()
+        # For human votes, check if all required podium places have been assigned
+        # A judge has completed their voting duties when they've assigned all possible places
+        # (either all 3 places or as many as there are texts if fewer than 3)
+        if not vote_data.is_ai_vote:
+            podium_votes = db.query(Vote).filter(
+                Vote.judge_id == judge_id,
+                Vote.contest_id == contest_id,
+                Vote.is_ai_vote == False,
+                Vote.text_place.isnot(None)
+            ).all()
             
-            # Check if all judges have voted, and if so, close the contest
-            await VoteService.check_contest_completion(db, contest_id)
+            required_places = min(3, total_texts)
+            assigned_places = len(podium_votes)
+            
+            if assigned_places >= required_places:
+                judge_assignment.has_voted = True
+                db.commit()
+                
+                # Check if all judges have voted, and if so, close the contest
+                await VoteService.check_contest_completion(db, contest_id)
         
         return VoteResponse.from_orm(vote)
 
@@ -136,11 +193,11 @@ class VoteService:
         if not (is_creator or is_judge or current_user.is_admin):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don't have permission to view votes for this contest"
+                detail="You don\'t have permission to view votes for this contest"
             )
         
         votes = await VoteRepository.get_votes_by_contest(db, contest_id)
-        return [VoteResponse.from_orm(vote) for vote in votes]
+        return [VoteResponse.from_orm(v) for v in votes]
 
     @staticmethod
     async def get_votes_by_judge(
@@ -173,32 +230,32 @@ class VoteService:
         if not (is_creator or is_self or current_user.is_admin):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don't have permission to view these votes"
+                detail="You don\'t have permission to view these votes"
             )
         
         votes = await VoteRepository.get_votes_by_judge_and_contest(db, judge_id, contest_id)
-        return [VoteResponse.from_orm(vote) for vote in votes]
+        return [VoteResponse.from_orm(v) for v in votes]
 
     @staticmethod
     async def delete_vote(db: Session, vote_id: int, current_user: User) -> Dict[str, Any]:
         """Delete a vote."""
-        vote = await VoteRepository.get_vote(db, vote_id)
+        vote_to_delete = await VoteRepository.get_vote(db, vote_id) # Renamed variable
         
-        if not vote:
+        if not vote_to_delete:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Vote not found"
             )
         
         # Check permissions (only the judge who created the vote or an admin can delete it)
-        if vote.judge_id != current_user.id and not current_user.is_admin:
+        if vote_to_delete.judge_id != current_user.id and not current_user.is_admin:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don't have permission to delete this vote"
+                detail="You don\'t have permission to delete this vote"
             )
         
         # Get the contest to check its state
-        contest = await ContestRepository.get_contest(db, vote.contest_id)
+        contest = await ContestRepository.get_contest(db, vote_to_delete.contest_id)
         if contest.state == "closed":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -206,10 +263,10 @@ class VoteService:
             )
         
         # Update the judge's has_voted status if this is a human vote
-        if not vote.is_ai_vote:
+        if not vote_to_delete.is_ai_vote:
             judge_assignment = db.query(ContestJudge).filter(
-                ContestJudge.contest_id == vote.contest_id,
-                ContestJudge.judge_id == vote.judge_id
+                ContestJudge.contest_id == vote_to_delete.contest_id,
+                ContestJudge.judge_id == vote_to_delete.judge_id
             ).first()
             
             if judge_assignment and judge_assignment.has_voted:

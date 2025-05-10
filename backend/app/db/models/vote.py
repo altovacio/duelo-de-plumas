@@ -16,7 +16,7 @@ class Vote(Base):
     text_id = Column(Integer, ForeignKey("texts.id", ondelete="CASCADE"), nullable=False)
     
     # Vote details
-    points = Column(Integer, nullable=False)  # 3 for first place, 2 for second, 1 for third
+    text_place = Column(Integer, nullable=True)  # 1 for first place, 2 for second, 3 for third, null for non-podium
     comment = Column(Text, nullable=False)  # Justification/feedback
     
     # AI metadata (if this is an AI vote)

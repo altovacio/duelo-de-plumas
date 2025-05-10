@@ -30,15 +30,24 @@ async def create_vote(
     - The user must be a judge for the contest
     - The text must be part of the contest
     
+    **Voting System:**
+    - Judges assign places (1st, 2nd, 3rd) to texts and provide commentary for each
+    - Judges can also provide commentary for texts that didn't make the podium (no place assigned)
+    
     **Human Votes:**
-    - A judge can only assign one 1st, 2nd, and 3rd place (3, 2, and 1 points respectively)
-    - When a human judge votes again, all previous votes are deleted first
+    - A judge must assign places to at least min(3, total_texts) different texts
+    - A judge can comment on any number of texts that didn't make the podium
+    - When a judge votes for the same place again, the previous vote for that place is replaced
     
     **AI Votes:**
     - Users can submit multiple votes using different AI judges (agents)
     - When voting with an AI model that was previously used, all previous votes with that model are deleted first
-    - The same restrictions apply to each AI model (one 1st, 2nd, and 3rd place per model)
+    - The same restrictions apply to each AI model
     - The same user can have multiple sets of votes in a contest: one as a human judge and multiple as AI judges
+    
+    **Small Contests:**
+    - For contests with fewer than 3 texts, judges only need to assign all possible places
+    - For example, in a contest with 2 texts, only 1st and 2nd places are required
     """
     return await VoteService.create_vote(
         db=db,

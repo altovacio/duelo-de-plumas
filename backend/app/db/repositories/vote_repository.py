@@ -112,47 +112,98 @@ class VoteRepository:
         return count
 
     @staticmethod
+    async def delete_human_vote_by_place(db: Session, judge_id: int, contest_id: int, place: int) -> bool:
+        """Delete a human vote from a specific judge in a contest with a specific place.
+        Returns True if a vote was deleted, False otherwise."""
+        vote = db.query(Vote).filter(
+            Vote.judge_id == judge_id,
+            Vote.contest_id == contest_id,
+            Vote.is_ai_vote == False,
+            Vote.text_place == place
+        ).first()
+        
+        if vote:
+            db.delete(vote)
+            db.commit()
+            return True
+        return False
+
+    @staticmethod
     async def calculate_contest_results(db: Session, contest_id: int) -> None:
         """
         Calculate contest results based on votes and update the contest_texts table.
         This should be called when a contest is ready to be closed.
+        Points are derived from vote.text_place (1st place = 3 points, 2nd = 2, 3rd = 1).
         """
         # Get all texts in this contest
-        contest_texts = db.query(ContestText).filter(ContestText.contest_id == contest_id).all()
-        text_ids = [ct.text_id for ct in contest_texts]
+        contest_texts_q = db.query(ContestText).filter(ContestText.contest_id == contest_id).all()
+        text_ids = [ct.text_id for ct in contest_texts_q]
         
-        # Calculate points for each text
-        text_points = {}
-        for text_id in text_ids:
-            votes = db.query(Vote).filter(
-                Vote.contest_id == contest_id,
-                Vote.text_id == text_id
-            ).all()
-            
-            points = sum(vote.points for vote in votes)
-            text_points[text_id] = points
+        text_total_points = {text_id: 0 for text_id in text_ids}
+
+        all_votes_for_contest = db.query(Vote).filter(Vote.contest_id == contest_id).all()
+
+        for vote in all_votes_for_contest:
+            if vote.text_id in text_total_points:
+                points_for_this_vote = 0
+                if vote.text_place == 1:
+                    points_for_this_vote = 3
+                elif vote.text_place == 2:
+                    points_for_this_vote = 2
+                elif vote.text_place == 3:
+                    points_for_this_vote = 1
+                
+                if points_for_this_vote > 0:
+                    text_total_points[vote.text_id] += points_for_this_vote
         
-        # Sort texts by points (highest first)
-        sorted_texts = sorted(text_points.items(), key=lambda x: x[1], reverse=True)
+        # Sort texts by derived points (highest first)
+        # sorted_texts will be a list of tuples: (text_id, total_calculated_points)
+        sorted_texts_by_points = sorted(text_total_points.items(), key=lambda item: item[1], reverse=True)
         
         # Update rankings in contest_texts
-        current_rank = 1
-        prev_points = None
+        current_rank = 0
+        prev_total_points = -1 # Initialize to a value that won't match any point total
         
-        for text_id, points in sorted_texts:
-            # Handle ties (same points get same rank)
-            if prev_points is not None and points != prev_points:
-                current_rank += 1
-                
+        processed_texts_count = 0
+        rank_assignment_count = 0 # How many distinct ranks have been assigned
+
+        for text_id, calculated_points in sorted_texts_by_points:
             ct = db.query(ContestText).filter(
                 ContestText.contest_id == contest_id,
                 ContestText.text_id == text_id
             ).first()
             
             if ct:
-                ct.ranking = current_rank
-                ct.points = points
+                if calculated_points != prev_total_points:
+                    # New rank only if points are different from the previous text's points
+                    current_rank = rank_assignment_count + 1
+                    rank_assignment_count +=1
+                # If points are the same as previous, they get the same current_rank
                 
-            prev_points = points
+                ct.ranking = current_rank
+                prev_total_points = calculated_points
+            processed_texts_count +=1
+            
+        # Any texts not in sorted_texts_by_points (e.g. those with 0 points and not explicitly in text_total_points if it was pre-filtered)
+        # or texts that were processed but had 0 points and didn't get a rank assigned if all ranks went to >0 point texts.
+        # The current logic ensures all texts in contest_texts_q are in text_total_points, initialized to 0.
+        # So, texts with 0 points will be at the end of sorted_texts_by_points.
+        # If current_rank is still 0 (meaning no texts got any points), all get rank 1.
+        # Otherwise, texts with 0 points get the next available rank.
+
+        if rank_assignment_count == 0 and processed_texts_count > 0: # All texts had 0 points
+             for text_id in text_ids:
+                ct = db.query(ContestText).filter(ContestText.contest_id == contest_id, ContestText.text_id == text_id).first()
+                if ct:
+                    ct.ranking = 1
+        elif processed_texts_count < len(text_ids): # Should not happen with current logic, but as a safeguard
+            # This case implies some texts were not processed by the loop above, which is unlikely.
+            # Assign them a rank after all others.
+            unranked_ids = set(text_ids) - set(tid for tid, _ in sorted_texts_by_points)
+            fallback_rank = rank_assignment_count + 1
+            for text_id in unranked_ids:
+                ct = db.query(ContestText).filter(ContestText.contest_id == contest_id, ContestText.text_id == text_id).first()
+                if ct:
+                    ct.ranking = fallback_rank
         
         db.commit() 

@@ -75,4 +75,18 @@ class JudgeAssignmentResponse(BaseModel):
     assignment_date: datetime
     
     class Config:
+        orm_mode = True
+
+
+# For text details within a contest context
+class ContestTextResponse(BaseModel):
+    text_id: int
+    title: str
+    content: str
+    # Author and owner details conditionally included based on contest state
+    author: Optional[str] = None
+    owner_id: Optional[int] = None
+    ranking: Optional[int] = None  # 1 for first place, 2 for second, 3 for third, etc.
+    
+    class Config:
         orm_mode = True 

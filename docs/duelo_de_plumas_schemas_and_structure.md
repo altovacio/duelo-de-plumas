@@ -169,7 +169,6 @@ class ContestTextResponse(BaseModel):
     author: Optional[str] = None
     owner_id: Optional[int] = None
     ranking: Optional[int] = None
-    points: Optional[int] = None
     
     class Config:
         orm_mode = True
@@ -180,16 +179,22 @@ class ContestTextResponse(BaseModel):
 ```python
 class VoteCreate(BaseModel):
     text_id: int
-    points: int  # 3 for first place, 2 for second, 1 for third
+    text_place: Optional[int] = None  # Position (1 for 1st, 2 for 2nd, 3 for 3rd, null for non-podium)
     comment: str  # Justification/feedback
     is_ai_vote: bool = False
     ai_model: Optional[str] = None  # If is_ai_vote is True
     ai_version: Optional[str] = None  # If is_ai_vote is True
     
-class VoteResponse(VoteCreate):
+class VoteResponse(BaseModel): # Note: In the actual schema, VoteResponse inherits from a VoteBase that has text_place. For simplicity here, showing relevant fields.
     id: int
+    text_id: int
+    text_place: Optional[int] = None
+    comment: str
     judge_id: int
     contest_id: int  # Each vote is for a text within a specific contest
+    is_ai_vote: bool
+    ai_model: Optional[str] = None
+    ai_version: Optional[str] = None
     created_at: datetime
     
     class Config:

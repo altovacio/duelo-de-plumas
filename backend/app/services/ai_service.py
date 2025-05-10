@@ -1,6 +1,7 @@
 from typing import Dict, List, Optional, Tuple
 import os
 import json
+import logging
 from fastapi import HTTPException, status
 
 from app.utils.ai_models import (
@@ -10,6 +11,9 @@ from app.utils.ai_models import (
     estimate_cost_usd
 )
 from app.services.ai_provider_service import get_provider_for_model, estimate_token_count
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 # This is a placeholder for actual LLM integration
 # In a real implementation, you would use a library like openai for GPT models
@@ -139,7 +143,7 @@ class AIService:
                 for i, text in enumerate(texts):
                     prompt += f"Text #{i+1}:\nTitle: {text['title']}\nContent: {text['content']}\n\n"
                 
-                prompt += "Please evaluate all texts and assign 3 points to the best, 2 points to the second best, and 1 point to the third best. Provide a justification for each choice."
+                prompt += "Please evaluate all texts and assign 1st place to the best, 2nd place to the second best, and 3rd place to the third best. Provide a justification for each choice."
                 
                 # Generate the judgment
                 judgment, prompt_tokens, completion_tokens = await provider_class.generate_text(
@@ -209,8 +213,8 @@ class AIService:
                     ranking_prompt += f"Your evaluation: {eval_result['evaluation'][:200]}...\n"
                     ranking_prompt += f"Score: {eval_result['score']}/10\n\n"
                 
-                ranking_prompt += "Based on the above, assign 3 points to the best text, 2 points to the second best, and 1 point to the third best. "
-                ranking_prompt += "Provide a brief explanation for your ranking. Format your response as 'Text #X: Y points - reason'."
+                ranking_prompt += "Based on the above, assign 1st place to the best text, 2nd place to the second best, and 3rd place to the third best. "
+                ranking_prompt += "Provide a brief explanation for your ranking. Format your response as 'Text #X: Yth place - reason'."
                 
                 # Generate final ranking
                 ranking, ranking_prompt_tokens, ranking_completion_tokens = await provider_class.generate_text(
@@ -296,105 +300,150 @@ class AIService:
             for j, line in enumerate(lines):
                 if f"Text #{text_num}" in line or f"Text {text_num}:" in line:
                     # Found a reference to this text
-                    points = 0
-                    if "3 points" in line or "first place" in line or "1st place" in line:
-                        points = 3
-                    elif "2 points" in line or "second place" in line or "2nd place" in line:
-                        points = 2
-                    elif "1 point" in line or "third place" in line or "3rd place" in line:
-                        points = 1
+                    place = None
+                    
+                    # Try to find place assignment directly (e.g., "1st place")
+                    if "1st place" in line or "first place" in line:
+                        place = 1
+                    elif "2nd place" in line or "second place" in line:
+                        place = 2
+                    elif "3rd place" in line or "third place" in line:
+                        place = 3
                         
                     # Extract comment (all lines until next text or end)
                     comment_lines = []
-                    k = j + 1
-                    while k < len(lines) and not any(f"Text #{n}" in lines[k] for n in range(1, len(texts) + 1)):
+                    for k in range(j + 1, len(lines)):
+                        if "Text #" in lines[k] and ":" in lines[k]: # Heuristic for next text
+                            break
                         comment_lines.append(lines[k])
-                        k += 1
-                        
-                    comment = "\n".join(comment_lines).strip()
-                    if not comment and j + 1 < len(lines):
-                        comment = lines[j + 1].strip()
-                        
+                    
+                    comment_text = "\n".join(comment_lines).strip()
+                    
+                    # Add to results if any information was found
+                    if place is not None or comment_text:
+                        result_entry = {
+                            "text_id": text_id,
+                            "text_place": place,
+                            "comment": comment_text,
+                            "evaluation": judgment # The full judgment for context if needed later
+                        }
+                        results.append(result_entry)
+                    break # Move to next text
+        
+        # If no structured results, return a generic comment for all texts
+        if not results and texts:
+            for text_data in texts:
+                results.append({
+                    "text_id": text_data.get("id"),
+                    "text_place": None,
+                    "comment": judgment, # Assign full judgment as comment
+                    "evaluation": judgment
+                })
+        return results
+    
+    @classmethod
+    def _parse_ranking_results(cls, ranking_text: str, evaluations: List[Dict], texts: List[Dict]) -> List[Dict]:
+        """
+        Parse the ranking results from the AI model output.
+        
+        The expected format is something like:
+        Text #1: 1st place - [reason]
+        Text #2: 2nd place - [reason]
+        Text #3: 3rd place - [reason]
+        """
+        results = []
+        
+        try:
+            # Try to extract rankings using places (1st, 2nd, 3rd)
+            import re
+            
+            # Only find place-based rankings (e.g., "1st place")
+            place_rankings = re.findall(r'Text #(\d+):\s*(\d+)(?:st|nd|rd|th)\s*place', ranking_text, re.IGNORECASE)
+            
+            # Create a map from text position in the list to its actual ID
+            text_position_to_id = {i+1: text["id"] for i, text in enumerate(texts)}
+            
+            processed_texts_by_pos = set()
+
+            # Process place rankings
+            for pos_str, place_str in place_rankings:
+                pos = int(pos_str)
+                place = int(place_str)
+                processed_texts_by_pos.add(pos)
+                
+                # Only consider valid positions and places
+                if pos in text_position_to_id and place in [1, 2, 3]:
+                    text_id = text_position_to_id[pos]
+                    
+                    # Extract the specific comment for this ranking position
+                    comment_match = re.search(r'Text #{}:.*?-\s*(.*?)(?=Text #\d+:|$)'.format(pos), 
+                                             ranking_text, re.DOTALL | re.IGNORECASE)
+                    comment = comment_match.group(1).strip() if comment_match else ""
+                    
                     results.append({
                         "text_id": text_id,
-                        "points": points,
+                        "text_place": place,
                         "comment": comment
                     })
-                    break
-        
-        # Ensure every text has a result
-        processed_text_ids = {result["text_id"] for result in results}
-        for text in texts:
-            if text.get("id") not in processed_text_ids:
+                    
+            # Add texts that were not ranked with a comment from their individual evaluation
+            for i, text_data in enumerate(texts):
+                text_pos = i + 1
+                if text_pos not in processed_texts_by_pos:
+                    text_id = text_data.get("id")
+                    # Find the corresponding evaluation comment
+                    evaluation_entry = next((e for e in evaluations if e["text_id"] == text_id), None)
+                    comment = evaluation_entry["evaluation"][:500] + "..." if evaluation_entry else "No specific ranking comment."
+                    
+                    results.append({
+                        "text_id": text_id,
+                        "text_place": None, # Not ranked
+                        "comment": comment
+                    })
+
+        except Exception as e:
+            logger.error(f"Error parsing AI ranking results: {e}")
+            # Fallback: return all texts with no place and a generic error message as comment
+            results = []
+            for text_data in texts:
                 results.append({
-                    "text_id": text.get("id"),
-                    "points": 0,
-                    "comment": "This text was reviewed but did not place in the top rankings."
+                    "text_id": text_data.get("id"),
+                    "text_place": None,
+                    "comment": f"Error processing ranking: {str(e)}"
                 })
         
         return results
-        
+    
     @classmethod
-    def _parse_ranking_results(cls, ranking: str, evaluations: List[Dict], texts: List[Dict]) -> List[Dict]:
-        """Parse ranking results from a ranking text."""
-        results = []
+    def estimate_tokens_for_judging(
+        cls, 
+        model: str, 
+        prompt_length: int, 
+        contest_desc_length: int, 
+        texts: List[Dict]
+    ) -> int:
+        """
+        Estimate the number of tokens that will be used for judging a contest.
+        This is a rough estimate based on the length of the prompt, contest description, and texts.
+        """
+        # Estimate tokens for texts
+        text_tokens = 0
+        for text in texts:
+            # Title plus content plus some overhead
+            text_tokens += estimate_token_count(text.get('title', '')) + estimate_token_count(text.get('content', '')) + 50
         
-        # Try to extract structured results from the ranking text
-        lines = ranking.split('\n')
+        # Estimate for individual evaluations
+        eval_tokens = text_tokens * 2  # Roughly double the text size for evaluations
         
-        # Map of text numbers to points based on extracted ranking
-        text_points = {}
+        # Estimate for final ranking
+        # Base prompt + contest description + some text for each evaluation
+        ranking_tokens = contest_desc_length + 200 + (len(texts) * 100)
         
-        # First pass: extract points from the ranking
-        for line in lines:
-            # Look for patterns like "Text #1: 3 points" or "Text #2: 2 points"
-            if "Text #" in line and "point" in line.lower():
-                try:
-                    # Extract text number
-                    import re
-                    text_num_match = re.search(r'Text #(\d+)', line)
-                    if text_num_match:
-                        text_num = int(text_num_match.group(1))
-                        
-                        # Extract points
-                        points_match = re.search(r'(\d+)\s*points?', line.lower())
-                        if points_match:
-                            points = int(points_match.group(1))
-                            text_points[text_num] = points
-                except Exception as e:
-                    logger.warning(f"Failed to parse ranking line '{line}': {e}")
+        # System message tokens
+        system_tokens = 100
         
-        # Second pass: create results with points and comments
-        for i, text in enumerate(texts):
-            text_id = text.get("id")
-            text_num = i + 1
-            
-            points = text_points.get(text_num, 0)
-            
-            # For comments, use a combination of LLM's evaluation and any ranking explanation
-            evaluation = evaluations[i]["evaluation"]
-            ranking_comment = ""
-            
-            # Look for specific comments about this text in the ranking
-            for line in lines:
-                if f"Text #{text_num}" in line:
-                    # Get everything after the points
-                    parts = line.split("points")
-                    if len(parts) > 1:
-                        ranking_comment = parts[1].strip()
-                        if ranking_comment.startswith("-"):
-                            ranking_comment = ranking_comment[1:].strip()
-            
-            # Combine comments
-            if ranking_comment:
-                comment = f"{ranking_comment}\n\nDetailed evaluation:\n{evaluation}"
-            else:
-                comment = evaluation
-            
-            results.append({
-                "text_id": text_id,
-                "points": points,
-                "comment": comment
-            })
+        # Total estimate
+        total_tokens = prompt_length + contest_desc_length + text_tokens + eval_tokens + ranking_tokens + system_tokens
         
-        return results 
+        # Add a buffer for safety
+        return int(total_tokens * 1.2)  # 20% buffer 

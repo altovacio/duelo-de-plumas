@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 class VoteBase(BaseModel):
     text_id: int
-    points: int = Field(..., description="3 for first place, 2 for second, 1 for third")
+    text_place: Optional[int] = Field(None, description="Position (1 for 1st place, 2 for 2nd place, 3 for 3rd place, null for non-podium texts)")
     comment: str = Field(..., description="Justification/feedback for the vote")
     
 

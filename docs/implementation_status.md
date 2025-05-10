@@ -137,13 +137,3 @@ duelo-de-plumas/
 ├── docker-compose.yml                           ✅
 └── README.md                                    ✅
 ```
-
-## Recent Updates
-
-### Voting System Enhancement (July 2024)
-The voting system has been enhanced to support multi-voting capabilities with the following features:
-- Users can now have multiple votes in a contest: one as a human judge and multiple as different AI judges
-- When a user votes again using the same AI model, previous votes are automatically removed
-- The system properly tracks and distinguishes between human and AI votes
-- Vote uniqueness is now enforced by judge, contest, text, vote type (human/AI), and AI model
-- Vote deletion handling improves to accommodate both human and AI votes

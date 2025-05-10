@@ -99,18 +99,19 @@ e2e_test_plan = """
         - Verify only accepted submissions are present.
     
     # Testing submission management
+    - User 2 tries to delete Text 2.1 from contest1 -> Should fail.
     - User 1 deletes their submission of Text 1.1 from contest2 -> Should succeed.
         - Verify updated submission list no longer contains Text 1.1.
-    - User 1 attempts to delete User 2's submission (Text 2.1) from contest1 -> Should fail.
+    - User 1 attempts to delete User 2's submission (Text 2.1) from contest1 -> Should succeed.
     - Admin deletes User 1's submission of Text 1.2 from contest1 -> Should succeed.
         - Verify the actual Text 1.2 still exists, only the submission was removed.
         - Verify the AI generation transaction cost record is not affected.
 
 ## 6. Evaluation Phase (Contest in Evaluation)
     - User 1 sets contest1 status to 'Evaluation'.
-    - User 1 attempts to submit a new text to contest1 -> Should fail (400/403).
-    - Visitor attempts to view submissions for contest1 -> Should succeed, author names masked.
-    - User 2 (human judge) views submissions for contest1 -> Should succeed, author names masked.
+    - User 1 attempts to submit a new text to contest1 -> Should fail due to contest being in evaluation phase.
+    - Visitor attempts to view submissions for contest1 -> Should succeed, user and author names masked.
+    - User 2 (human judge) views submissions for contest1 -> Should succeed, user and author names masked.
     - User 1 attempts to vote in contest 1 -> Should fail (is not a judge).
     - User 2 attempts to vote in contest 1 -> Should succeed.
     - User 1 triggers judge_global evaluation for contest1. Succeeds.
@@ -126,14 +127,15 @@ e2e_test_plan = """
 
 ## 7. Contest Closure & Results
     - Admin sets contest1, contest2 and contest3 status to 'Closed'.
-    - Visitor views contest1 details -> Should see results, author names revealed.
+    - Visitor views contest1 details -> Should see results, user and author names revealed.
     - User 1 changes contest 1 to private.
     - Visitor attempts to view contest1 details with no password -> Fails
-    - Visitor attempts to view contest1 details with correct password -> Succeeds. Author names revealed.
+    - Visitor attempts to view contest1 details with correct password -> Succeeds. User and author names revealed.
     - User 1 returns contest1 to public.
-    - Visitor attempts to view contest1 details with no password -> Succeeds. Author names revealed.
+    - Visitor attempts to view contest1 details with no password -> Succeeds. User and author names revealed.
     - User 2 deletes their own Text 2.1 from contest1 -> Should succeed.
-    - User 1 attempts to delete Text 2.2 from contest1 -> Should succeed as it is its own contest.
+    - User 1 attempts to delete Text 2.2 from contest1 -> Should succeed.
+    - Cost records are not affected.
    
 ## 8. Cost & Usage Monitoring (Pre-Cleanup)
     - Admin checks AI costs summary.
@@ -152,6 +154,7 @@ e2e_test_plan = """
         - Verify associated submissions are not deleted.
     - User 1 deletes their AI judge (judge1).
         - Verify associated votes are not deleted.
+        - Verify costs are not affected
     - Admin deletes contest2 and contest3.
     - User 2 attempts to delete writer_global -> Should fail.
     - Admin deletes global AI writer (writer_global).

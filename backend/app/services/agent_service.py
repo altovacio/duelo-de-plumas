@@ -225,11 +225,11 @@ class AgentService:
                 "content": ct.text.content
             })
             
-        # Check if we have enough texts for a proper ranking (need at least 3)
-        if len(text_data) < 3:
+        # Check if we have enough texts for a proper ranking
+        if len(text_data) < 1:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Contest must have at least 3 texts for AI judging"
+                detail="Contest must have at least 1 text for AI judging"
             )
             
         # Estimate token usage for this operation
@@ -290,7 +290,7 @@ class AgentService:
             for result in judge_results:
                 vote_data = VoteCreate(
                     text_id=result["text_id"],
-                    points=result["points"],
+                    text_place=result.get("text_place"),  # May be None for non-podium texts
                     comment=result["comment"],
                     is_ai_vote=True,
                     ai_model=request.model,
@@ -303,28 +303,22 @@ class AgentService:
                     vote_data=vote_data, 
                     judge_id=current_user_id  # AI votes are owned by the user who ran the agent
                 )
-            
-            return AgentExecutionResponse.from_orm(execution)
-            
-        except Exception as e:
-            # Log the error
-            print(f"Error in AI judging: {str(e)}")
-            
-            # Create a failed execution record
-            execution = AgentRepository.create_agent_execution(
-                db=db,
+                
+            return AgentExecutionResponse(
+                id=execution.id,
                 agent_id=agent.id,
                 owner_id=current_user_id,
                 execution_type="judge",
-                model=request.model,
-                status="failed",
-                error_message=str(e),
-                credits_used=0  # No credits used if failed
+                status="completed",
+                credits_used=actual_cost,
+                result_id=contest.id  # Result ID is the contest ID for judge agents
             )
             
+        except Exception as e:
+            # Log the error and return a clean error message
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"AI judging failed: {str(e)}"
+                detail=f"Error executing judge agent: {str(e)}"
             )
     
     @staticmethod

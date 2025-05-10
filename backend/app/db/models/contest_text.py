@@ -19,7 +19,6 @@ class ContestText(Base):
     
     # Final ranking (null until contest is closed)
     ranking = Column(Integer, nullable=True)
-    points = Column(Integer, nullable=True)
     
     # Create a unique constraint so a text can't be submitted to the same contest multiple times
     __table_args__ = (

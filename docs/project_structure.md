@@ -85,6 +85,9 @@ duelo-de-plumas/
 │   │   ├── script.py.mako
 │   │   └── alembic.ini
 │   │
+│   ├── scripts/                # Utility scripts for setup and maintenance
+│   │   └── create_admin.py     # Script to create admin user
+│   │
 │   ├── tests/                  # Backend tests
 │   │   ├── __init__.py
 │   │   ├── conftest.py
@@ -104,8 +107,10 @@ duelo-de-plumas/
 │   │       └── ...
 │   │
 │   ├── .env                    # Backend environment variables
+│   ├── .env.example            # Template for environment variables
 │   ├── Dockerfile              # Backend Docker configuration
 │   ├── requirements.txt        # Backend Python dependencies
+│   ├── README.md               # Backend specific documentation
 │   └── alembic.ini             # Alembic configuration
 │
 ├── frontend/                   # Frontend application (placeholder)
@@ -125,7 +130,8 @@ duelo-de-plumas/
 │   ├── schemas_and_structure.md
 │   ├── api_plan.md
 │   ├── project_description.md
-│   └── project_structure.md
+│   ├── project_structure.md
+│   └── implementation_status.md # Track implementation progress and deviations
 │
 ├── .gitignore                  # Git ignore file
 ├── docker-compose.yml          # Docker Compose configuration for both services

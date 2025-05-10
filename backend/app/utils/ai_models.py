@@ -8,6 +8,7 @@ import os
 from enum import Enum
 from typing import Dict, List, Optional, Union
 from pydantic import BaseModel
+import math
 
 
 class ModelProvider(str, Enum):
@@ -106,20 +107,13 @@ def estimate_cost_usd(
 
 def estimate_credits(model_id: str, input_tokens: int, output_tokens: Optional[int] = None) -> int:
     """
-    Calculate the cost in credits for using a model with the given token counts
-    1 credit = $0.01 USD
-    
-    Args:
-        model_id: ID of the model to use
-        input_tokens: Number of input tokens
-        output_tokens: Number of output tokens (defaults to 0 if not specified)
-        
-    Returns:
-        Estimated cost in credits (minimum 1)
-        
-    Raises:
-        ValueError: If the model ID is not recognized
+    Calculate the cost in credits for using a model with the given token counts.
+    1 credit = $0.01 USD.
+    For now, applies a 1.5x multiplier to the real cost for safety.
+    All credit cost logic is centralized here.
+    TODO: Review/remove the multiplier once cost calculation is verified.
     """
     cost_usd = estimate_cost_usd(model_id, input_tokens, output_tokens)
-    credits = int(cost_usd * 100)  # Convert to credits (1 credit = $0.01)
+    real_credits = cost_usd * 100  # 1 credit = $0.01
+    credits = math.ceil(real_credits * 1.5)
     return max(1, credits)  # Minimum 1 credit per operation 

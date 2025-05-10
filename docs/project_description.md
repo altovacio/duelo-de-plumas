@@ -146,3 +146,11 @@ En específico:
         * Un lugar para ver todas las transacciones de créditos con opciones de filtrado.
         * Un lugar para ver el resumen del sitio (número de concursos, una tabla de ganadores más frecuentes, etc.)
 
+## Sistema de Créditos
+
+- 1 USD equivale a 100 créditos.
+- Cada transacción (adición o deducción) tiene un costo mínimo de 1 crédito.
+- El costo de cada operación de IA se calcula como: créditos_usados = ceil(costo_real * 1.5), donde costo_real es el costo real en créditos basado en el consumo de tokens y el modelo utilizado.
+- Esta multiplicación por 1.5 es temporal y se utiliza para cubrir posibles imprecisiones en el cálculo de costos. El valor será revisado cuando se verifique la precisión del sistema.
+- Toda la lógica de cálculo de créditos está centralizada en una sola función para facilitar su control y modificación futura.
+

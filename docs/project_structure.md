@@ -39,6 +39,7 @@ duelo-de-plumas/
 │   │   │   │   ├── contest.py
 │   │   │   │   ├── vote.py
 │   │   │   │   ├── agent.py
+│   │   │   │   ├── agent_execution.py # Tracks AI agent executions
 │   │   │   │   ├── credit_transaction.py # Credit transaction tracking
 │   │   │   │   ├── contest_text.py # Junction table for contest-text relationships
 │   │   │   │   └── contest_judge.py # Junction table for contest-judge relationships
@@ -71,12 +72,15 @@ duelo-de-plumas/
 │   │   │   ├── vote_service.py
 │   │   │   ├── agent_service.py
 │   │   │   ├── ai_service.py   # Integration with AI models (OpenAI, etc.)
+│   │   │   ├── ai_provider_service.py  # Specific AI provider implementations
 │   │   │   └── credit_service.py # Credit management logic
 │   │   │
 │   │   └── utils/              # Utility functions
 │   │       ├── __init__.py
 │   │       ├── markdown_utils.py # Markdown processing
-│   │       └── validation_utils.py # Input validation helpers
+│   │       ├── validation_utils.py # Input validation helpers
+│   │       ├── ai_models.py    # AI model configuration utilities
+│   │       └── ai_model_costs.json # AI model definitions and pricing
 │   │
 │   ├── migrations/             # Database migrations (Alembic)
 │   │   ├── versions/

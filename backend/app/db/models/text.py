@@ -16,5 +16,7 @@ class Text(Base):
     owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     owner = relationship("User", back_populates="texts")
     
+    contest_texts = relationship("ContestText", foreign_keys="ContestText.text_id", cascade="all, delete-orphan")
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False) 

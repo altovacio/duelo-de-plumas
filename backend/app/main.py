@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 # Import routers
-from app.api.routes import auth, users
+from app.api.routes import auth, users, texts, contests, votes, admin, dashboard, agents
 # Import other routers as they become available
 
 from app.core.config import settings
@@ -28,13 +28,14 @@ app.add_middleware(
 # Include routers
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 app.include_router(users.router, prefix="/users", tags=["Users"])
+app.include_router(texts.router, prefix="/texts", tags=["Texts"])
+app.include_router(contests.router, prefix="/contests", tags=["Contests"])
+app.include_router(votes.router, prefix="", tags=["Votes"])  # Note: votes endpoints are at /contests/{contest_id}/votes
+app.include_router(admin.router, prefix="/admin", tags=["Admin"])
+app.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
+app.include_router(agents.router, prefix="/agents", tags=["AI Agents"])
 # Include other routers as they become available
-# app.include_router(texts.router, prefix="/texts", tags=["Texts"])
-# app.include_router(contests.router, prefix="/contests", tags=["Contests"])
-# app.include_router(votes.router, prefix="/votes", tags=["Votes"])
 # app.include_router(agents.router, prefix="/agents", tags=["AI Agents"])
-# app.include_router(admin.router, prefix="/admin", tags=["Admin"])
-# app.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
 
 @app.get("/")
 async def root():

@@ -1,12 +1,13 @@
 # backend/tests/e2e_sec_06_evaluation_phase.py
 import pytest
 from fastapi.testclient import TestClient # Injected by fixture
+import logging
 
-from backend.app.core.config import settings
-from backend.app.schemas.contest import ContestUpdate, ContestResponse
-from backend.app.schemas.submission import SubmissionResponse # For viewing submissions
-from backend.app.schemas.user import UserResponse, UserCredit # For credit top-up
-from backend.tests.shared_test_state import test_data
+from app.core.config import settings
+from app.schemas.contest import ContestUpdate, ContestResponse
+from app.schemas.submission import SubmissionResponse # For viewing submissions
+from app.schemas.user import UserResponse, UserCredit # For credit top-up
+from tests.shared_test_state import test_data
 
 # client will be a fixture argument to test functions
 

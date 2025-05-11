@@ -1,6 +1,7 @@
 FROM python:3.11-slim
 
 WORKDIR /app
+ENV PYTHONPATH /app
 
 # Copy requirements first for better layer caching
 COPY requirements.txt .

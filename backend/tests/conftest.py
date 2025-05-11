@@ -5,13 +5,13 @@ import uuid
 
 # Attempt to import app and SessionLocal with error handling for robustness
 try:
-    from backend.app.main import app
-    from backend.app.db.session import SessionLocal
+    from app.main import app
+    from app.db.session import SessionLocal
 except ImportError as e:
     app = None
     SessionLocal = None
     print(f"Warning: Could not import app or SessionLocal in conftest.py: {e}")
-    print("Ensure backend.app.main and backend.app.db.session are correct and accessible.")
+    print("Ensure app.main and app.db.session are correct and accessible from /app in the container.")
 
 @pytest.fixture(scope="session")
 def client():

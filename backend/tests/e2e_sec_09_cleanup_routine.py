@@ -2,13 +2,15 @@
 import pytest
 from fastapi.testclient import TestClient # Injected by fixture
 from typing import List, Dict, Any
+import time # For delays
 
-from backend.app.core.config import settings
+from app.core.config import settings
 # Schemas for User, Contest, Agent might be needed if checking responses or existence after deletion
-from backend.tests.shared_test_state import test_data
-from backend.app.schemas.submission import SubmissionResponse # For checking submissions
-from backend.app.schemas.vote import VoteResponse # For checking votes
-from backend.app.schemas.user import UserResponse # For checking user deletion impact
+from tests.shared_test_state import test_data
+from app.schemas.submission import SubmissionResponse # For checking submissions
+from app.schemas.vote import VoteResponse # For checking votes
+from app.schemas.user import UserResponse # For checking user deletion impact
+import logging
 
 # client will be a fixture argument to test functions
 

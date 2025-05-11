@@ -100,7 +100,7 @@ duelo-de-plumas/
 │   │   └── create_admin.py     # Script to create admin user
 │   │
 │   ├── tests/                  # Backend tests
-│   │   ├── __init__.py
+│   │   ├── __init__.py         # Makes 'tests' a Python package (NEW)
 │   │   ├── conftest.py         # Pytest fixtures and shared E2E helpers
 │   │   ├── shared_test_state.py # Shared state for E2E tests (e.g., test_data dict)
 │   │   ├── e2e_test_plan_config.py # Stores the main E2E test plan string
@@ -140,6 +140,7 @@ duelo-de-plumas/
 │   ├── requirements.txt        # Backend Python dependencies
 │   ├── README.md               # Backend specific documentation
 │   └── alembic.ini             # Alembic configuration
+│   └── pytest.ini              # Pytest configuration (e.g., test file patterns) (NEW)
 │
 ├── frontend/                   # Frontend application (placeholder)
 │   ├── public/                 # Static files

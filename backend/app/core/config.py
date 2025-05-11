@@ -2,6 +2,7 @@ from pydantic_settings import BaseSettings
 from typing import List
 import os
 from dotenv import load_dotenv
+import json
 
 # Load .env file
 load_dotenv()
@@ -24,6 +25,6 @@ class Settings(BaseSettings):
     
     # App settings
     DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
-    ALLOWED_ORIGINS: List[str] = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8000").split(",")
+    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8000"] # Pydantic will parse from JSON env var if present
 
 settings = Settings() 

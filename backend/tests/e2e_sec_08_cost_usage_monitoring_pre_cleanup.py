@@ -2,13 +2,14 @@
 import pytest
 from fastapi.testclient import TestClient # Injected by fixture
 from typing import List # Added for type hinting
+import logging
 
-from backend.app.core.config import settings
+from app.core.config import settings
 # Add relevant schemas for cost/credit history if any direct API calls are made
 # from backend.app.schemas.credit import CreditLogResponse, AIServiceCostSummaryResponse
-from backend.app.schemas.user import UserResponse # For balance checks
-from backend.app.schemas.credit import CreditTransactionResponse, AIServiceCostSummaryResponse # Added
-from backend.tests.shared_test_state import test_data
+from app.schemas.user import UserResponse # For balance checks
+from app.schemas.credit import CreditTransactionResponse, AIServiceCostSummaryResponse # Added
+from tests.shared_test_state import test_data
 
 # client will be a fixture argument to test functions
 

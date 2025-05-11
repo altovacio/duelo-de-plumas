@@ -2,10 +2,11 @@
 import pytest
 from fastapi.testclient import TestClient
 from typing import List # Keep if listing endpoints are used for verification
+import logging
 
-from backend.app.core.config import settings
-from backend.app.schemas.credit import AIServiceCostSummaryResponse # For AI Cost check
-from backend.tests.shared_test_state import test_data
+from app.core.config import settings
+from app.schemas.credit import AIServiceCostSummaryResponse # For AI Cost check
+from tests.shared_test_state import test_data
 
 # client will be a fixture argument to test functions
 

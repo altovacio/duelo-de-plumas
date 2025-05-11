@@ -2,13 +2,14 @@
 import pytest
 from fastapi.testclient import TestClient # Injected by fixture
 from typing import List # Added for type hinting
+import logging
 
-from backend.app.core.config import settings
-from backend.app.schemas.contest import ContestUpdate, ContestResponse, ContestVisibility # ContestVisibility added
-from backend.app.schemas.submission import SubmissionResponse # For viewing submissions
+from app.core.config import settings
+from app.schemas.contest import ContestUpdate, ContestResponse, ContestVisibility # ContestVisibility added
+from app.schemas.submission import SubmissionResponse # For viewing submissions
 # Make sure UserResponse is imported if needed for author name checks
-from backend.app.schemas.user import UserResponse 
-from backend.tests.shared_test_state import test_data
+from app.schemas.user import UserResponse 
+from tests.shared_test_state import test_data
 
 # client will be a fixture argument to test functions
 

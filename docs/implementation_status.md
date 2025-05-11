@@ -19,7 +19,7 @@ The following is a comparison between the planned structure (from project_struct
 | **Credit System** | ✅ | Credit transaction tracking, admin management implemented |
 | **Dashboard** | ✅ | Basic dashboard with credit information implemented |
 | **Admin Features** | ✅ | Admin routes for user and credit management implemented |
-| **Tests** | ❌ | Not implemented yet |
+| **Tests** | 🚧 | E2E tests structure in place, fixing import/runtime issues. |
 
 ### Frontend Implementation
 
@@ -127,9 +127,23 @@ duelo-de-plumas/
 │   │   └── create_admin.py                      ✅
 │   │
 │   ├── tests/                                   ✅
+│   │   ├── __init__.py                          ✅ (NEW - makes tests a package)
+│   │   ├── conftest.py                          ✅ (Updated imports)
+│   │   ├── shared_test_state.py                 ✅
+│   │   ├── e2e_test_plan_config.py              ✅
+│   │   ├── e2e_sec_01_setup_user_registration.py ✅ (Updated imports)
+│   │   ├── e2e_sec_02_ai_agent_creation.py      ✅ (Updated imports)
+│   │   ├── e2e_sec_03_contest_creation_management.py ✅ (Updated imports)
+│   │   ├── e2e_sec_04_text_creation.py          ✅ (Updated imports)
+│   │   ├── e2e_sec_05_text_submission.py        ✅ (Updated imports)
+│   │   ├── e2e_sec_06_evaluation_phase.py       ✅ (Updated imports)
+│   │   ├── e2e_sec_07_contest_closure_results.py ✅ (Updated imports)
+│   │   ├── e2e_sec_08_cost_usage_monitoring_pre_cleanup.py ✅ (Updated imports)
+│   │   ├── e2e_sec_09_cleanup_routine.py        ✅ (Updated imports)
+│   │   ├── e2e_sec_10_final_state_verification_post_cleanup.py ✅ (Updated imports)
 │   │
 │   ├── .env                                     ✅
-│   ├── Dockerfile                               ✅
+│   ├── Dockerfile                               ✅ (Updated with PYTHONPATH)
 │   └── requirements.txt                         ✅
 │
 ├── frontend/                                    ❌ (not implemented)

@@ -1,12 +1,13 @@
 # backend/tests/e2e_sec_05_text_submission.py
 import pytest
 from fastapi.testclient import TestClient # Injected by fixture
+import logging
 
-from backend.app.core.config import settings
-from backend.app.schemas.contest import ContestResponse # For checking contest details
-from backend.app.schemas.submission import SubmissionResponse # For submission data
-from backend.app.schemas.user import UserResponse # For credit checks
-from backend.tests.shared_test_state import test_data
+from app.core.config import settings
+from app.schemas.contest import ContestResponse # For checking contest details
+from app.schemas.submission import SubmissionResponse # For submission data
+from app.schemas.user import UserResponse # For credit checks
+from tests.shared_test_state import test_data
 
 # client will be a fixture argument to test functions
 

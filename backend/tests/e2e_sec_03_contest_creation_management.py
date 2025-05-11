@@ -1,10 +1,9 @@
 # backend/tests/e2e_sec_03_contest_creation_management.py
 import pytest
 from fastapi.testclient import TestClient # Injected by fixture
-
-from backend.app.core.config import settings
-from backend.app.schemas.contest import ContestCreate, ContestResponse, ContestUpdate
-from backend.tests.shared_test_state import test_data
+from app.core.config import settings
+from app.schemas.contest import ContestCreate, ContestResponse, ContestUpdate
+from tests.shared_test_state import test_data
 
 # client will be a fixture argument to test functions
 

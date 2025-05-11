@@ -1,11 +1,12 @@
 # backend/tests/e2e_sec_02_ai_agent_creation.py
 import pytest
 from fastapi.testclient import TestClient # Injected by fixture
+import logging
 
-from backend.app.core.config import settings
-from backend.app.schemas.agent import AgentCreate, AgentResponse
-from backend.app.schemas.user import UserResponse # For fetching admin_id
-from backend.tests.shared_test_state import test_data
+from app.core.config import settings
+from app.schemas.agent import AgentCreate, AgentResponse
+from app.schemas.user import UserResponse # For fetching admin_id
+from tests.shared_test_state import test_data
 
 # client will be a fixture argument to test functions
 

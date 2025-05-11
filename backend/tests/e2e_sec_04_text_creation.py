@@ -1,12 +1,13 @@
 # backend/tests/e2e_sec_04_text_creation.py
 import pytest
 from fastapi.testclient import TestClient # Injected by fixture
+import logging
 
-from backend.app.core.config import settings
-from backend.app.schemas.text import TextCreate, TextResponse, TextUpdate
-from backend.app.schemas.user import UserResponse, UserCredit # For credit checks and assignments
-from backend.app.schemas.agent import AgentExecute # For agent execution
-from backend.tests.shared_test_state import test_data
+from app.core.config import settings
+from app.schemas.text import TextCreate, TextResponse, TextUpdate
+from app.schemas.user import UserResponse, UserCredit # For credit checks and assignments
+from app.schemas.agent import AgentExecute # For agent execution
+from tests.shared_test_state import test_data
 
 # client will be a fixture argument to test functions
 

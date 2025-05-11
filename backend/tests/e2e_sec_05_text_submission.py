@@ -4,8 +4,7 @@ from fastapi.testclient import TestClient # Injected by fixture
 import logging
 
 from app.core.config import settings
-from app.schemas.contest import ContestResponse # For checking contest details
-from app.schemas.submission import SubmissionResponse # For submission data
+from app.schemas.contest import ContestResponse, TextSubmissionResponse # MODIFIED: For submission data
 from app.schemas.user import UserResponse # For credit checks
 from tests.shared_test_state import test_data
 
@@ -262,7 +261,7 @@ def test_05_09_admin_submits_text3_2_to_contest1_succeeds(client: TestClient):
     # So admin should be a new participant.
     # Let's get existing participants for contest1:
     submissions_c1_resp = client.get(f"{settings.API_V1_STR}/contests/{test_data['contest1_id']}/submissions", headers=test_data["admin_headers"])
-    submissions_c1_data = [SubmissionResponse(**s) for s in submissions_c1_resp.json()]
+    submissions_c1_data = [TextSubmissionResponse(**s) for s in submissions_c1_resp.json()]
     participant_ids_c1 = {s.owner_id for s in submissions_c1_data}
     
     assert contest_data_after.participant_count == len(participant_ids_c1), \
@@ -284,7 +283,7 @@ def test_05_10_user1_views_submissions_contest1_succeeds(client: TestClient):
     assert isinstance(submissions, list)
     # Check if submissions are unmasked for creator (user_id, author should be visible)
     for sub_data in submissions:
-        submission = SubmissionResponse(**sub_data)
+        submission = TextSubmissionResponse(**sub_data)
         assert submission.user_id is not None
         assert submission.author is not None 
     print("User 1 (creator) successfully viewed submissions for contest1 (open phase, unmasked).")
@@ -325,7 +324,7 @@ def test_05_13_admin_views_submissions_contest1_succeeds(client: TestClient):
     assert isinstance(submissions, list)
     # Admin should see unmasked data
     for sub_data in submissions:
-        submission = SubmissionResponse(**sub_data)
+        submission = TextSubmissionResponse(**sub_data)
         assert submission.user_id is not None
         assert submission.author is not None
     print("Admin successfully viewed submissions for contest1 (open phase, unmasked).")
@@ -394,7 +393,7 @@ def test_05_15_user2_deletes_own_submission_c1_t2_1_succeeds(client: TestClient)
     assert contest_data_after.text_count == initial_text_count_c1 - 1, "Contest1 text count did not decrease by 1."
     # Participant count might change if this was User 2's only submission.
     submissions_c1_resp = client.get(f"{settings.API_V1_STR}/contests/{test_data['contest1_id']}/submissions", headers=test_data["admin_headers"])
-    submissions_c1_data = [SubmissionResponse(**s) for s in submissions_c1_resp.json()]
+    submissions_c1_data = [TextSubmissionResponse(**s) for s in submissions_c1_resp.json()]
     participant_ids_c1 = {s.owner_id for s in submissions_c1_data}
     assert contest_data_after.participant_count == len(participant_ids_c1), "Contest1 participant count mismatch."
     print(f"Contest1 updated text count: {contest_data_after.text_count}, participant count: {contest_data_after.participant_count}.")
@@ -457,7 +456,7 @@ def test_05_17_user1_deletes_user2_submission_c1_t2_2_succeeds(client: TestClien
     assert contest_data_after.text_count == initial_text_count_c1 - 1, "Contest1 text count did not decrease by 1."
     # Participant count might change if this was User 2's only remaining submission.
     submissions_c1_resp = client.get(f"{settings.API_V1_STR}/contests/{test_data['contest1_id']}/submissions", headers=test_data["admin_headers"])
-    submissions_c1_data = [SubmissionResponse(**s) for s in submissions_c1_resp.json()]
+    submissions_c1_data = [TextSubmissionResponse(**s) for s in submissions_c1_resp.json()]
     participant_ids_c1 = {s.owner_id for s in submissions_c1_data}
     assert contest_data_after.participant_count == len(participant_ids_c1), "Contest1 participant count mismatch."
     print(f"Contest1 updated text count: {contest_data_after.text_count}, participant count: {contest_data_after.participant_count}.")

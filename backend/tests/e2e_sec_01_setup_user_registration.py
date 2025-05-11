@@ -4,8 +4,7 @@ from fastapi.testclient import TestClient # Injected by fixture
 import logging
 
 from app.core.config import settings
-from app.schemas.user import UserCreate, UserLogin, UserResponse, UserCredit
-from app.schemas.token import Token
+from app.schemas.user import UserCreate, UserLogin, UserResponse, UserCredit, Token
 from tests.shared_test_state import test_data
 from tests.conftest import generate_unique_username, generate_unique_email # Import helpers
 

@@ -7,7 +7,7 @@ import time # For delays
 from app.core.config import settings
 # Schemas for User, Contest, Agent might be needed if checking responses or existence after deletion
 from tests.shared_test_state import test_data
-from app.schemas.submission import SubmissionResponse # For checking submissions
+from app.schemas.contest import TextSubmissionResponse # MODIFIED: For checking submissions
 from app.schemas.vote import VoteResponse # For checking votes
 from app.schemas.user import UserResponse # For checking user deletion impact
 import logging

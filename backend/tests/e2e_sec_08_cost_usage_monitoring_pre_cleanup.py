@@ -8,7 +8,7 @@ from app.core.config import settings
 # Add relevant schemas for cost/credit history if any direct API calls are made
 # from backend.app.schemas.credit import CreditLogResponse, AIServiceCostSummaryResponse
 from app.schemas.user import UserResponse # For balance checks
-from app.schemas.credit import CreditTransactionResponse, AIServiceCostSummaryResponse # Added
+from app.schemas.credit import CreditTransactionResponse, CreditUsageSummary # MODIFIED: Was AIServiceCostSummaryResponse
 from tests.shared_test_state import test_data
 
 # client will be a fixture argument to test functions
@@ -23,11 +23,11 @@ def test_08_01_admin_checks_ai_costs_summary(client: TestClient):
     response = client.get(f"{settings.API_V1_STR}/admin/ai-costs-summary", headers=test_data["admin_headers"])
     assert response.status_code == 200, f"Admin failed to get AI costs summary: {response.text}"
     
-    costs_summary = AIServiceCostSummaryResponse(**response.json())
-    assert costs_summary.total_cost >= 0, "Total AI cost should be non-negative."
+    costs_summary = CreditUsageSummary(**response.json()) # MODIFIED
+    assert costs_summary.total_credits_used >= 0, "Total AI cost should be non-negative." # MODIFIED
     # Potentially more assertions based on expected costs from previous tests if tracked meticulously
     # For now, just check structure and non-negative total cost.
-    print(f"Admin successfully retrieved AI costs summary. Total cost: {costs_summary.total_cost}, Breakdown: {costs_summary.cost_breakdown}")
+    print(f"Admin successfully retrieved AI costs summary. Total cost: {costs_summary.total_credits_used}, Breakdown: {costs_summary.usage_by_model}") # MODIFIED
 
 @pytest.mark.run(after='test_08_01_admin_checks_ai_costs_summary')
 def test_08_02_admin_checks_user1_credit_history(client: TestClient):

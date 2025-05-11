@@ -5,7 +5,7 @@ from typing import List # Keep if listing endpoints are used for verification
 import logging
 
 from app.core.config import settings
-from app.schemas.credit import AIServiceCostSummaryResponse # For AI Cost check
+from app.schemas.credit import CreditUsageSummary # MODIFIED: Was AIServiceCostSummaryResponse
 from tests.shared_test_state import test_data
 
 # client will be a fixture argument to test functions
@@ -63,8 +63,8 @@ def test_10_02_admin_checks_ai_costs_summary_post_cleanup(client: TestClient):
     response = client.get(f"{settings.API_V1_STR}/admin/ai-costs-summary", headers=test_data["admin_headers"])
     assert response.status_code == 200, f"Admin failed to get AI costs summary post-cleanup: {response.text}"
     
-    costs_summary_after = AIServiceCostSummaryResponse(**response.json())
-    print(f"Admin successfully retrieved AI costs summary post-cleanup. Total cost: {costs_summary_after.total_cost}")
+    costs_summary_after = CreditUsageSummary(**response.json()) # MODIFIED
+    print(f"Admin successfully retrieved AI costs summary post-cleanup. Total cost: {costs_summary_after.total_credits_used}") # MODIFIED
 
     # Compare with a pre-cleanup stored value if available, or check for stability/consistency.
     # For instance, if test_data["ai_costs_summary_pre_cleanup"] was stored in section 8.
@@ -72,9 +72,9 @@ def test_10_02_admin_checks_ai_costs_summary_post_cleanup(client: TestClient):
     # The critical check is that costs are not *negatively* affected (e.g. refunded) by deletions.
     # If cost records are persistent and tied to historical usage, the total should not decrease due to cleanup.
     # If specific costs were tracked from Section 8 (e.g. test_data['initial_ai_total_cost']):
-    #   assert costs_summary_after.total_cost >= test_data['initial_ai_total_cost'], \
+    #   assert costs_summary_after.total_credits_used >= test_data['initial_ai_total_cost'], \ # MODIFIED
     #       "AI total cost should not decrease after cleanup."
 
-    print(f"AI costs summary post-cleanup total: {costs_summary_after.total_cost}. This should ideally match or be greater than pre-cleanup if costs are only additive.")
+    print(f"AI costs summary post-cleanup total: {costs_summary_after.total_credits_used}. This should ideally match or be greater than pre-cleanup if costs are only additive.") # MODIFIED
 
 # --- End of Test Section 10 --- 

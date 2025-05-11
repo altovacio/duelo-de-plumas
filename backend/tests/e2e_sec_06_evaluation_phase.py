@@ -4,8 +4,7 @@ from fastapi.testclient import TestClient # Injected by fixture
 import logging
 
 from app.core.config import settings
-from app.schemas.contest import ContestUpdate, ContestResponse
-from app.schemas.submission import SubmissionResponse # For viewing submissions
+from app.schemas.contest import ContestUpdate, ContestResponse, TextSubmissionResponse
 from app.schemas.user import UserResponse, UserCredit # For credit top-up
 from tests.shared_test_state import test_data
 
@@ -75,7 +74,7 @@ def test_06_03_visitor_views_contest1_submissions_masked(client: TestClient):
     assert isinstance(submissions, list) and len(submissions) > 0, "Expected submissions list."
 
     for sub_data in submissions:
-        submission = SubmissionResponse(**sub_data)
+        submission = TextSubmissionResponse(**sub_data)
         assert submission.user_id is None or isinstance(submission.user_id, str) # Masked field check
         assert submission.author is None or "masked" in submission.author.lower() or submission.author == "[Hidden]" # Masked field check
         assert submission.text_id is not None
@@ -105,7 +104,7 @@ def test_06_04_user2_judge_views_contest1_submissions_masked(client: TestClient)
     assert isinstance(submissions, list) and len(submissions) > 0, "Expected submissions list for judge."
 
     for sub_data in submissions:
-        submission = SubmissionResponse(**sub_data)
+        submission = TextSubmissionResponse(**sub_data)
         assert submission.user_id is None or isinstance(submission.user_id, str) # Masked field check
         assert submission.author is None or "masked" in submission.author.lower() or submission.author == "[Hidden]" # Masked field check
         assert submission.text_id is not None

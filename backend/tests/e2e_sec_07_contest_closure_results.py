@@ -5,8 +5,7 @@ from typing import List # Added for type hinting
 import logging
 
 from app.core.config import settings
-from app.schemas.contest import ContestUpdate, ContestResponse, ContestVisibility # ContestVisibility added
-from app.schemas.submission import SubmissionResponse # For viewing submissions
+from app.schemas.contest import ContestUpdate, ContestResponse, TextSubmissionResponse # MODIFIED: Removed ContestVisibility, added TextSubmissionResponse
 # Make sure UserResponse is imported if needed for author name checks
 from app.schemas.user import UserResponse 
 from tests.shared_test_state import test_data
@@ -59,7 +58,7 @@ def test_07_02_visitor_views_contest1_details_revealed(client: TestClient):
     assert isinstance(submissions, list)
     if len(submissions) > 0:
         for sub_data in submissions:
-            submission = SubmissionResponse(**sub_data)
+            submission = TextSubmissionResponse(**sub_data)
             assert submission.user_id is not None, "User ID should be revealed for submissions in a Closed contest."
             assert submission.author is not None and "masked" not in submission.author.lower() and submission.author != "[Hidden]", \
                 f"Author name should be revealed. Got: {submission.author}"
@@ -80,7 +79,7 @@ def test_07_03_user1_changes_contest1_to_private(client: TestClient):
     assert "contest1_id" in test_data, "Contest 1 ID not found."
     test_data["contest1_password"] = "testprivpass123" # Store password for later tests
 
-    update_payload = ContestUpdate(visibility=ContestVisibility.private, password=test_data["contest1_password"])
+    update_payload = ContestUpdate(is_private=True, password=test_data["contest1_password"])
     response = client.put(
         f"{settings.API_V1_STR}/contests/{test_data['contest1_id']}",
         json=update_payload.model_dump(exclude_unset=True),
@@ -89,7 +88,7 @@ def test_07_03_user1_changes_contest1_to_private(client: TestClient):
     assert response.status_code == 200, \
         f"User 1 failed to set contest1 to private: {response.text}"
     updated_contest = ContestResponse(**response.json())
-    assert updated_contest.visibility == ContestVisibility.private, "Contest1 visibility not set to private."
+    assert updated_contest.is_private is True, "Contest1 visibility not set to private."
     assert updated_contest.has_password is True, "Contest1 should indicate it has a password."
     print(f"User 1 successfully changed contest1 (ID: {test_data['contest1_id']}) to private.")
 
@@ -119,7 +118,7 @@ def test_07_05_visitor_views_contest1_details_private_with_pass_succeeds(client:
     submissions = sub_response.json()
     if len(submissions) > 0:
         for sub_data in submissions:
-            submission = SubmissionResponse(**sub_data)
+            submission = TextSubmissionResponse(**sub_data)
             assert submission.user_id is not None
             assert submission.author is not None and "masked" not in submission.author.lower()
     print(f"Visitor successfully viewed private contest1 (ID: {test_data['contest1_id']}) with correct password.")
@@ -130,7 +129,7 @@ def test_07_06_user1_returns_contest1_to_public(client: TestClient):
     assert "user1_headers" in test_data, "User 1 token not found."
     assert "contest1_id" in test_data, "Contest 1 ID not found."
 
-    update_payload = ContestUpdate(visibility=ContestVisibility.public, password=None) # Explicitly set password to None or omit
+    update_payload = ContestUpdate(is_private=False, password=None)
     response = client.put(
         f"{settings.API_V1_STR}/contests/{test_data['contest1_id']}",
         json=update_payload.model_dump(exclude_unset=True, exclude_none=True),
@@ -139,7 +138,7 @@ def test_07_06_user1_returns_contest1_to_public(client: TestClient):
     assert response.status_code == 200, \
         f"User 1 failed to set contest1 to public: {response.text}"
     updated_contest = ContestResponse(**response.json())
-    assert updated_contest.visibility == ContestVisibility.public, "Contest1 visibility not set to public."
+    assert updated_contest.is_private is False, "Contest1 visibility not set to public."
     assert updated_contest.has_password is False, "Contest1 should not indicate it has a password."
     print(f"User 1 successfully returned contest1 (ID: {test_data['contest1_id']}) to public.")
 
@@ -158,7 +157,7 @@ def test_07_07_visitor_views_contest1_public_details_revealed(client: TestClient
     submissions = sub_response.json()
     if len(submissions) > 0:
         for sub_data in submissions:
-            submission = SubmissionResponse(**sub_data)
+            submission = TextSubmissionResponse(**sub_data)
             assert submission.user_id is not None
             assert submission.author is not None and "masked" not in submission.author.lower()
     print(f"Visitor successfully viewed public contest1 (ID: {test_data['contest1_id']}) with details revealed.")
@@ -205,7 +204,7 @@ def test_07_09_user1_deletes_submission_c1_t2_2_from_contest1(client: TestClient
     if not submission_to_delete_id:
         # If admin's sub doesn't exist, let's try to find any remaining submission not by User 1
         get_subs_response = client.get(f"{settings.API_V1_STR}/contests/{test_data['contest1_id']}/submissions/", headers=test_data["user1_headers"])
-        all_submissions = [SubmissionResponse(**s) for s in get_subs_response.json()]
+        all_submissions = [TextSubmissionResponse(**s) for s in get_subs_response.json()]
         target_submission = next((s for s in all_submissions if str(s.user_id) != str(test_data["user1_id"]) and s.id != test_data.get("submission_c1_t2_3_id")), None)
         if target_submission:
             submission_to_delete_id = target_submission.id

@@ -6,7 +6,7 @@ import logging
 from app.core.config import settings
 from app.schemas.text import TextCreate, TextResponse, TextUpdate
 from app.schemas.user import UserResponse, UserCredit # For credit checks and assignments
-from app.schemas.agent import AgentExecute # For agent execution
+from app.schemas.agent import AgentExecuteWriter # MODIFIED: For agent execution, specifically writer
 from tests.shared_test_state import test_data
 
 # client will be a fixture argument to test functions
@@ -114,7 +114,7 @@ def test_04_06_user1_uses_writer1_no_credits_fails(client: TestClient):
     initial_credits = UserResponse(**user_response.json()).credits
     assert initial_credits == 0, "User 1 initial credits are not 0 before testing no-credit failure."
 
-    execute_payload = AgentExecute(
+    execute_payload = AgentExecuteWriter(
         agent_id=test_data["writer1_id"],
         model="claude-3-5-haiku-latest", 
         title="Text Gen Attempt No Credits"
@@ -167,7 +167,7 @@ def test_04_08_user1_uses_writer1_with_credits_succeeds(client: TestClient):
     initial_credits_user1 = UserResponse(**user_response_before.json()).credits
     assert initial_credits_user1 > 0, "User 1 has no credits before attempting AI generation."
 
-    execute_payload = AgentExecute(
+    execute_payload = AgentExecuteWriter(
         agent_id=test_data["writer1_id"],
         model="claude-3-5-haiku-latest",
         title="AI Generated Story by User1",
@@ -210,7 +210,7 @@ def test_04_09_user2_uses_writer1_fails(client: TestClient):
     assert "user2_headers" in test_data, "User 2 token not found."
     assert "writer1_id" in test_data, "Writer 1 ID not found."
 
-    execute_payload = AgentExecute(
+    execute_payload = AgentExecuteWriter(
         agent_id=test_data["writer1_id"],
         model="claude-3-5-haiku-latest",
         title="Attempt by User2 on User1 Agent"
@@ -234,7 +234,7 @@ def test_04_10_user2_uses_global_writer_succeeds(client: TestClient):
     initial_credits_user2 = UserResponse(**user_response_before.json()).credits
     assert initial_credits_user2 > 0, "User 2 has no credits before attempting AI generation."
 
-    execute_payload = AgentExecute(
+    execute_payload = AgentExecuteWriter(
         agent_id=test_data["writer_global_id"],
         model="claude-3-5-haiku-latest",
         title="AI Generated Story by User2 via Global Writer",
@@ -309,7 +309,7 @@ def test_04_14_admin_uses_writer_global_succeeds(client: TestClient):
     assert "admin_headers" in test_data and "admin_id" in test_data
     assert "writer_global_id" in test_data
 
-    execute_payload = AgentExecute(
+    execute_payload = AgentExecuteWriter(
         agent_id=test_data["writer_global_id"],
         model="claude-3-5-haiku-latest",
         title="Admin AI Text via Global Writer",
@@ -341,7 +341,7 @@ def test_04_15_admin_uses_user1_writer1_succeeds(client: TestClient):
 
     user1_credits_before_admin_use = UserResponse(**client.get(f"{settings.API_V1_STR}/users/{test_data['user1_id']}", headers=test_data["admin_headers"]).json()).credits
 
-    execute_payload = AgentExecute(
+    execute_payload = AgentExecuteWriter(
         agent_id=test_data["writer1_id"],
         model="claude-3-5-haiku-latest",
         title="Admin AI Text via User1's Writer1",

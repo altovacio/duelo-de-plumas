@@ -11,16 +11,16 @@ e2e_test_plan = """
     1.04- Admin registers User 2.
             - Verify successful registration and initial credit balance (should be 0).
     1.05- User 2 logs in (obtain user2_token).
-    1.06- Admin verifies User 1 and User 2 details and credit balances. Get user1_id and user2_id.
+    1.06- Admin verifies User 1 and User 2 details and credit balances.
 
 ## 2. AI Agent Creation
     2.01- User 1 creates an AI Writer (writer1). Get writer1_id.
     2.02- User 1 creates an AI Judge (judge1). Get judge1_id.
     2.03- Admin creates a global AI Writer (writer_global). Get writer_global_id.
     2.04- Admin creates a global AI Judge (judge_global). Get judge_global_id.
-    2.05- User 1 lists their AI agents, verifies writer1 and judge1 are present and also the global writer and judge are present.
-    2.06- User 2 lists their AI agents, verifies they see none but the global writer and judge.
-    2.07- Admin lists global AI agents, verifies they see all four agents.
+    2.05- User 1 lists their AI agents, verifies writer1 and judge1 are present.
+    2.06- User 2 lists public AI agents, verifies they see none but the global writer and judge.
+    2.07- Admin lists AI agents, verifies they see all four agents.
 
 ## 3. Contest Creation & Management
     3.01- User 1 creates a public Contest (contest1). Get contest1_id.

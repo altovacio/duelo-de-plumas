@@ -25,6 +25,11 @@ class UserRepository:
         result = await self.db.execute(select(User).where(User.email == email))
         return result.scalars().first()
         
+    async def is_admin(self, user_id: int) -> bool:
+        """Check if a user is an admin."""
+        user = await self.get_by_id(user_id)
+        return user.is_admin if user else False
+        
     async def get_all(self, skip: int = 0, limit: int = 100):
         """Get all users with pagination."""
         result = await self.db.execute(select(User).offset(skip).limit(limit))

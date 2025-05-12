@@ -11,6 +11,7 @@ from app.db.models.user import User
 from app.core.security import get_password_hash
 from app.core.config import settings
 from dotenv import load_dotenv
+from app.db.repositories.user_repository import UserRepository
 
 # Load .env file
 load_dotenv()
@@ -18,14 +19,14 @@ load_dotenv()
 async def create_admin_user(db: AsyncSession, username: str, email: str, password: str):
     """Create an admin user using the provided session."""
     # Check if user exists
-    from app.services.auth_service import get_user_by_username, get_user_by_email
+    user_repo = UserRepository(db)
     
-    existing_user = await get_user_by_username(db, username)
+    existing_user = await user_repo.get_by_username(username)
     if existing_user:
         print(f"User with username '{username}' already exists.")
         return
         
-    existing_user = await get_user_by_email(db, email)
+    existing_user = await user_repo.get_by_email(email)
     if existing_user:
         print(f"User with email '{email}' already exists.")
         return

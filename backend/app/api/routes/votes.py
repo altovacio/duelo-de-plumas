@@ -1,6 +1,6 @@
 from typing import List
 from fastapi import APIRouter, Depends, Path, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
 from app.api.routes.auth import get_current_user
@@ -21,7 +21,7 @@ async def create_vote(
     vote_data: VoteCreate,
     contest_id: int = Path(..., title="The ID of the contest"),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Create a new vote in a contest.
@@ -65,7 +65,7 @@ async def create_vote(
 async def get_votes_by_contest(
     contest_id: int = Path(..., title="The ID of the contest"),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get all votes for a specific contest.
@@ -88,7 +88,7 @@ async def get_votes_by_judge(
     contest_id: int = Path(..., title="The ID of the contest"),
     judge_id: int = Path(..., title="The ID of the judge"),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get votes submitted by a specific judge in a contest.
@@ -106,13 +106,13 @@ async def get_votes_by_judge(
 
 @router.delete(
     "/votes/{vote_id}",
-    status_code=status.HTTP_200_OK,
+    status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a vote"
 )
 async def delete_vote(
     vote_id: int = Path(..., title="The ID of the vote to delete"),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Delete a vote.
@@ -120,8 +120,9 @@ async def delete_vote(
     - Only the judge who created the vote or an admin can delete it
     - Votes cannot be deleted from closed contests
     """
-    return await VoteService.delete_vote(
+    await VoteService.delete_vote(
         db=db,
         vote_id=vote_id,
         current_user=current_user
-    ) 
+    )
+    return None 

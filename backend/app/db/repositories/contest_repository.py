@@ -1,6 +1,8 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func, literal_column, case
+from sqlalchemy.future import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.contest import Contest
 from app.db.models.contest_text import ContestText
@@ -10,7 +12,7 @@ from app.schemas.contest import ContestCreate, ContestUpdate
 
 class ContestRepository:
     @staticmethod
-    def create_contest(db: Session, contest: ContestCreate, creator_id: int) -> Contest:
+    async def create_contest(db: AsyncSession, contest: ContestCreate, creator_id: int) -> Contest:
         db_contest = Contest(
             title=contest.title,
             description=contest.description,
@@ -23,65 +25,73 @@ class ContestRepository:
             creator_id=creator_id
         )
         db.add(db_contest)
-        db.commit()
-        db.refresh(db_contest)
+        await db.commit()
+        await db.refresh(db_contest)
         return db_contest
     
     @staticmethod
-    def get_contests(
-        db: Session,
+    async def get_contests(
+        db: AsyncSession,
         skip: int = 0,
         limit: int = 100,
         state: Optional[str] = None,
         is_private: Optional[bool] = None,
         creator_id: Optional[int] = None
     ) -> List[Contest]:
-        query = db.query(Contest)
+        query = select(Contest)
         
         # Apply filters if provided
         if state:
-            query = query.filter(Contest.state == state)
+            query = query.where(Contest.state == state)
         if is_private is not None:
-            query = query.filter(Contest.is_private == is_private)
+            query = query.where(Contest.is_private == is_private)
         if creator_id:
-            query = query.filter(Contest.creator_id == creator_id)
+            query = query.where(Contest.creator_id == creator_id)
             
-        return query.offset(skip).limit(limit).all()
+        result = await db.execute(query.offset(skip).limit(limit))
+        return result.scalars().all()
     
     @staticmethod
-    def get_contest(db: Session, contest_id: int) -> Optional[Contest]:
-        return db.query(Contest).filter(Contest.id == contest_id).first()
+    async def get_contest(db: AsyncSession, contest_id: int) -> Optional[Contest]:
+        result = await db.execute(select(Contest).filter(Contest.id == contest_id))
+        return result.scalar_one_or_none()
     
     @staticmethod
-    def update_contest(
-        db: Session, contest_id: int, contest_update: ContestUpdate
+    async def update_contest(
+        db: AsyncSession, contest_id: int, contest_update: ContestUpdate
     ) -> Optional[Contest]:
-        db_contest = db.query(Contest).filter(Contest.id == contest_id).first()
+        stmt = select(Contest).filter(Contest.id == contest_id)
+        result = await db.execute(stmt)
+        db_contest = result.scalar_one_or_none()
+
         if not db_contest:
             return None
         
-        update_data = contest_update.dict(exclude_unset=True)
+        update_data = contest_update.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(db_contest, key, value)
         
-        db.commit()
-        db.refresh(db_contest)
+        await db.commit()
+        await db.refresh(db_contest)
         return db_contest
     
     @staticmethod
-    def delete_contest(db: Session, contest_id: int) -> bool:
-        db_contest = db.query(Contest).filter(Contest.id == contest_id).first()
+    async def delete_contest(db: AsyncSession, contest_id: int) -> bool:
+        stmt = select(Contest).filter(Contest.id == contest_id)
+        result = await db.execute(stmt)
+        db_contest = result.scalar_one_or_none()
+
         if not db_contest:
             return False
         
-        db.delete(db_contest)
-        db.commit()
+        await db.delete(db_contest)
+        await db.commit()
         return True
     
     @staticmethod
-    def get_contest_with_counts(db: Session, contest_id: int) -> Optional[dict]:
+    async def get_contest_with_counts(db: AsyncSession, contest_id: int) -> Optional[dict]:
         """Get contest with participant count and text count"""
-        result = db.query(
+        stmt = select(
             Contest,
             func.count(func.distinct(ContestText.text_id)).label("text_count"),
             func.count(func.distinct(ContestJudge.judge_id)).label("participant_count")
@@ -93,26 +103,28 @@ class ContestRepository:
             Contest.id == contest_id
         ).group_by(
             Contest.id
-        ).first()
-        
-        if not result:
+        )
+        result = await db.execute(stmt)
+        record = result.first()
+
+        if not record:
             return None
             
-        contest, text_count, participant_count = result
         return {
-            "contest": contest,
-            "text_count": text_count,
-            "participant_count": participant_count
+            "contest": record[0],
+            "text_count": record.text_count,
+            "participant_count": record.participant_count
         }
     
     # Methods for contest text submissions
     @staticmethod
-    def submit_text_to_contest(db: Session, contest_id: int, text_id: int) -> Optional[ContestText]:
-        # Check if text is already submitted to this contest
-        existing = db.query(ContestText).filter(
+    async def submit_text_to_contest(db: AsyncSession, contest_id: int, text_id: int) -> Optional[ContestText]:
+        stmt = select(ContestText).filter(
             ContestText.contest_id == contest_id,
             ContestText.text_id == text_id
-        ).first()
+        )
+        result = await db.execute(stmt)
+        existing = result.scalar_one_or_none()
         
         if existing:
             return None  # Already submitted
@@ -122,38 +134,43 @@ class ContestRepository:
             text_id=text_id
         )
         db.add(db_contest_text)
-        db.commit()
-        db.refresh(db_contest_text)
+        await db.commit()
+        await db.refresh(db_contest_text)
         return db_contest_text
     
     @staticmethod
-    def get_contest_texts(db: Session, contest_id: int) -> List[ContestText]:
-        return db.query(ContestText).filter(
+    async def get_contest_texts(db: AsyncSession, contest_id: int) -> List[ContestText]:
+        stmt = select(ContestText).filter(
             ContestText.contest_id == contest_id
-        ).all()
+        )
+        result = await db.execute(stmt)
+        return result.scalars().all()
     
     @staticmethod
-    def remove_text_from_contest(db: Session, contest_id: int, text_id: int) -> bool:
-        db_contest_text = db.query(ContestText).filter(
+    async def remove_text_from_contest(db: AsyncSession, contest_id: int, text_id: int) -> bool:
+        stmt = select(ContestText).filter(
             ContestText.contest_id == contest_id,
             ContestText.text_id == text_id
-        ).first()
+        )
+        result = await db.execute(stmt)
+        db_contest_text = result.scalar_one_or_none()
         
         if not db_contest_text:
             return False
             
-        db.delete(db_contest_text)
-        db.commit()
+        await db.delete(db_contest_text)
+        await db.commit()
         return True
     
     # Methods for contest judge assignments
     @staticmethod
-    def assign_judge_to_contest(db: Session, contest_id: int, judge_id: int) -> Optional[ContestJudge]:
-        # Check if judge is already assigned to this contest
-        existing = db.query(ContestJudge).filter(
+    async def assign_judge_to_contest(db: AsyncSession, contest_id: int, judge_id: int) -> Optional[ContestJudge]:
+        stmt = select(ContestJudge).filter(
             ContestJudge.contest_id == contest_id,
             ContestJudge.judge_id == judge_id
-        ).first()
+        )
+        result = await db.execute(stmt)
+        existing = result.scalar_one_or_none()
         
         if existing:
             return None  # Already assigned
@@ -163,26 +180,40 @@ class ContestRepository:
             judge_id=judge_id
         )
         db.add(db_contest_judge)
-        db.commit()
-        db.refresh(db_contest_judge)
+        await db.commit()
+        await db.refresh(db_contest_judge)
         return db_contest_judge
     
     @staticmethod
-    def get_contest_judges(db: Session, contest_id: int) -> List[ContestJudge]:
-        return db.query(ContestJudge).filter(
+    async def get_contest_judges(db: AsyncSession, contest_id: int) -> List[ContestJudge]:
+        stmt = select(ContestJudge).filter(
             ContestJudge.contest_id == contest_id
-        ).all()
+        )
+        result = await db.execute(stmt)
+        return result.scalars().all()
     
     @staticmethod
-    def remove_judge_from_contest(db: Session, contest_id: int, judge_id: int) -> bool:
-        db_contest_judge = db.query(ContestJudge).filter(
+    async def remove_judge_from_contest(db: AsyncSession, contest_id: int, judge_id: int) -> bool:
+        stmt = select(ContestJudge).filter(
             ContestJudge.contest_id == contest_id,
             ContestJudge.judge_id == judge_id
-        ).first()
+        )
+        result = await db.execute(stmt)
+        db_contest_judge = result.scalar_one_or_none()
         
         if not db_contest_judge:
             return False
             
-        db.delete(db_contest_judge)
-        db.commit()
-        return True 
+        await db.delete(db_contest_judge)
+        await db.commit()
+        return True
+    
+    @staticmethod
+    async def get_contests_for_judge(db: AsyncSession, judge_id: int, skip: int = 0, limit: int = 100) -> List[Contest]:
+        """Get all contests where the given user_id is a judge."""
+        stmt = select(Contest).join(ContestJudge, Contest.id == ContestJudge.contest_id).filter(
+            ContestJudge.judge_id == judge_id
+        ).order_by(Contest.id.desc()).offset(skip).limit(limit) # Added order_by and pagination
+        
+        result = await db.execute(stmt)
+        return result.scalars().all() 

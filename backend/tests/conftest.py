@@ -125,8 +125,9 @@ async def setup_database_suite():
             )
         # Verification
         async with TestAsyncSessionLocal() as temp_db_verify:
-            from app.services.auth_service import get_user_by_username # Local import ok here
-            admin = await get_user_by_username(temp_db_verify, settings.FIRST_SUPERUSER_USERNAME)
+            from app.db.repositories.user_repository import UserRepository # Import UserRepository
+            user_repo = UserRepository(temp_db_verify) # Instantiate repository
+            admin = await user_repo.get_by_username(settings.FIRST_SUPERUSER_USERNAME) # Use repository
             if not admin or not admin.is_admin:
                 pytest.fail(f"CRITICAL [conftest.py]: Admin user '{settings.FIRST_SUPERUSER_USERNAME}' NOT found or not admin after creation (Main Tests).")
         print(f"INFO [conftest.py]: Admin user '{settings.FIRST_SUPERUSER_USERNAME}' created and verified successfully (Main Tests).")

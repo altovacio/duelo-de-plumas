@@ -120,7 +120,7 @@ async def test_02_04_admin_creates_global_judge(client: AsyncClient): # async de
 async def test_02_05_user1_lists_agents(client: AsyncClient): # async def, AsyncClient
     """User 1 lists their AI agents, verifies writer1 and judge1 are present and also the global writer and judge are present."""
     assert "user1_headers" in test_data, "User 1 token not found."
-    response = await client.get("/agents", headers=test_data["user1_headers"]) # await, corrected path, CORRECTED PATH
+    response = await client.get("/agents?public=False", headers=test_data["user1_headers"]) # MODIFIED LINE: Added public=False
     assert response.status_code == 200, f"User 1 listing agents failed: {response.text}"
     agents = [AgentResponse(**agent) for agent in response.json()]
     
@@ -173,24 +173,28 @@ async def test_02_06_user2_lists_agents(client: AsyncClient): # async def, Async
 
 @pytest.mark.run(after='test_02_06_user2_lists_agents')
 async def test_02_07_admin_lists_global_agents(client: AsyncClient): # async def, AsyncClient
-    """Admin lists global AI agents, verifies writer_global and judge_global are present."""
+    """Admin lists AI agents, verifies ALL agents (private of User 1, and global) are present."""
     assert "admin_headers" in test_data, "Admin token not found."
-    # The endpoint to list global agents for admin might be specific, e.g., /agents/?public=true
-    # Or it might be that admin listing defaults to all or needs a special flag.
-    # For now, assuming /agents/?public=true is the way to get global agents.
-    response = await client.get("/agents?public=true", headers=test_data["admin_headers"]) # MODIFIED: Removed trailing slash before ?
-    assert response.status_code == 200, f"Admin listing global agents failed: {response.text}"
+    # Admin calling /agents without ?public=true should see ALL agents
+    response = await client.get("/agents", headers=test_data["admin_headers"]) 
+    assert response.status_code == 200, f"Admin listing all agents failed: {response.text}"
     agents = [AgentResponse(**agent) for agent in response.json()]
     
-    global_agent_ids_found = {agent.id for agent in agents if agent.is_public}
-    expected_global_ids = {
-        test_data.get("writer_global_id"),
-        test_data.get("judge_global_id")
+    agent_ids_present = {agent.id for agent in agents}
+    expected_all_ids = {
+        test_data["writer1_id"],        # User 1's private writer
+        test_data["judge1_id"],         # User 1's private judge
+        test_data["writer_global_id"],  # Admin's public writer
+        test_data["judge_global_id"]    # Admin's public judge
     }
     
-    assert expected_global_ids.issubset(global_agent_ids_found), \
-        f"Admin global list missing expected global agents. Expected: {expected_global_ids}, Found: {global_agent_ids_found}"
+    assert expected_all_ids.issubset(agent_ids_present), \
+        f"Admin list missing expected agents. Expected subset: {expected_all_ids}, Got: {agent_ids_present}"
+    # We can also assert that the count is exactly what we expect, if no other agents should exist at this point.
+    # For now, subset is a good check. A more robust check might ensure an exact match on IDs if we are sure.
+    assert len(agent_ids_present) >= len(expected_all_ids), \
+        f"Admin list should contain at least all known agents. Expected >= {len(expected_all_ids)}, Got: {len(agent_ids_present)}"
         
-    print("Admin listed global agents successfully.")
+    print("Admin listed all agents successfully (verified subset).")
 
 # --- End of Test Section 2 ---

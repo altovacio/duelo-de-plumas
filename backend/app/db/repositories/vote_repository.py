@@ -1,147 +1,153 @@
 from typing import List, Optional
-from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select, delete, update
 
 from app.db.models import Vote, ContestText
 
 
 class VoteRepository:
     @staticmethod
-    async def create_vote(db: Session, vote_data: dict, judge_id: int, contest_id: int) -> Vote:
+    async def create_vote(db: AsyncSession, vote_data: dict, judge_id: int, contest_id: int, text_id: int) -> Vote:
         """Create a new vote."""
         vote = Vote(
             judge_id=judge_id,
             contest_id=contest_id,
+            text_id=text_id,
             **vote_data
         )
         db.add(vote)
-        db.commit()
-        db.refresh(vote)
+        await db.commit()
+        await db.refresh(vote)
         return vote
 
     @staticmethod
-    async def get_vote(db: Session, vote_id: int) -> Optional[Vote]:
+    async def get_vote(db: AsyncSession, vote_id: int) -> Optional[Vote]:
         """Get a single vote by ID."""
-        return db.query(Vote).filter(Vote.id == vote_id).first()
+        stmt = select(Vote).filter(Vote.id == vote_id)
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
 
     @staticmethod
-    async def get_votes_by_contest(db: Session, contest_id: int) -> List[Vote]:
+    async def get_votes_by_contest(db: AsyncSession, contest_id: int) -> List[Vote]:
         """Get all votes for a specific contest."""
-        return db.query(Vote).filter(Vote.contest_id == contest_id).all()
+        stmt = select(Vote).filter(Vote.contest_id == contest_id)
+        result = await db.execute(stmt)
+        return result.scalars().all()
 
     @staticmethod
-    async def get_votes_by_judge_and_contest(db: Session, judge_id: int, contest_id: int) -> List[Vote]:
+    async def get_votes_by_judge_and_contest(db: AsyncSession, judge_id: int, contest_id: int) -> List[Vote]:
         """Get all votes by a specific judge in a specific contest."""
-        return db.query(Vote).filter(
+        stmt = select(Vote).filter(
             Vote.judge_id == judge_id,
             Vote.contest_id == contest_id
-        ).all()
+        )
+        result = await db.execute(stmt)
+        return result.scalars().all()
 
     @staticmethod
-    async def get_human_votes_by_judge_and_contest(db: Session, judge_id: int, contest_id: int) -> List[Vote]:
+    async def get_human_votes_by_judge_and_contest(db: AsyncSession, judge_id: int, contest_id: int) -> List[Vote]:
         """Get human votes by a specific judge in a specific contest."""
-        return db.query(Vote).filter(
+        stmt = select(Vote).filter(
             Vote.judge_id == judge_id,
             Vote.contest_id == contest_id,
             Vote.is_ai_vote == False
-        ).all()
+        )
+        result = await db.execute(stmt)
+        return result.scalars().all()
 
     @staticmethod
-    async def get_ai_votes_by_judge_and_contest(db: Session, judge_id: int, contest_id: int, 
+    async def get_ai_votes_by_judge_and_contest(db: AsyncSession, judge_id: int, contest_id: int, 
                                                ai_model: Optional[str] = None) -> List[Vote]:
         """Get AI votes by a specific judge in a specific contest, optionally filtered by AI model."""
-        query = db.query(Vote).filter(
+        stmt = select(Vote).filter(
             Vote.judge_id == judge_id,
             Vote.contest_id == contest_id,
             Vote.is_ai_vote == True
         )
         
         if ai_model:
-            query = query.filter(Vote.ai_model == ai_model)
+            stmt = stmt.filter(Vote.ai_model == ai_model)
             
-        return query.all()
+        result = await db.execute(stmt)
+        return result.scalars().all()
 
     @staticmethod
-    async def get_votes_by_text(db: Session, text_id: int) -> List[Vote]:
+    async def get_votes_by_text(db: AsyncSession, text_id: int) -> List[Vote]:
         """Get all votes for a specific text."""
-        return db.query(Vote).filter(Vote.text_id == text_id).all()
+        stmt = select(Vote).filter(Vote.text_id == text_id)
+        result = await db.execute(stmt)
+        return result.scalars().all()
 
     @staticmethod
-    async def delete_vote(db: Session, vote_id: int) -> bool:
+    async def delete_vote(db: AsyncSession, vote_id: int) -> bool:
         """Delete a vote."""
-        vote = db.query(Vote).filter(Vote.id == vote_id).first()
+        vote = await VoteRepository.get_vote(db, vote_id)
         if vote:
-            db.delete(vote)
-            db.commit()
+            await db.delete(vote)
+            await db.commit()
             return True
         return False
 
     @staticmethod
-    async def delete_ai_votes(db: Session, judge_id: int, contest_id: int, ai_model: str) -> int:
+    async def delete_ai_votes(db: AsyncSession, judge_id: int, contest_id: int, ai_model: str) -> int:
         """Delete all AI votes from a specific judge using a specific AI model in a contest.
         Returns the number of votes deleted."""
-        votes = db.query(Vote).filter(
+        stmt = delete(Vote).where(
             Vote.judge_id == judge_id,
             Vote.contest_id == contest_id,
             Vote.is_ai_vote == True,
             Vote.ai_model == ai_model
-        ).all()
-        
-        count = len(votes)
-        for vote in votes:
-            db.delete(vote)
-        
-        db.commit()
-        return count
+        )
+        result = await db.execute(stmt)
+        await db.commit()
+        return result.rowcount
 
     @staticmethod
-    async def delete_human_votes(db: Session, judge_id: int, contest_id: int) -> int:
+    async def delete_human_votes(db: AsyncSession, judge_id: int, contest_id: int) -> int:
         """Delete all human votes from a specific judge in a contest.
         Returns the number of votes deleted."""
-        votes = db.query(Vote).filter(
+        stmt = delete(Vote).where(
             Vote.judge_id == judge_id,
             Vote.contest_id == contest_id,
             Vote.is_ai_vote == False
-        ).all()
-        
-        count = len(votes)
-        for vote in votes:
-            db.delete(vote)
-        
-        db.commit()
-        return count
+        )
+        result = await db.execute(stmt)
+        await db.commit()
+        return result.rowcount
 
     @staticmethod
-    async def delete_human_vote_by_place(db: Session, judge_id: int, contest_id: int, place: int) -> bool:
+    async def delete_human_vote_by_place(db: AsyncSession, judge_id: int, contest_id: int, place: int) -> bool:
         """Delete a human vote from a specific judge in a contest with a specific place.
         Returns True if a vote was deleted, False otherwise."""
-        vote = db.query(Vote).filter(
+        stmt = delete(Vote).where(
             Vote.judge_id == judge_id,
             Vote.contest_id == contest_id,
             Vote.is_ai_vote == False,
             Vote.text_place == place
-        ).first()
+        ).returning(Vote.id)
         
-        if vote:
-            db.delete(vote)
-            db.commit()
-            return True
-        return False
+        result = await db.execute(stmt)
+        await db.commit()
+        return result.scalar_one_or_none() is not None
 
     @staticmethod
-    async def calculate_contest_results(db: Session, contest_id: int) -> None:
+    async def calculate_contest_results(db: AsyncSession, contest_id: int) -> None:
         """
         Calculate contest results based on votes and update the contest_texts table.
         This should be called when a contest is ready to be closed.
         Points are derived from vote.text_place (1st place = 3 points, 2nd = 2, 3rd = 1).
         """
         # Get all texts in this contest
-        contest_texts_q = db.query(ContestText).filter(ContestText.contest_id == contest_id).all()
+        contest_texts_stmt = select(ContestText).filter(ContestText.contest_id == contest_id)
+        contest_texts_result = await db.execute(contest_texts_stmt)
+        contest_texts_q = contest_texts_result.scalars().all()
         text_ids = [ct.text_id for ct in contest_texts_q]
         
         text_total_points = {text_id: 0 for text_id in text_ids}
 
-        all_votes_for_contest = db.query(Vote).filter(Vote.contest_id == contest_id).all()
+        all_votes_stmt = select(Vote).filter(Vote.contest_id == contest_id)
+        all_votes_result = await db.execute(all_votes_stmt)
+        all_votes_for_contest = all_votes_result.scalars().all()
 
         for vote in all_votes_for_contest:
             if vote.text_id in text_total_points:
@@ -168,10 +174,13 @@ class VoteRepository:
         rank_assignment_count = 0 # How many distinct ranks have been assigned
 
         for text_id, calculated_points in sorted_texts_by_points:
-            ct = db.query(ContestText).filter(
+            # Fetch ContestText to update
+            ct_stmt = select(ContestText).filter(
                 ContestText.contest_id == contest_id,
                 ContestText.text_id == text_id
-            ).first()
+            )
+            ct_result = await db.execute(ct_stmt)
+            ct = ct_result.scalar_one_or_none()
             
             if ct:
                 if calculated_points != prev_total_points:
@@ -193,7 +202,9 @@ class VoteRepository:
 
         if rank_assignment_count == 0 and processed_texts_count > 0: # All texts had 0 points
              for text_id in text_ids:
-                ct = db.query(ContestText).filter(ContestText.contest_id == contest_id, ContestText.text_id == text_id).first()
+                ct_stmt = select(ContestText).filter(ContestText.contest_id == contest_id, ContestText.text_id == text_id)
+                ct_result = await db.execute(ct_stmt)
+                ct = ct_result.scalar_one_or_none()
                 if ct:
                     ct.ranking = 1
         elif processed_texts_count < len(text_ids): # Should not happen with current logic, but as a safeguard
@@ -202,8 +213,10 @@ class VoteRepository:
             unranked_ids = set(text_ids) - set(tid for tid, _ in sorted_texts_by_points)
             fallback_rank = rank_assignment_count + 1
             for text_id in unranked_ids:
-                ct = db.query(ContestText).filter(ContestText.contest_id == contest_id, ContestText.text_id == text_id).first()
+                ct_stmt = select(ContestText).filter(ContestText.contest_id == contest_id, ContestText.text_id == text_id)
+                ct_result = await db.execute(ct_stmt)
+                ct = ct_result.scalar_one_or_none()
                 if ct:
                     ct.ranking = fallback_rank
         
-        db.commit() 
+        await db.commit() 

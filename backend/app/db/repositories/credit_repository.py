@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
-from sqlalchemy.orm import Session
-from sqlalchemy import func, desc, text
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, desc, select, text
 
 from app.db.models.credit_transaction import CreditTransaction
 from app.db.models.user import User
@@ -10,108 +10,114 @@ from app.schemas.credit import CreditTransactionCreate, CreditTransactionFilter,
 
 class CreditRepository:
     @staticmethod
-    def create_transaction(db: Session, transaction: CreditTransactionCreate) -> CreditTransaction:
+    async def create_transaction(db: AsyncSession, transaction_data: CreditTransactionCreate) -> CreditTransaction:
         """Create a new credit transaction record."""
-        db_transaction = CreditTransaction(**transaction.dict())
+        db_transaction = CreditTransaction(**transaction_data.model_dump())
         db.add(db_transaction)
-        db.commit()
-        db.refresh(db_transaction)
+        await db.commit()
+        await db.refresh(db_transaction)
         return db_transaction
     
     @staticmethod
-    def get_transactions_by_user(db: Session, user_id: int, skip: int = 0, limit: int = 100) -> List[CreditTransaction]:
+    async def get_transactions_by_user(
+        db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100
+    ) -> List[CreditTransaction]:
         """Get all credit transactions for a specific user."""
-        return db.query(CreditTransaction).filter(
+        stmt = select(CreditTransaction).filter(
             CreditTransaction.user_id == user_id
         ).order_by(
             desc(CreditTransaction.created_at)
-        ).offset(skip).limit(limit).all()
+        ).offset(skip).limit(limit)
+        result = await db.execute(stmt)
+        return result.scalars().all()
     
     @staticmethod
-    def get_transaction_by_id(db: Session, transaction_id: int) -> Optional[CreditTransaction]:
+    async def get_transaction_by_id(db: AsyncSession, transaction_id: int) -> Optional[CreditTransaction]:
         """Get a specific credit transaction by ID."""
-        return db.query(CreditTransaction).filter(CreditTransaction.id == transaction_id).first()
+        stmt = select(CreditTransaction).filter(CreditTransaction.id == transaction_id)
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
     
     @staticmethod
-    def filter_transactions(
-        db: Session, 
+    async def filter_transactions(
+        db: AsyncSession,
         filters: CreditTransactionFilter,
-        skip: int = 0, 
+        skip: int = 0,
         limit: int = 100
     ) -> List[CreditTransaction]:
         """Filter credit transactions based on various criteria."""
-        query = db.query(CreditTransaction)
+        stmt = select(CreditTransaction)
         
         if filters.user_id:
-            query = query.filter(CreditTransaction.user_id == filters.user_id)
+            stmt = stmt.filter(CreditTransaction.user_id == filters.user_id)
         
         if filters.transaction_type:
-            query = query.filter(CreditTransaction.transaction_type == filters.transaction_type)
+            stmt = stmt.filter(CreditTransaction.transaction_type == filters.transaction_type)
         
         if filters.ai_model:
-            query = query.filter(CreditTransaction.ai_model == filters.ai_model)
+            stmt = stmt.filter(CreditTransaction.ai_model == filters.ai_model)
         
         if filters.date_from:
-            query = query.filter(CreditTransaction.created_at >= filters.date_from)
+            stmt = stmt.filter(CreditTransaction.created_at >= filters.date_from)
         
         if filters.date_to:
-            query = query.filter(CreditTransaction.created_at <= filters.date_to)
+            stmt = stmt.filter(CreditTransaction.created_at <= filters.date_to)
         
-        return query.order_by(desc(CreditTransaction.created_at)).offset(skip).limit(limit).all()
+        stmt = stmt.order_by(desc(CreditTransaction.created_at)).offset(skip).limit(limit)
+        result = await db.execute(stmt)
+        return result.scalars().all()
     
     @staticmethod
-    def get_credit_usage_summary(db: Session) -> CreditUsageSummary:
+    async def get_credit_usage_summary(db: AsyncSession) -> CreditUsageSummary:
         """Get a summary of credit usage across the system."""
-        # Total credits used (sum of all deductions)
-        total_credits_used = db.query(
-            func.sum(CreditTransaction.amount).label("total")
-        ).filter(
+        # Total credits used
+        total_credits_used_stmt = select(func.sum(CreditTransaction.amount)).filter(
             CreditTransaction.transaction_type == "deduction"
-        ).scalar() or 0
+        )
+        total_credits_used_result = await db.execute(total_credits_used_stmt)
+        total_credits_used = total_credits_used_result.scalar_one_or_none() or 0
         
         # Credits used by AI model
-        usage_by_model_query = db.query(
+        usage_by_model_stmt = select(
             CreditTransaction.ai_model,
             func.sum(CreditTransaction.amount).label("total")
         ).filter(
             CreditTransaction.transaction_type == "deduction",
             CreditTransaction.ai_model.is_not(None)
-        ).group_by(
-            CreditTransaction.ai_model
-        ).all()
-        
-        usage_by_model = {model: abs(total) for model, total in usage_by_model_query}
+        ).group_by(CreditTransaction.ai_model)
+        usage_by_model_result = await db.execute(usage_by_model_stmt)
+        usage_by_model_rows = usage_by_model_result.all()
+        usage_by_model = {model: abs(total) for model, total in usage_by_model_rows}
         
         # Credits used by user
-        usage_by_user_query = db.query(
+        usage_by_user_stmt = select(
             User.username,
             func.sum(CreditTransaction.amount).label("total")
         ).join(
             User, User.id == CreditTransaction.user_id
         ).filter(
             CreditTransaction.transaction_type == "deduction"
-        ).group_by(
-            User.username
-        ).all()
-        
-        usage_by_user = {username: abs(total) for username, total in usage_by_user_query}
+        ).group_by(User.username)
+        usage_by_user_result = await db.execute(usage_by_user_stmt)
+        usage_by_user_rows = usage_by_user_result.all()
+        usage_by_user = {username: abs(total) for username, total in usage_by_user_rows}
         
         # Average cost per operation
-        operations_count = db.query(
-            func.count(CreditTransaction.id)
-        ).filter(
+        operations_count_stmt = select(func.count(CreditTransaction.id)).filter(
             CreditTransaction.transaction_type == "deduction",
             CreditTransaction.ai_model.is_not(None)
-        ).scalar() or 1  # Avoid division by zero
+        )
+        operations_count_result = await db.execute(operations_count_stmt)
+        operations_count = operations_count_result.scalar_one_or_none() or 1
         
         average_cost = abs(total_credits_used) / operations_count if operations_count > 0 else 0
         
         # Total tokens used
-        total_tokens_used = db.query(
-            func.sum(CreditTransaction.tokens_used).label("total_tokens")
-        ).filter(
+        total_tokens_used_stmt = select(func.sum(CreditTransaction.tokens_used)).filter(
             CreditTransaction.tokens_used.is_not(None)
-        ).scalar() or 0
+        )
+        total_tokens_used_result = await db.execute(total_tokens_used_stmt)
+        total_tokens_used = total_tokens_used_result.scalar_one_or_none() or 0
         
         return CreditUsageSummary(
             total_credits_used=abs(total_credits_used),

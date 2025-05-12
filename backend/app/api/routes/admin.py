@@ -1,6 +1,6 @@
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
 from app.api.routes.auth import get_current_admin_user
@@ -9,55 +9,61 @@ from app.schemas.credit import UserCreditUpdate, CreditTransactionResponse, Cred
 from app.services.user_service import UserService
 from app.services.credit_service import CreditService
 from app.db.models.user import User as UserModel
+from datetime import datetime
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 @router.get("/users", response_model=List[UserResponse])
-def get_all_users(
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db),
+async def get_all_users(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_current_admin_user)
 ):
     """Get all users (admin only)."""
-    return UserService.get_all_users(db, skip, limit)
+    user_service = UserService(db)
+    return await user_service.get_all_users(skip=skip, limit=limit)
 
 
 @router.patch("/users/{user_id}/credits", response_model=CreditTransactionResponse)
-def update_user_credits(
+async def update_user_credits(
     user_id: int,
     credit_update: UserCreditUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_current_admin_user)
 ):
     """Update a user's credit balance (admin only)."""
-    return CreditService.add_credits(db, user_id, credit_update)
+    return await CreditService.add_credits(db, user_id, credit_update)
 
 
 @router.get("/credits/transactions", response_model=List[CreditTransactionResponse])
-def get_credit_transactions(
-    user_id: int = None,
-    transaction_type: str = None,
-    ai_model: str = None,
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db),
+async def get_credit_transactions(
+    user_id: Optional[int] = Query(None),
+    transaction_type: Optional[str] = Query(None),
+    ai_model: Optional[str] = Query(None),
+    date_from: Optional[datetime] = Query(None),
+    date_to: Optional[datetime] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_current_admin_user)
 ):
     """Get filtered credit transactions (admin only)."""
     filters = CreditTransactionFilter(
         user_id=user_id,
         transaction_type=transaction_type,
-        ai_model=ai_model
+        ai_model=ai_model,
+        date_from=date_from,
+        date_to=date_to
     )
-    return CreditService.filter_transactions(db, filters, skip, limit)
+    return await CreditService.filter_transactions(db, filters, skip=skip, limit=limit)
 
 
 @router.get("/credits/usage", response_model=CreditUsageSummary)
-def get_credit_usage_summary(
-    db: Session = Depends(get_db),
+async def get_credit_usage_summary(
+    db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_current_admin_user)
 ):
     """Get a summary of credit usage across the system (admin only)."""
-    return CreditService.get_credit_usage_summary(db) 
+    return await CreditService.get_credit_usage_summary(db) 

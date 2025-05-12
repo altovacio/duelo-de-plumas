@@ -1,7 +1,7 @@
 from typing import List, Optional, Dict, Any
 from fastapi import HTTPException, status
 from datetime import datetime
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.contest import (
     ContestCreate, ContestUpdate, ContestResponse, 
@@ -17,7 +17,7 @@ from app.db.models.contest_judge import ContestJudge
 
 class ContestService:
     @staticmethod
-    def create_contest(db: Session, contest: ContestCreate, creator_id: int) -> Contest:
+    async def create_contest(db: AsyncSession, contest: ContestCreate, creator_id: int) -> Contest:
         # Validate that private contests have a password
         if contest.is_private and not contest.password:
             raise HTTPException(
@@ -25,18 +25,18 @@ class ContestService:
                 detail="Private contests must have a password"
             )
             
-        return ContestRepository.create_contest(db, contest, creator_id)
+        return await ContestRepository.create_contest(db, contest, creator_id)
     
     @staticmethod
-    def get_contests(
-        db: Session, 
+    async def get_contests(
+        db: AsyncSession, 
         skip: int = 0, 
         limit: int = 100,
         state: Optional[str] = None,
         is_private: Optional[bool] = None,
         creator_id: Optional[int] = None
     ) -> List[Contest]:
-        return ContestRepository.get_contests(
+        return await ContestRepository.get_contests(
             db=db, 
             skip=skip, 
             limit=limit, 
@@ -46,8 +46,8 @@ class ContestService:
         )
     
     @staticmethod
-    def get_contest(db: Session, contest_id: int) -> Contest:
-        contest = ContestRepository.get_contest(db=db, contest_id=contest_id)
+    async def get_contest(db: AsyncSession, contest_id: int) -> Contest:
+        contest = await ContestRepository.get_contest(db=db, contest_id=contest_id)
         if not contest:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -56,8 +56,8 @@ class ContestService:
         return contest
     
     @staticmethod
-    def get_contest_detail(db: Session, contest_id: int) -> Dict[str, Any]:
-        result = ContestRepository.get_contest_with_counts(db=db, contest_id=contest_id)
+    async def get_contest_detail(db: AsyncSession, contest_id: int) -> Dict[str, Any]:
+        result = await ContestRepository.get_contest_with_counts(db=db, contest_id=contest_id)
         if not result:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -66,16 +66,18 @@ class ContestService:
         return result
     
     @staticmethod
-    def update_contest(
-        db: Session, 
+    async def update_contest(
+        db: AsyncSession, 
         contest_id: int, 
         contest_update: ContestUpdate, 
         current_user_id: int
     ) -> Contest:
-        contest = ContestService.get_contest(db=db, contest_id=contest_id)
+        contest = await ContestService.get_contest(db=db, contest_id=contest_id)
         
         # Check if user is the contest creator or an admin
-        if contest.creator_id != current_user_id and not UserRepository.is_admin(db, current_user_id):
+        user_repo = UserRepository(db)
+        is_admin_user = await user_repo.is_admin(current_user_id)
+        if contest.creator_id != current_user_id and not is_admin_user:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You don't have permission to update this contest"
@@ -94,7 +96,7 @@ class ContestService:
                 detail="Private contests must have a password"
             )
             
-        updated_contest = ContestRepository.update_contest(
+        updated_contest = await ContestRepository.update_contest(
             db=db, 
             contest_id=contest_id, 
             contest_update=contest_update
@@ -103,17 +105,19 @@ class ContestService:
         return updated_contest
     
     @staticmethod
-    def delete_contest(db: Session, contest_id: int, current_user_id: int) -> bool:
-        contest = ContestService.get_contest(db=db, contest_id=contest_id)
+    async def delete_contest(db: AsyncSession, contest_id: int, current_user_id: int) -> bool:
+        contest = await ContestService.get_contest(db=db, contest_id=contest_id)
         
         # Check if user is the contest creator or an admin
-        if contest.creator_id != current_user_id and not UserRepository.is_admin(db, current_user_id):
+        user_repo = UserRepository(db)
+        is_admin_user = await user_repo.is_admin(current_user_id)
+        if contest.creator_id != current_user_id and not is_admin_user:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You don't have permission to delete this contest"
             )
             
-        return ContestRepository.delete_contest(db=db, contest_id=contest_id)
+        return await ContestRepository.delete_contest(db=db, contest_id=contest_id)
     
     @staticmethod
     def _validate_state_transition(current_state: str, new_state: str) -> None:
@@ -131,14 +135,14 @@ class ContestService:
             )
     
     @staticmethod
-    def check_contest_access(
-        db: Session, 
+    async def check_contest_access(
+        db: AsyncSession, 
         contest_id: int, 
         current_user_id: Optional[int] = None, 
         password: Optional[str] = None
     ) -> Contest:
         """Check if user has access to a contest, including password validation for private contests"""
-        contest = ContestService.get_contest(db=db, contest_id=contest_id)
+        contest = await ContestService.get_contest(db=db, contest_id=contest_id)
         
         # Public contests are accessible to everyone
         if not contest.is_private:
@@ -147,10 +151,13 @@ class ContestService:
         # For private contests, check the provided password
         if contest.is_private:
             # If user is contest creator or admin, allow access without password
-            is_admin = current_user_id and UserRepository.is_admin(db, current_user_id)
+            is_admin_user = False
+            if current_user_id:
+                user_repo = UserRepository(db)
+                is_admin_user = await user_repo.is_admin(current_user_id)
             is_creator = current_user_id and contest.creator_id == current_user_id
             
-            if is_admin or is_creator:
+            if is_admin_user or is_creator:
                 return contest
                 
             # Otherwise, verify the password
@@ -164,15 +171,15 @@ class ContestService:
     
     # Text submission methods
     @staticmethod
-    def submit_text_to_contest(
-        db: Session, 
+    async def submit_text_to_contest(
+        db: AsyncSession, 
         contest_id: int, 
         submission: TextSubmission, 
         current_user_id: int,
         password: Optional[str] = None
     ) -> ContestText:
         # Check contest access and get contest
-        contest = ContestService.check_contest_access(
+        contest = await ContestService.check_contest_access(
             db=db, 
             contest_id=contest_id, 
             current_user_id=current_user_id,
@@ -187,7 +194,8 @@ class ContestService:
             )
             
         # Check if text exists and belongs to the current user
-        text = TextRepository.get_text(db=db, text_id=submission.text_id)
+        text_repo = TextRepository(db)
+        text = await text_repo.get_text(submission.text_id)
         if not text:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -195,8 +203,9 @@ class ContestService:
             )
             
         # Check text ownership (unless user is admin)
-        is_admin = UserRepository.is_admin(db, current_user_id)
-        if text.owner_id != current_user_id and not is_admin:
+        user_repo = UserRepository(db)
+        is_admin_user = await user_repo.is_admin(current_user_id)
+        if text.owner_id != current_user_id and not is_admin_user:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You don't have permission to submit this text"
@@ -205,10 +214,10 @@ class ContestService:
         # Check contest restrictions
         if contest.author_restrictions:
             # Check if user has already submitted a text
-            existing_submissions = ContestRepository.get_contest_texts(db=db, contest_id=contest_id)
-            for submission in existing_submissions:
-                text_obj = TextRepository.get_text(db=db, text_id=submission.text_id)
-                if text_obj and text_obj.owner_id == current_user_id and not is_admin:
+            existing_submissions = await ContestRepository.get_contest_texts(db=db, contest_id=contest_id)
+            for sub_item in existing_submissions:
+                text_obj = await text_repo.get_text(sub_item.text_id)
+                if text_obj and text_obj.owner_id == current_user_id and not is_admin_user:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail="Contest only allows one submission per author"
@@ -216,15 +225,15 @@ class ContestService:
         
         # If judge restrictions enabled, check if user is a judge
         if contest.judge_restrictions:
-            judges = ContestRepository.get_contest_judges(db=db, contest_id=contest_id)
-            if any(judge.judge_id == current_user_id for judge in judges) and not is_admin:
+            judges = await ContestRepository.get_contest_judges(db=db, contest_id=contest_id)
+            if any(judge.judge_id == current_user_id for judge in judges) and not is_admin_user:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Judges cannot submit texts to this contest"
                 )
         
         # Submit the text
-        contest_text = ContestRepository.submit_text_to_contest(
+        contest_text = await ContestRepository.submit_text_to_contest(
             db=db, 
             contest_id=contest_id, 
             text_id=submission.text_id
@@ -239,14 +248,14 @@ class ContestService:
         return contest_text
     
     @staticmethod
-    def get_contest_texts(
-        db: Session, 
+    async def get_contest_texts(
+        db: AsyncSession, 
         contest_id: int, 
         current_user_id: Optional[int] = None,
         password: Optional[str] = None
     ) -> List[ContestText]:
         # Check contest access
-        contest = ContestService.check_contest_access(
+        contest = await ContestService.check_contest_access(
             db=db, 
             contest_id=contest_id, 
             current_user_id=current_user_id,
@@ -255,55 +264,61 @@ class ContestService:
         
         # In open contests, only creator and admin can see submissions
         if contest.state == "open":
-            is_admin = current_user_id and UserRepository.is_admin(db, current_user_id)
-            is_creator = current_user_id and contest.creator_id == current_user_id
+            is_admin_user = False
+            is_creator = False
+            if current_user_id:
+                user_repo = UserRepository(db)
+                is_admin_user = await user_repo.is_admin(current_user_id)
+                is_creator = current_user_id and contest.creator_id == current_user_id
             
-            if not (is_admin or is_creator):
+            if not (is_admin_user or is_creator):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Only contest creator and admins can see submissions in open contests"
                 )
         
-        return ContestRepository.get_contest_texts(db=db, contest_id=contest_id)
+        return await ContestRepository.get_contest_texts(db=db, contest_id=contest_id)
     
     @staticmethod
-    def remove_text_from_contest(
-        db: Session, 
+    async def remove_text_from_contest(
+        db: AsyncSession, 
         contest_id: int, 
         text_id: int, 
         current_user_id: int
     ) -> bool:
         # Get the contest
-        contest = ContestService.get_contest(db=db, contest_id=contest_id)
+        contest = await ContestService.get_contest(db=db, contest_id=contest_id)
         
         # Get the text
-        text = TextRepository.get_text(db=db, text_id=text_id)
-        if not text:
+        text_repo = TextRepository(db)
+        text_to_remove = await text_repo.get_text(text_id)
+        if not text_to_remove:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Text with id {text_id} not found"
             )
         
         # Check permissions (text owner, contest creator, or admin)
-        is_admin = UserRepository.is_admin(db, current_user_id)
+        user_repo = UserRepository(db)
+        is_admin_user = await user_repo.is_admin(current_user_id)
         is_contest_creator = contest.creator_id == current_user_id
-        is_text_owner = text.owner_id == current_user_id
+        is_text_owner = text_to_remove.owner_id == current_user_id
         
-        if not (is_admin or is_contest_creator or is_text_owner):
+        if not (is_admin_user or is_contest_creator or is_text_owner):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You don't have permission to remove this text"
             )
             
         # # Check if contest is not in closed state
-        # if contest.state == "closed" and not is_admin:
+        # if contest.state == "closed" and not is_admin_user:
         #     raise HTTPException(
         #         status_code=status.HTTP_400_BAD_REQUEST,
         #         detail="Cannot remove texts from closed contests"
         #     )
             
         # Remove the text
-        return ContestRepository.remove_text_from_contest(
+        return await ContestRepository.remove_text_from_contest(
             db=db, 
             contest_id=contest_id, 
             text_id=text_id
@@ -311,35 +326,36 @@ class ContestService:
     
     # Judge assignment methods
     @staticmethod
-    def assign_judge_to_contest(
-        db: Session, 
+    async def assign_judge_to_contest(
+        db: AsyncSession, 
         contest_id: int, 
         assignment: JudgeAssignment, 
         current_user_id: int
     ) -> ContestJudge:
         # Get contest
-        contest = ContestService.get_contest(db=db, contest_id=contest_id)
+        contest = await ContestService.get_contest(db=db, contest_id=contest_id)
         
         # Check permissions (contest creator or admin)
-        is_admin = UserRepository.is_admin(db, current_user_id)
+        user_repo = UserRepository(db)
+        is_admin_user = await user_repo.is_admin(current_user_id)
         is_creator = contest.creator_id == current_user_id
         
-        if not (is_admin or is_creator):
+        if not (is_admin_user or is_creator):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only contest creator and admins can assign judges"
             )
             
         # Check if user exists
-        judge = UserRepository.get_user_by_id(db=db, user_id=assignment.user_id)
-        if not judge:
+        judge_user = await user_repo.get_by_id(assignment.user_id)
+        if not judge_user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"User with id {assignment.user_id} not found"
             )
             
         # Assign the judge
-        contest_judge = ContestRepository.assign_judge_to_contest(
+        contest_judge = await ContestRepository.assign_judge_to_contest(
             db=db, 
             contest_id=contest_id, 
             judge_id=assignment.user_id
@@ -354,22 +370,26 @@ class ContestService:
         return contest_judge
     
     @staticmethod
-    def get_contest_judges(
-        db: Session, 
+    async def get_contest_judges(
+        db: AsyncSession, 
         contest_id: int, 
         current_user_id: Optional[int] = None
     ) -> List[ContestJudge]:
         # Get contest
-        contest = ContestService.get_contest(db=db, contest_id=contest_id)
+        contest = await ContestService.get_contest(db=db, contest_id=contest_id)
         
         # Check if user is contest creator, admin, or an assigned judge
-        is_admin = current_user_id and UserRepository.is_admin(db, current_user_id)
-        is_creator = current_user_id and contest.creator_id == current_user_id
+        is_admin_user = False
+        is_creator = False
+        if current_user_id:
+            user_repo = UserRepository(db)
+            is_admin_user = await user_repo.is_admin(current_user_id)
+            is_creator = current_user_id and contest.creator_id == current_user_id
         
-        judges = ContestRepository.get_contest_judges(db=db, contest_id=contest_id)
+        judges = await ContestRepository.get_contest_judges(db=db, contest_id=contest_id)
         is_judge = current_user_id and any(judge.judge_id == current_user_id for judge in judges)
         
-        if not (is_admin or is_creator or is_judge):
+        if not (is_admin_user or is_creator or is_judge):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You don't have permission to view contest judges"
@@ -378,27 +398,28 @@ class ContestService:
         return judges
     
     @staticmethod
-    def remove_judge_from_contest(
-        db: Session, 
+    async def remove_judge_from_contest(
+        db: AsyncSession, 
         contest_id: int, 
         judge_id: int, 
         current_user_id: int
     ) -> bool:
         # Get the contest
-        contest = ContestService.get_contest(db=db, contest_id=contest_id)
+        contest = await ContestService.get_contest(db=db, contest_id=contest_id)
         
         # Check permissions (contest creator or admin)
-        is_admin = UserRepository.is_admin(db, current_user_id)
+        user_repo = UserRepository(db)
+        is_admin_user = await user_repo.is_admin(current_user_id)
         is_creator = contest.creator_id == current_user_id
         
-        if not (is_admin or is_creator):
+        if not (is_admin_user or is_creator):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only contest creator and admins can remove judges"
             )
             
         # Check if judge exists
-        judge = ContestRepository.get_contest_judges(db=db, contest_id=contest_id)
+        judge = await ContestRepository.get_contest_judges(db=db, contest_id=contest_id)
         judge = next((j for j in judge if j.judge_id == judge_id), None)
         
         if not judge:
@@ -408,15 +429,27 @@ class ContestService:
             )
             
         # Check if judge has already voted
-        if judge.has_voted and not is_admin:
+        if judge.has_voted and not is_admin_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Cannot remove a judge who has already voted"
             )
             
         # Remove the judge
-        return ContestRepository.remove_judge_from_contest(
+        return await ContestRepository.remove_judge_from_contest(
             db=db, 
             contest_id=contest_id, 
             judge_id=judge_id
-        ) 
+        )
+
+    @staticmethod
+    async def get_contests_where_user_is_judge(db: AsyncSession, judge_id: int, skip: int = 0, limit: int = 100) -> List[Contest]:
+        """Get contests where the specified user is a judge."""
+        # Validate user exists (optional, but good practice)
+        user_repo = UserRepository(db)
+        judge_user = await user_repo.get_by_id(judge_id)
+        if not judge_user:
+            # Or return empty list if judge not existing isn't an error for this context
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"User with id {judge_id} not found.")
+
+        return await ContestRepository.get_contests_for_judge(db, judge_id, skip, limit) 

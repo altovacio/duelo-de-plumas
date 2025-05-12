@@ -10,10 +10,11 @@ from app.schemas.user import UserCreate, UserResponse, Token, TokenData
 from app.services.auth_service import (
     authenticate_user,
     create_user,
-    get_user_by_username
+    # get_user_by_username # This is no longer directly imported if auth_service doesn't expose it
 )
 from app.core.config import settings
 from app.core.security import create_access_token
+from app.db.repositories.user_repository import UserRepository # Added import
 
 router = APIRouter()
 
@@ -46,7 +47,8 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
         
-    user = await get_user_by_username(db, token_data.username)
+    user_repo = UserRepository(db) # Instantiate UserRepository
+    user = await user_repo.get_by_username(token_data.username) # Call instance method
     
     if user is None:
         raise credentials_exception

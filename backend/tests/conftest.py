@@ -6,6 +6,12 @@ import pytest
 import asyncio
 import uuid
 
+# --- SQLAlchemy & HTTPX specific imports ---
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import NullPool
+from httpx import AsyncClient, ASGITransport # For the new client fixture
+
 # --- Path Setup ---
 # Ensures tests can find the 'app' module.
 # Assumes conftest.py is in backend/tests/, and backend root (/app in Docker) is its parent.
@@ -40,146 +46,133 @@ from alembic import command as alembic_command
 # --- App Component Imports (these will now use the overridden settings.DATABASE_URL) ---
 try:
     from app.main import app
-    from app.db.database import AsyncSessionLocal, Base, engine as async_app_engine # Engine should now use the test DB URL
+    from app.db.database import Base, get_db as original_get_db # Import Base and original get_db
     from scripts.create_admin import create_admin_user
-    # For debugging, print the URL the engine is actually using:
-    print(f"DEBUG [conftest.py]: SQLAlchemy Async Engine is configured with URL: {async_app_engine.url}")
-    if settings.DATABASE_URL_TEST and str(async_app_engine.url) != settings.DATABASE_URL_TEST:
-        print(f"WARNING [conftest.py]: Engine URL {async_app_engine.url} does NOT match DATABASE_URL_TEST {settings.DATABASE_URL_TEST}. Override might not have worked as expected for engine initialization.")
-
 except ImportError as e:
     # Nullify to allow fixtures to detect and fail gracefully
     app = None
-    AsyncSessionLocal = None
-    Base = None 
-    async_app_engine = None
+    Base = None
+    original_get_db = None
     create_admin_user = None
     pytest.fail(f"CRITICAL [conftest.py]: Failed to import essential app components (app, DB essentials, create_admin_user). Error: {e}")
 
+# Global for test-specific session factory, initialized in setup_database_suite
+TestAsyncSessionLocal = None
 
 # --- Fixtures ---
 
 @pytest.fixture(scope="session", autouse=True)
 async def setup_database_suite():
-    print("INFO [conftest.py]: TOP OF setup_database_suite REACHED (NO event_loop arg - relying on pytest-asyncio)")
+    global TestAsyncSessionLocal, app # Allow modification
 
-    # --- Restore the ACTUAL database setup logic ---
-    if not settings.DATABASE_URL_TEST:
-        pytest.fail("CRITICAL [conftest.py]: DATABASE_URL_TEST is not set or was not used. Aborting test database setup.")
+    print("INFO [conftest.py]: Starting session-scoped database setup (Main Tests).")
+    
+    if not settings.DATABASE_URL_TEST: # Should be redundant due to earlier check, but good for safety
+        pytest.fail("CRITICAL [conftest.py]: DATABASE_URL_TEST is not set in setup_database_suite.")
 
-    if not all([AsyncSessionLocal, Base, async_app_engine, create_admin_user, app]):
-         pytest.fail("CRITICAL [conftest.py]: Essential app components are missing. Cannot set up test suite database.")
+    if not all([Base, create_admin_user, app, original_get_db]):
+         pytest.fail("CRITICAL [conftest.py]: Essential app components (Base, create_admin_user, app, original_get_db) are missing.")
 
+    # Create a new engine specifically for this test session using NullPool
+    test_engine = create_async_engine(
+        settings.DATABASE_URL_TEST,
+        echo=settings.DEBUG, # Or False for less verbose logs
+        poolclass=NullPool
+    )
+    TestAsyncSessionLocal = sessionmaker(
+        test_engine, class_=AsyncSession, expire_on_commit=False
+    )
+    print(f"DEBUG [conftest.py]: Test engine created with URL: {test_engine.url} using NullPool (Main Tests)")
+
+    # Alembic setup using the test_engine's URL
     alembic_ini_path = "alembic.ini"
     if not os.path.exists(alembic_ini_path):
-        pytest.fail(f"CRITICAL [conftest.py]: Alembic config file ('{alembic_ini_path}') not found. CWD: {os.getcwd()}. Pytest rootdir is usually /app in the container.")
+        pytest.fail(f"CRITICAL [conftest.py]: Alembic config ('{alembic_ini_path}') not found.")
 
-    print(f"INFO [conftest.py]: Using Alembic config: '{alembic_ini_path}' with Database URL: {settings.DATABASE_URL}")
     alembic_cfg = AlembicConfig(alembic_ini_path)
-    alembic_cfg.set_main_option("sqlalchemy.url", str(settings.DATABASE_URL))
+    # settings.DATABASE_URL is already DATABASE_URL_TEST due to override
+    alembic_cfg.set_main_option("sqlalchemy.url", str(settings.DATABASE_URL)) 
 
-    print("--- [conftest.py] Initiating Test Suite Database Setup (Alembic) ---")
+    print(f"INFO [conftest.py]: Applying Alembic migrations to: {settings.DATABASE_URL} (Main Tests)")
     try:
-        print(f"Attempting to connect to and verify test database: {settings.DATABASE_URL}")
-        check_engine = create_async_engine(str(settings.DATABASE_URL))
-        async with check_engine.connect() as connection:
-             await connection.run_sync(lambda sync_conn: sync_conn.execute(text("SELECT 1")))
-        await check_engine.dispose()
-        print("Test database connectivity verified.")
-        
-        print("Downgrading test database to 'base'...")
+        print("INFO [conftest.py]: Downgrading test database to 'base' (Main Tests)...")
         alembic_command.downgrade(alembic_cfg, "base")
-        print("Upgrading test database to 'head'...")
+        print("INFO [conftest.py]: Upgrading test database to 'head' (Main Tests)...")
         alembic_command.upgrade(alembic_cfg, "head")
-        print("Alembic migrations successfully applied to the test database.")
-
-        print("Verifying 'users' table existence in test database directly after migration...")
-        try:
-            async with async_app_engine.connect() as conn_check:
-                result = await conn_check.execute(text("SELECT EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename  = 'users');"))
-                table_exists = result.scalar_one()
-            if table_exists:
-                print("INFO [conftest.py]: 'users' table confirmed to exist in test database post-migration.")
-            else:
-                pytest.fail("CRITICAL [conftest.py]: 'users' table DOES NOT EXIST in test database immediately after Alembic upgrade head.")
-        except Exception as e_check:
-            pytest.fail(f"CRITICAL [conftest.py]: Error while checking for 'users' table existence: {e_check}")
-
+        print("INFO [conftest.py]: Alembic migrations applied successfully (Main Tests).")
     except Exception as e:
-        pytest.fail(f"CRITICAL [conftest.py]: Alembic migration process failed during test setup. Error: {e}\nDB URL used: {settings.DATABASE_URL}")
+        pytest.fail(f"CRITICAL [conftest.py]: Alembic migration process failed. Error: {e} (Main Tests)")
 
-    if not all([settings.FIRST_SUPERUSER_USERNAME, settings.FIRST_SUPERUSER_EMAIL, settings.FIRST_SUPERUSER_PASSWORD]):
-        pytest.fail("CRITICAL [conftest.py]: Admin credentials (FIRST_SUPERUSER_USERNAME, EMAIL, PASSWORD) are not configured in settings.")
-    
-    print(f"Attempting to create admin user: '{settings.FIRST_SUPERUSER_USERNAME}' in test database.")
+    # Override app dependency for get_db
+    async def get_test_db_session():
+        if not TestAsyncSessionLocal:
+             pytest.fail("CRITICAL [conftest.py]: TestAsyncSessionLocal not initialized before get_test_db_session call.")
+        async with TestAsyncSessionLocal() as session:
+            yield session
+
+    app.dependency_overrides[original_get_db] = get_test_db_session
+    print("INFO [conftest.py]: FastAPI app's get_db dependency overridden (Main Tests).")
+
+    # Create admin user using the new TestAsyncSessionLocal
+    print(f"INFO [conftest.py]: Creating admin user: {settings.FIRST_SUPERUSER_USERNAME} (Main Tests)")
     try:
-        await create_admin_user(
-            username=settings.FIRST_SUPERUSER_USERNAME,
-            email=settings.FIRST_SUPERUSER_EMAIL,
-            password=settings.FIRST_SUPERUSER_PASSWORD
-        )
-        print(f"Admin user '{settings.FIRST_SUPERUSER_USERNAME}' creation process initiated.")
-        
-        async with AsyncSessionLocal() as db:
-            from app.services.auth_service import get_user_by_username
-            user = await get_user_by_username(db, settings.FIRST_SUPERUSER_USERNAME)
-            if not user or not user.is_admin:
-                pytest.fail(f"CRITICAL [conftest.py]: Admin user '{settings.FIRST_SUPERUSER_USERNAME}' was NOT found or is not an admin in the test DB after creation attempt.")
-            print(f"Admin user '{settings.FIRST_SUPERUSER_USERNAME}' successfully verified in test database.")
+        async with TestAsyncSessionLocal() as temp_admin_db_session:
+            await create_admin_user( # create_admin_user now accepts a session
+                db=temp_admin_db_session, 
+                username=settings.FIRST_SUPERUSER_USERNAME,
+                email=settings.FIRST_SUPERUSER_EMAIL,
+                password=settings.FIRST_SUPERUSER_PASSWORD
+            )
+        # Verification
+        async with TestAsyncSessionLocal() as temp_db_verify:
+            from app.services.auth_service import get_user_by_username # Local import ok here
+            admin = await get_user_by_username(temp_db_verify, settings.FIRST_SUPERUSER_USERNAME)
+            if not admin or not admin.is_admin:
+                pytest.fail(f"CRITICAL [conftest.py]: Admin user '{settings.FIRST_SUPERUSER_USERNAME}' NOT found or not admin after creation (Main Tests).")
+        print(f"INFO [conftest.py]: Admin user '{settings.FIRST_SUPERUSER_USERNAME}' created and verified successfully (Main Tests).")
     except Exception as e:
-        pytest.fail(f"CRITICAL [conftest.py]: Failed to create or verify admin user in test database. Error: {e}")
+        pytest.fail(f"CRITICAL [conftest.py]: Failed during admin user creation/verification. Error: {e} (Main Tests)")
     
-    print("--- [conftest.py] Test Suite Database Setup Complete ---")
+    print("--- [conftest.py] Test Suite Database Setup Complete (Main Tests) ---")
     
-    yield
+    yield # Tests run here
     
-    print("--- [conftest.py] Initiating Test Suite Teardown (Alembic) ---")
+    print("--- [conftest.py] Initiating Test Suite Teardown (Main Tests) ---")
     try:
-        print(f"Downgrading test database '{settings.DATABASE_URL}' to 'base' to clean up...")
+        print(f"INFO [conftest.py]: Downgrading test database '{settings.DATABASE_URL}' to 'base' for cleanup (Main Tests)...")
         alembic_command.downgrade(alembic_cfg, "base")
-        print("Test database successfully downgraded to 'base'.")
+        print("INFO [conftest.py]: Test database successfully downgraded (Main Tests).")
     except Exception as e:
-        print(f"WARNING [conftest.py]: Failed to downgrade test database during teardown. Manual cleanup might be needed. Error: {e}")
+        print(f"WARNING [conftest.py]: Failed to downgrade test database during teardown. Error: {e} (Main Tests)")
+    
+    await test_engine.dispose() 
+    print("INFO [conftest.py]: Test engine disposed (Main Tests).")
 
 @pytest.fixture(scope="function")
-def client():
-    """Provides a TestClient instance for API testing, ensuring app context."""
+async def client(db_session: AsyncSession) -> AsyncClient: # Ensure db_session is a dependency to respect setup order
+    """Provides an httpx.AsyncClient instance for API testing."""
     if not app:
-        pytest.fail("CRITICAL [conftest.py]: FastAPI 'app' is not available. Cannot create TestClient.")
+        pytest.fail("CRITICAL [conftest.py]: FastAPI 'app' is not available. Cannot create AsyncClient.")
     
-    from fastapi.testclient import TestClient # Import here to use the app instance
-    # TestClient handles running the async app in a way that sync test functions can call it.
-    with TestClient(app) as c: # TestClient itself is sync, but the fixture can be async
-        yield c
+    # Ensure setup_database_suite has run and TestAsyncSessionLocal is ready,
+    # and dependency_overrides are set. db_session fixture implicitly depends on setup_database_suite.
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        yield ac
 
 @pytest.fixture(scope="function")
-async def db_session():
-    """Provides a clean, async database session for each test function."""
-    if not AsyncSessionLocal:
-        pytest.fail("CRITICAL [conftest.py]: 'AsyncSessionLocal' is not available. Cannot provide DB session.")
-    
-    engine_for_this_session_factory = AsyncSessionLocal.kw.get('bind')
-    if engine_for_this_session_factory:
-        print(f"DEBUG [conftest.py db_session]: AsyncSessionLocal factory is bound to engine with URL: {engine_for_this_session_factory.url}")
-    else:
-        print("DEBUG [conftest.py db_session]: AsyncSessionLocal factory is NOT bound to an engine (or bind key is not 'bind'). This is unexpected.")
+async def db_session() -> AsyncSession: # No longer needs setup_database_suite as explicit dep, autouse=True handles it
+    """Provides a clean, async database session from TestAsyncSessionLocal for each test function."""
+    if not TestAsyncSessionLocal:
+        pytest.fail("CRITICAL [conftest.py]: 'TestAsyncSessionLocal' is not initialized for db_session.")
         
-    async with AsyncSessionLocal() as session:
+    async with TestAsyncSessionLocal() as session:
         try:
-            if session.bind:
-                print(f"DEBUG [conftest.py db_session]: Yielding session {id(session)} bound to engine with URL: {session.bind.url}")
-                # Explicitly check for 'users' table in *this specific session*
-                # 'text' is imported at the end of the file.
-                result = await session.execute(text("SELECT EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename  = 'users');"))
-                table_exists_in_session = result.scalar_one()
-                print(f"DEBUG [conftest.py db_session]: In yielded session, 'users' table exists? {table_exists_in_session}. DB URL: {session.bind.url}")
-                if not table_exists_in_session:
-                     print(f"CRITICAL DEBUG [conftest.py db_session]: 'users' table NOT FOUND by session provided to test. DB URL: {session.bind.url}")
-            else:
-                print(f"DEBUG [conftest.py db_session]: Yielding session {id(session)} that is UNBOUND. This is highly unexpected.")
+            # Optional: debug print to confirm session details
+            # if session.bind:
+            #     print(f"DEBUG [conftest.py db_session]: Yielding session {id(session)} bound to URL: {session.bind.url} (Main Tests)")
             yield session
         finally:
-            await session.close()
+            await session.close() # Important for NullPool to actually close connection
 
 # --- Helper Functions (as previously defined) ---
 def generate_unique_username(base="user"):

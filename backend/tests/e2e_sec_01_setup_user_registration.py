@@ -1,6 +1,6 @@
 # backend/tests/e2e_sec_01_setup_user_registration.py
 import pytest
-from fastapi.testclient import TestClient # Injected by fixture
+from httpx import AsyncClient # Changed from fastapi.testclient import TestClient
 import logging
 
 from app.core.config import settings
@@ -8,13 +8,13 @@ from app.schemas.user import UserCreate, UserLogin, UserResponse, UserCredit, To
 from tests.shared_test_state import test_data
 from tests.conftest import generate_unique_username, generate_unique_email # Import helpers
 
-# client will be a fixture argument, e.g. def test_01_01_admin_login(client: TestClient):
+# client will be a fixture argument, e.g. async def test_01_01_admin_login(client: AsyncClient):
 
 # --- Start of Test Section 1: Setup & User Registration ---
 
-def test_01_01_admin_login(client: TestClient):
+async def test_01_01_admin_login(client: AsyncClient): # Changed to async def, client: AsyncClient
     """Admin logs in (obtain admin_token)."""
-    response = client.post(
+    response = await client.post( # Added await
         "/auth/login",
         data={"username": settings.FIRST_SUPERUSER_USERNAME, "password": settings.FIRST_SUPERUSER_PASSWORD},
     )
@@ -27,7 +27,7 @@ def test_01_01_admin_login(client: TestClient):
     print("Admin login successful.")
 
 @pytest.mark.run(after='test_01_01_admin_login')
-def test_01_02_user1_registers_self(client: TestClient):
+async def test_01_02_user1_registers_self(client: AsyncClient): # Changed to async def, client: AsyncClient
     """User 1 registers themselves."""
     test_data["user1_username"] = generate_unique_username("user1")
     test_data["user1_email"] = generate_unique_email("user1")
@@ -38,7 +38,7 @@ def test_01_02_user1_registers_self(client: TestClient):
         email=test_data["user1_email"],
         password=test_data["user1_password"]
     )
-    response = client.post("/auth/signup", json=user_in.model_dump())
+    response = await client.post("/auth/signup", json=user_in.model_dump()) # Added await
     assert response.status_code == 201, f"User 1 registration failed: {response.text}"
     user1_data = UserResponse(**response.json())
     assert user1_data.username == test_data["user1_username"]
@@ -49,10 +49,10 @@ def test_01_02_user1_registers_self(client: TestClient):
     print(f"User 1 ({test_data['user1_username']}) registered successfully.")
 
 @pytest.mark.run(after='test_01_02_user1_registers_self')
-def test_01_03_user1_login(client: TestClient):
+async def test_01_03_user1_login(client: AsyncClient): # Changed to async def, client: AsyncClient
     """Obtain user1_token after login."""
     login_data = UserLogin(username=test_data["user1_username"], password=test_data["user1_password"])
-    response = client.post(
+    response = await client.post( # Added await
         "/auth/login", data=login_data.model_dump()
     )
     assert response.status_code == 200, f"User 1 login failed: {response.text}"
@@ -63,7 +63,7 @@ def test_01_03_user1_login(client: TestClient):
     print(f"User 1 ({test_data['user1_username']}) login successful.")
 
 @pytest.mark.run(after='test_01_03_user1_login')
-def test_01_04_admin_registers_user2(client: TestClient):
+async def test_01_04_admin_registers_user2(client: AsyncClient): # Changed to async def, client: AsyncClient
     """Admin registers User 2."""
     assert "admin_headers" in test_data, "Admin token not found, ensure admin login test passed."
     test_data["user2_username"] = generate_unique_username("user2")
@@ -75,7 +75,7 @@ def test_01_04_admin_registers_user2(client: TestClient):
         email=test_data["user2_email"],
         password=test_data["user2_password"]
     )
-    response = client.post(
+    response = await client.post( # Added await
         "/auth/signup", 
         json=user_in.model_dump(),
         headers=test_data["admin_headers"]
@@ -90,10 +90,10 @@ def test_01_04_admin_registers_user2(client: TestClient):
     print(f"Admin registered User 2 ({test_data['user2_username']}) successfully.")
 
 @pytest.mark.run(after='test_01_04_admin_registers_user2')
-def test_01_05_user2_login(client: TestClient):
+async def test_01_05_user2_login(client: AsyncClient): # Changed to async def, client: AsyncClient
     """User 2 logs in (obtain user2_token)."""
     login_data = UserLogin(username=test_data["user2_username"], password=test_data["user2_password"])
-    response = client.post(
+    response = await client.post( # Added await
         "/auth/login", data=login_data.model_dump()
     )
     assert response.status_code == 200, f"User 2 login failed: {response.text}"
@@ -104,12 +104,12 @@ def test_01_05_user2_login(client: TestClient):
     print(f"User 2 ({test_data['user2_username']}) login successful.")
 
 @pytest.mark.run(after='test_01_05_user2_login')
-def test_01_06_admin_verifies_users(client: TestClient):
+async def test_01_06_admin_verifies_users(client: AsyncClient): # Changed to async def, client: AsyncClient
     """Admin verifies User 1 and User 2 details and credit balances."""
     assert "admin_headers" in test_data, "Admin token not found."
     assert "user1_id" in test_data and "user2_id" in test_data, "User IDs not found."
 
-    response_user1 = client.get(
+    response_user1 = await client.get( # Added await
         f"/users/{test_data['user1_id']}",
         headers=test_data["admin_headers"]
     )
@@ -119,7 +119,7 @@ def test_01_06_admin_verifies_users(client: TestClient):
     assert user1_data.credits == 0
     print(f"Admin verified User 1 ({user1_data.username}) details successfully.")
 
-    response_user2 = client.get(
+    response_user2 = await client.get( # Added await
         f"/users/{test_data['user2_id']}",
         headers=test_data["admin_headers"]
     )

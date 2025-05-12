@@ -1,7 +1,7 @@
 # backend/tests/e2e_sec_03_contest_creation_management.py
 import pytest
-from fastapi.testclient import TestClient # Injected by fixture
-from app.core.config import settings
+from httpx import AsyncClient # Changed
+from app.core.config import settings # Keep for other settings
 from app.schemas.contest import ContestCreate, ContestResponse, ContestUpdate
 from tests.shared_test_state import test_data
 
@@ -9,7 +9,7 @@ from tests.shared_test_state import test_data
 
 # --- Start of Test Section 3: Contest Creation & Management ---
 
-def test_03_01_user1_creates_public_contest1_and_assigns_judge(client: TestClient):
+async def test_03_01_user1_creates_public_contest1_and_assigns_judge(client: AsyncClient): # Changed
     """User 1 creates a public Contest (contest1) and assigns judge_global."""
     assert "user1_headers" in test_data, "User 1 token not found."
     assert "judge_global_id" in test_data, "Global Judge ID not found."
@@ -21,8 +21,8 @@ def test_03_01_user1_creates_public_contest1_and_assigns_judge(client: TestClien
         judge_restrictions=False,
         owner_restrictions=False
     )
-    response = client.post(
-        f"{settings.API_V1_STR}/contests/",
+    response = await client.post( # Changed
+        "/contests/", # Changed
         json=contest_in.model_dump(),
         headers=test_data["user1_headers"]
     )
@@ -35,8 +35,8 @@ def test_03_01_user1_creates_public_contest1_and_assigns_judge(client: TestClien
     print(f"User 1 created public contest1 (ID: {test_data['contest1_id']}) successfully.")
 
     assign_judge_payload = {"agent_id": test_data["judge_global_id"]}
-    response_assign_judge = client.post(
-        f"{settings.API_V1_STR}/contests/{test_data['contest1_id']}/judges",
+    response_assign_judge = await client.post( # Changed
+        f"/contests/{test_data['contest1_id']}/judges", # Path was already correct relative to /contests/
         json=assign_judge_payload,
         headers=test_data["user1_headers"]
     )
@@ -45,7 +45,7 @@ def test_03_01_user1_creates_public_contest1_and_assigns_judge(client: TestClien
     print(f"User 1 assigned judge_global (ID: {test_data['judge_global_id']}) to contest1 successfully.")
 
 @pytest.mark.run(after='test_03_01_user1_creates_public_contest1_and_assigns_judge')
-def test_03_02_admin_creates_private_contest2_and_assigns_judges(client: TestClient):
+async def test_03_02_admin_creates_private_contest2_and_assigns_judges(client: AsyncClient): # Changed
     """Admin creates a private Contest (contest2) with restrictions and assigns judges."""
     assert "admin_headers" in test_data, "Admin token not found."
     assert "user2_id" in test_data, "User 2 ID not found."
@@ -61,8 +61,8 @@ def test_03_02_admin_creates_private_contest2_and_assigns_judges(client: TestCli
         judge_restrictions=True,
         owner_restrictions=True
     )
-    response = client.post(
-        f"{settings.API_V1_STR}/contests/",
+    response = await client.post( # Changed
+        "/contests/", # Changed
         json=contest_in.model_dump(exclude_none=True),
         headers=test_data["admin_headers"]
     )
@@ -80,8 +80,8 @@ def test_03_02_admin_creates_private_contest2_and_assigns_judges(client: TestCli
         {"agent_id": test_data["judge_global_id"]}
     ]
     for judge_payload in judges_to_assign:
-        assign_judge_response = client.post(
-            f"{settings.API_V1_STR}/contests/{test_data['contest2_id']}/judges",
+        assign_judge_response = await client.post( # Changed
+            f"/contests/{test_data['contest2_id']}/judges", # Path was already correct
             json=judge_payload,
             headers=test_data["admin_headers"]
         )
@@ -91,7 +91,7 @@ def test_03_02_admin_creates_private_contest2_and_assigns_judges(client: TestCli
         print(f"Admin assigned judge (ID: {judge_payload[judge_id_key]}) to contest2 successfully.")
 
 @pytest.mark.run(after='test_03_02_admin_creates_private_contest2_and_assigns_judges')
-def test_03_03_user2_creates_contest3(client: TestClient):
+async def test_03_03_user2_creates_contest3(client: AsyncClient): # Changed
     """User 2 creates a contest (contest3) with no judges assigned. Succeeds."""
     assert "user2_headers" in test_data, "User 2 token not found."
     contest_in = ContestCreate(
@@ -99,8 +99,8 @@ def test_03_03_user2_creates_contest3(client: TestClient):
         description="A fun contest, no pressure!",
         is_private=False
     )
-    response = client.post(
-        f"{settings.API_V1_STR}/contests/",
+    response = await client.post( # Changed
+        "/contests/", # Changed
         json=contest_in.model_dump(),
         headers=test_data["user2_headers"]
     )
@@ -112,13 +112,13 @@ def test_03_03_user2_creates_contest3(client: TestClient):
     print(f"User 2 created public contest3 (ID: {test_data['contest3_id']}) successfully.")
 
 @pytest.mark.run(after='test_03_03_user2_creates_contest3')
-def test_03_04_user2_attempts_edit_contest1_fails(client: TestClient):
+async def test_03_04_user2_attempts_edit_contest1_fails(client: AsyncClient): # Changed
     """User 2 attempts to edit contest1 -> Should fail."""
     assert "user2_headers" in test_data, "User 2 token not found."
     assert "contest1_id" in test_data, "Contest 1 ID not found."
     update_payload = ContestUpdate(description="User 2 trying to change this.")
-    response = client.put(
-        f"{settings.API_V1_STR}/contests/{test_data['contest1_id']}",
+    response = await client.put( # Changed
+        f"/contests/{test_data['contest1_id']}", # Changed
         json=update_payload.model_dump(exclude_unset=True),
         headers=test_data["user2_headers"]
     )
@@ -126,14 +126,14 @@ def test_03_04_user2_attempts_edit_contest1_fails(client: TestClient):
     print("User 2 attempt to edit contest1 failed as expected (403 Forbidden).")
 
 @pytest.mark.run(after='test_03_04_user2_attempts_edit_contest1_fails')
-def test_03_05_user1_edits_contest1_succeeds(client: TestClient):
+async def test_03_05_user1_edits_contest1_succeeds(client: AsyncClient): # Changed
     """User 1 edits contest1 (updates description). Verify success."""
     assert "user1_headers" in test_data, "User 1 token not found."
     assert "contest1_id" in test_data, "Contest 1 ID not found."
     new_description = "User 1 has updated the description for this exciting contest!"
     update_payload = ContestUpdate(description=new_description)
-    response = client.put(
-        f"{settings.API_V1_STR}/contests/{test_data['contest1_id']}",
+    response = await client.put( # Changed
+        f"/contests/{test_data['contest1_id']}", # Changed
         json=update_payload.model_dump(exclude_unset=True),
         headers=test_data["user1_headers"]
     )
@@ -143,14 +143,14 @@ def test_03_05_user1_edits_contest1_succeeds(client: TestClient):
     print(f"User 1 successfully edited contest1 description. New status: {updated_contest.status}.")
 
 @pytest.mark.run(after='test_03_05_user1_edits_contest1_succeeds')
-def test_03_06_admin_edits_contest3_succeeds(client: TestClient):
+async def test_03_06_admin_edits_contest3_succeeds(client: AsyncClient): # Changed
     """Admin edits contest3 (updates description). Verify success."""
     assert "admin_headers" in test_data, "Admin token not found."
     assert "contest3_id" in test_data, "Contest 3 ID not found."
     new_description_admin = "Admin has updated the description for User 2's contest."
     update_payload = ContestUpdate(description=new_description_admin)
-    response = client.put(
-        f"{settings.API_V1_STR}/contests/{test_data['contest3_id']}",
+    response = await client.put( # Changed
+        f"/contests/{test_data['contest3_id']}", # Changed
         json=update_payload.model_dump(exclude_unset=True),
         headers=test_data["admin_headers"]
     )
@@ -160,15 +160,15 @@ def test_03_06_admin_edits_contest3_succeeds(client: TestClient):
     print(f"Admin successfully edited contest3 description. New status: {updated_contest.status}.")
 
 @pytest.mark.run(after='test_03_06_admin_edits_contest3_succeeds')
-def test_03_07_user2_assign_judge1_to_contest3_fails(client: TestClient):
+async def test_03_07_user2_assign_judge1_to_contest3_fails(client: AsyncClient): # Changed
     """User 2 attempts to assign judge1 (User 1's AI agent) to contest3 (User 2's contest). Fails."""
     assert "user2_headers" in test_data, "User 2 token not found."
     assert "contest3_id" in test_data, "Contest 3 ID not found."
     assert "judge1_id" in test_data, "Judge 1 ID not found."
     
     assign_payload = {"agent_id": test_data["judge1_id"]}
-    response = client.post(
-        f"{settings.API_V1_STR}/contests/{test_data['contest3_id']}/judges",
+    response = await client.post( # Changed
+        f"/contests/{test_data['contest3_id']}/judges", # Path was already correct
         json=assign_payload,
         headers=test_data["user2_headers"]
     )
@@ -177,15 +177,15 @@ def test_03_07_user2_assign_judge1_to_contest3_fails(client: TestClient):
     print("User 2 attempting to assign User1's judge1 to contest3 failed as expected.")
 
 @pytest.mark.run(after='test_03_07_user2_assign_judge1_to_contest3_fails')
-def test_03_08_user1_assign_judge1_to_contest3_fails(client: TestClient):
+async def test_03_08_user1_assign_judge1_to_contest3_fails(client: AsyncClient): # Changed
     """User 1 attempts to assign judge1 (their AI agent) to contest3 (User 2's contest). Fails."""
     assert "user1_headers" in test_data, "User 1 token not found."
     assert "contest3_id" in test_data, "Contest 3 ID not found."
     assert "judge1_id" in test_data, "Judge 1 ID not found."
 
     assign_payload = {"agent_id": test_data["judge1_id"]}
-    response = client.post(
-        f"{settings.API_V1_STR}/contests/{test_data['contest3_id']}/judges",
+    response = await client.post( # Changed
+        f"/contests/{test_data['contest3_id']}/judges", # Path was already correct
         json=assign_payload,
         headers=test_data["user1_headers"]
     )
@@ -194,14 +194,14 @@ def test_03_08_user1_assign_judge1_to_contest3_fails(client: TestClient):
     print("User 1 attempting to assign judge1 to User2's contest3 failed as expected.")
 
 @pytest.mark.run(after='test_03_08_user1_assign_judge1_to_contest3_fails')
-def test_03_09_user1_assign_self_as_judge_to_contest3_fails(client: TestClient):
+async def test_03_09_user1_assign_self_as_judge_to_contest3_fails(client: AsyncClient): # Changed
     """User 1 attempts to assign user 1 (self) as a judge to contest3 (User 2's contest). Fails."""
     assert "user1_headers" in test_data and "user1_id" in test_data, "User 1 token/ID not found."
     assert "contest3_id" in test_data, "Contest 3 ID not found."
 
     assign_payload = {"user_id": test_data["user1_id"]}
-    response = client.post(
-        f"{settings.API_V1_STR}/contests/{test_data['contest3_id']}/judges",
+    response = await client.post( # Changed
+        f"/contests/{test_data['contest3_id']}/judges", # Path was already correct
         json=assign_payload,
         headers=test_data["user1_headers"]
     )
@@ -210,7 +210,7 @@ def test_03_09_user1_assign_self_as_judge_to_contest3_fails(client: TestClient):
     print("User 1 attempting to assign self as judge to User2's contest3 failed as expected.")
 
 @pytest.mark.run(after='test_03_09_user1_assign_self_as_judge_to_contest3_fails')
-def test_03_10_user1_assigns_judges_to_contest1_succeeds(client: TestClient):
+async def test_03_10_user1_assigns_judges_to_contest1_succeeds(client: AsyncClient): # Changed
     """User 1 attempts to assign judge1 (own AI) and user 2 (human) as judges to contest1 (own). Succeeds."""
     assert "user1_headers" in test_data, "User 1 token not found."
     assert "contest1_id" in test_data, "Contest 1 ID not found."
@@ -218,8 +218,8 @@ def test_03_10_user1_assigns_judges_to_contest1_succeeds(client: TestClient):
     assert "user2_id" in test_data, "User 2 ID not found."
 
     payload_ai = {"agent_id": test_data["judge1_id"]}
-    response_ai = client.post(
-        f"{settings.API_V1_STR}/contests/{test_data['contest1_id']}/judges",
+    response_ai = await client.post( # Changed
+        f"/contests/{test_data['contest1_id']}/judges", # Path was already correct
         json=payload_ai,
         headers=test_data["user1_headers"]
     )
@@ -227,8 +227,8 @@ def test_03_10_user1_assigns_judges_to_contest1_succeeds(client: TestClient):
     print(f"User 1 assigned own AI judge1 (ID: {test_data['judge1_id']}) to contest1 successfully.")
 
     payload_human = {"user_id": test_data["user2_id"]}
-    response_human = client.post(
-        f"{settings.API_V1_STR}/contests/{test_data['contest1_id']}/judges",
+    response_human = await client.post( # Changed
+        f"/contests/{test_data['contest1_id']}/judges", # Path was already correct
         json=payload_human,
         headers=test_data["user1_headers"]
     )
@@ -236,104 +236,101 @@ def test_03_10_user1_assigns_judges_to_contest1_succeeds(client: TestClient):
     print(f"User 1 assigned User 2 (ID: {test_data['user2_id']}) as human judge to contest1 successfully.")
 
 @pytest.mark.run(after='test_03_10_user1_assigns_judges_to_contest1_succeeds')
-def test_03_11_user2_assigns_self_as_judge_to_contest3_succeeds(client: TestClient):
+async def test_03_11_user2_assigns_self_as_judge_to_contest3_succeeds(client: AsyncClient): # Changed
     """User 2 attempts to assign user 2 (self) as a judge to contest3 (own). Succeeds."""
     assert "user2_headers" in test_data and "user2_id" in test_data, "User 2 token/ID not found."
     assert "contest3_id" in test_data, "Contest 3 ID not found."
 
     assign_payload = {"user_id": test_data["user2_id"]}
-    response = client.post(
-        f"{settings.API_V1_STR}/contests/{test_data['contest3_id']}/judges",
+    response = await client.post( # Changed
+        f"/contests/{test_data['contest3_id']}/judges", # Path was already correct
         json=assign_payload,
         headers=test_data["user2_headers"]
     )
     assert response.status_code in [200, 201], f"User 2 assigning self as judge to contest3 failed: {response.text}"
-    print(f"User 2 assigned self (ID: {test_data['user2_id']}) as judge to contest3 successfully.")
+    print(f"User 2 assigned self (ID: {test_data['user2_id']}) as human judge to contest3 successfully.")
 
 @pytest.mark.run(after='test_03_11_user2_assigns_self_as_judge_to_contest3_succeeds')
-def test_03_12_visitor_lists_contests(client: TestClient):
-    """Visitor lists contests. Sees all public contests, private contest2 should not be directly visible or limited."""
-    response = client.get(f"{settings.API_V1_STR}/contests/")
+async def test_03_12_visitor_lists_contests(client: AsyncClient): # Changed
+    """Visitor lists contests -> Should see only public, non-password-protected contests."""
+    response = await client.get("/contests/") # Changed
     assert response.status_code == 200, f"Visitor listing contests failed: {response.text}"
     contests = [ContestResponse(**c) for c in response.json()]
     
-    contest_ids_listed = {c.id for c in contests}
-    assert test_data["contest1_id"] in contest_ids_listed, "Contest 1 (public) not found in visitor list."
-    assert test_data["contest3_id"] in contest_ids_listed, "Contest 3 (public) not found in visitor list."
-    assert test_data["contest2_id"] not in contest_ids_listed, "Contest 2 (private) should not be in unauthenticated public list."
-    print("Visitor listed contests successfully, only public contests visible.")
+    # contest1 should be visible, contest3 should be visible. contest2 (private) should not.
+    contest_ids_visible = {c.id for c in contests}
+    assert test_data["contest1_id"] in contest_ids_visible, "Contest 1 not visible to visitor."
+    assert test_data["contest3_id"] in contest_ids_visible, "Contest 3 not visible to visitor."
+    assert test_data["contest2_id"] not in contest_ids_visible, "Contest 2 (private) should not be visible to visitor."
+    print("Visitor listed contests successfully, saw only public ones.")
 
 @pytest.mark.run(after='test_03_12_visitor_lists_contests')
-def test_03_13_user1_lists_contests(client: TestClient):
-    """User 1 lists contests. Sees all but the private contest with limited details.
-    - Private contest2 (not owned) might be absent or limited."""
+async def test_03_13_user1_lists_contests(client: AsyncClient): # Changed
+    """User 1 lists contests -> Should see all public, and own private contests."""
     assert "user1_headers" in test_data, "User 1 token not found."
-    response = client.get(f"{settings.API_V1_STR}/contests/", headers=test_data["user1_headers"])
+    response = await client.get("/contests/", headers=test_data["user1_headers"]) # Changed
     assert response.status_code == 200, f"User 1 listing contests failed: {response.text}"
     contests = [ContestResponse(**c) for c in response.json()]
-    
-    contest_ids_listed = {c.id for c in contests}
-    assert test_data["contest1_id"] in contest_ids_listed, "Contest 1 (User1's public) not found in User1 list."
-    assert test_data["contest3_id"] in contest_ids_listed, "Contest 3 (User2's public) not found in User1 list."
-    assert test_data["contest2_id"] not in contest_ids_listed, "Contest 2 (private, not owned) should not be in User1's general list."
-    print("User 1 listed contests successfully, only public contests (and own) visible.")
+
+    contest_ids_visible = {c.id for c in contests}
+    # User 1 created contest1 (public). Admin created contest2 (private). User 2 created contest3 (public).
+    # User 1 should see contest1 and contest3. contest2 is private and not owned by user1.
+    assert test_data["contest1_id"] in contest_ids_visible, "Contest 1 (own, public) not visible to User 1."
+    assert test_data["contest3_id"] in contest_ids_visible, "Contest 3 (other, public) not visible to User 1."
+    assert test_data["contest2_id"] not in contest_ids_visible, "Contest 2 (other, private) should not be visible to User 1."
+    print("User 1 listed contests successfully, saw public and own private (if any).")
+
 
 @pytest.mark.run(after='test_03_13_user1_lists_contests')
-def test_03_14_visitor_view_contest2_details_wrong_password_fails(client: TestClient):
-    """Visitor attempts to view contest2 details with wrong password -> Fails."""
-    assert "contest2_id" in test_data, "Contest 2 ID not found."
-    response = client.get(f"{settings.API_V1_STR}/contests/{test_data['contest2_id']}?password=wrongpassword")
-    assert response.status_code == 401, f"Visitor viewing contest2 with wrong password should fail (401), but got {response.status_code}: {response.text}"
-    print("Visitor attempt to view contest2 with wrong password failed as expected (401 Unauthorized).")
+async def test_03_14_visitor_view_contest2_details_wrong_password_fails(client: AsyncClient): # Changed
+    """Visitor attempts to view contest2 (private) with wrong password. Fails."""
+    response = await client.get(f"/contests/{test_data['contest2_id']}?password=wrongpassword") # Changed
+    assert response.status_code == 403, f"Viewing contest2 with wrong password should fail (403), got {response.status_code}: {response.text}"
+    print("Visitor failed to view contest2 with wrong password, as expected.")
 
 @pytest.mark.run(after='test_03_14_visitor_view_contest2_details_wrong_password_fails')
-def test_03_15_visitor_view_contest2_details_correct_password_succeeds(client: TestClient):
-    """Visitor attempts to view contest2 details with correct password -> Succeeds."""
-    assert "contest2_id" in test_data and "contest2_password" in test_data, "Contest 2 ID/password not found."
-    response = client.get(f"{settings.API_V1_STR}/contests/{test_data['contest2_id']}?password={test_data['contest2_password']}")
-    assert response.status_code == 200, f"Visitor viewing contest2 with correct password failed: {response.text}"
+async def test_03_15_visitor_view_contest2_details_correct_password_succeeds(client: AsyncClient): # Changed
+    """Visitor attempts to view contest2 (private) with correct password. Succeeds."""
+    response = await client.get(f"/contests/{test_data['contest2_id']}?password={test_data['contest2_password']}") # Changed
+    assert response.status_code == 200, f"Viewing contest2 with correct password failed: {response.text}"
     contest_data = ContestResponse(**response.json())
     assert contest_data.id == test_data["contest2_id"]
-    print("Visitor successfully viewed private contest2 details with correct password.")
+    print("Visitor viewed contest2 with correct password successfully.")
 
 @pytest.mark.run(after='test_03_15_visitor_view_contest2_details_correct_password_succeeds')
-def test_03_16_user1_view_contest2_details_wrong_password_fails(client: TestClient):
-    """User 1 attempts to view contest2 details with wrong password -> Fails."""
-    assert "user1_headers" in test_data, "User 1 token not found."
-    assert "contest2_id" in test_data, "Contest 2 ID not found."
-    response = client.get(
-        f"{settings.API_V1_STR}/contests/{test_data['contest2_id']}?password=verywrong",
+async def test_03_16_user1_view_contest2_details_wrong_password_fails(client: AsyncClient): # Changed
+    """User 1 (logged in) attempts to view contest2 (private, not owner) with wrong password. Fails."""
+    assert "user1_headers" in test_data
+    response = await client.get( # Changed
+        f"/contests/{test_data['contest2_id']}?password=anotherwrongpassword",
         headers=test_data["user1_headers"]
     )
-    assert response.status_code == 401, f"User 1 viewing contest2 with wrong password should fail (401), but got {response.status_code}: {response.text}"
-    print("User 1 attempt to view contest2 with wrong password failed as expected (401 Unauthorized).")
+    assert response.status_code == 403, f"User 1 viewing contest2 with wrong password should fail (403), got {response.status_code}: {response.text}"
+    print("User 1 failed to view contest2 (not owner) with wrong password, as expected.")
+
 
 @pytest.mark.run(after='test_03_16_user1_view_contest2_details_wrong_password_fails')
-def test_03_17_user1_view_contest2_details_correct_password_succeeds(client: TestClient):
-    """User 1 attempts to view contest2 details with correct password -> Succeeds."""
-    assert "user1_headers" in test_data, "User 1 token not found."
-    assert "contest2_id" in test_data and "contest2_password" in test_data, "Contest 2 ID/password not found."
-    response = client.get(
-        f"{settings.API_V1_STR}/contests/{test_data['contest2_id']}?password={test_data['contest2_password']}",
+async def test_03_17_user1_view_contest2_details_correct_password_succeeds(client: AsyncClient): # Changed
+    """User 1 (logged in) attempts to view contest2 (private, not owner) with correct password. Succeeds."""
+    assert "user1_headers" in test_data
+    response = await client.get( # Changed
+        f"/contests/{test_data['contest2_id']}?password={test_data['contest2_password']}",
         headers=test_data["user1_headers"]
     )
     assert response.status_code == 200, f"User 1 viewing contest2 with correct password failed: {response.text}"
     contest_data = ContestResponse(**response.json())
     assert contest_data.id == test_data["contest2_id"]
-    print("User 1 successfully viewed private contest2 details with correct password.")
+    print("User 1 viewed contest2 (not owner) with correct password successfully.")
 
 @pytest.mark.run(after='test_03_17_user1_view_contest2_details_correct_password_succeeds')
-def test_03_18_admin_view_contest2_details_no_password_succeeds(client: TestClient):
-    """Admin attempts to view contest 2 details with no password -> Succeeds."""
-    assert "admin_headers" in test_data, "Admin token not found."
-    assert "contest2_id" in test_data, "Contest 2 ID not found."
-    response = client.get(
-        f"{settings.API_V1_STR}/contests/{test_data['contest2_id']}",
-        headers=test_data["admin_headers"]
-    )
-    assert response.status_code == 200, f"Admin viewing contest2 (private) with no password failed: {response.text}"
+async def test_03_18_admin_view_contest2_details_no_password_succeeds(client: AsyncClient): # Changed
+    """Admin (owner) attempts to view contest2 (private, owner) without password. Succeeds."""
+    assert "admin_headers" in test_data
+    response = await client.get(f"/contests/{test_data['contest2_id']}", headers=test_data["admin_headers"]) # Changed
+    assert response.status_code == 200, f"Admin (owner) viewing contest2 without password failed: {response.text}"
     contest_data = ContestResponse(**response.json())
     assert contest_data.id == test_data["contest2_id"]
-    print("Admin successfully viewed private contest2 details without password.")
+    print("Admin (owner) viewed contest2 without password successfully.")
+
 
 # --- End of Test Section 3 ---

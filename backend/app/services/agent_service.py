@@ -1,6 +1,7 @@
 from typing import List, Dict, Optional
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 import re
 
 from app.db.repositories.agent_repository import AgentRepository
@@ -23,6 +24,7 @@ from app.services.text_service import TextService
 from app.services.vote_service import VoteService
 from app.db.repositories.user_repository import UserRepository
 from app.db.models.contest_judge import ContestJudge
+from app.db.models.user import User as UserModel
 
 
 class AgentService:
@@ -33,7 +35,9 @@ class AgentService:
         """Create a new AI agent."""
         # Only admins can create public agents
         if agent_data.is_public:
-            user = db.query("User").filter_by(id=owner_id).first()
+            stmt = select(UserModel).where(UserModel.id == owner_id)
+            result = await db.execute(stmt)
+            user = result.scalars().first()
             if not user or not user.is_admin:
                 agent_data.is_public = False  # Force private for non-admins
         
@@ -44,7 +48,7 @@ class AgentService:
                 detail="Agent type must be either 'judge' or 'writer'"
             )
         
-        agent = AgentRepository.create_agent(db, agent_data, owner_id)
+        agent = await AgentRepository.create_agent(db, agent_data, owner_id)
         return AgentResponse.from_orm(agent)
     
     @staticmethod
@@ -77,7 +81,7 @@ class AgentService:
         db: Session, owner_id: int, skip: int = 0, limit: int = 100
     ) -> List[AgentResponse]:
         """Get agents belonging to a specific owner."""
-        agents = AgentRepository.get_agents_by_owner(db, owner_id, skip, limit)
+        agents = await AgentRepository.get_agents_by_owner(db, owner_id, skip, limit)
         return [AgentResponse.from_orm(agent) for agent in agents]
     
     @staticmethod
@@ -92,7 +96,7 @@ class AgentService:
                 detail="Agent type must be either 'judge' or 'writer'"
             )
         
-        agents = AgentRepository.get_public_agents(db, agent_type, skip, limit)
+        agents = await AgentRepository.get_public_agents(db, agent_type, skip, limit)
         return [AgentResponse.from_orm(agent) for agent in agents]
     
     @staticmethod

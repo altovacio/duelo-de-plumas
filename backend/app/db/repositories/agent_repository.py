@@ -1,5 +1,6 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from app.db.models.agent import Agent
 from app.db.models.agent_execution import AgentExecution
@@ -8,7 +9,7 @@ from app.schemas.agent import AgentCreate, AgentUpdate
 
 class AgentRepository:
     @staticmethod
-    def create_agent(db: Session, agent_data: AgentCreate, owner_id: int) -> Agent:
+    async def create_agent(db: Session, agent_data: AgentCreate, owner_id: int) -> Agent:
         """Create a new agent."""
         db_agent = Agent(
             name=agent_data.name,
@@ -19,8 +20,8 @@ class AgentRepository:
             owner_id=owner_id
         )
         db.add(db_agent)
-        db.commit()
-        db.refresh(db_agent)
+        await db.commit()
+        await db.refresh(db_agent)
         return db_agent
     
     @staticmethod
@@ -29,21 +30,22 @@ class AgentRepository:
         return db.query(Agent).filter(Agent.id == agent_id).first()
     
     @staticmethod
-    def get_agents_by_owner(db: Session, owner_id: int, skip: int = 0, limit: int = 100) -> List[Agent]:
+    async def get_agents_by_owner(db: Session, owner_id: int, skip: int = 0, limit: int = 100) -> List[Agent]:
         """Get agents belonging to a specific owner."""
-        return db.query(Agent).filter(
-            Agent.owner_id == owner_id
-        ).offset(skip).limit(limit).all()
+        stmt = select(Agent).where(Agent.owner_id == owner_id).offset(skip).limit(limit)
+        result = await db.execute(stmt)
+        return result.scalars().all()
     
     @staticmethod
-    def get_public_agents(db: Session, agent_type: Optional[str] = None, skip: int = 0, limit: int = 100) -> List[Agent]:
+    async def get_public_agents(db: Session, agent_type: Optional[str] = None, skip: int = 0, limit: int = 100) -> List[Agent]:
         """Get all public agents, optionally filtered by type."""
-        query = db.query(Agent).filter(Agent.is_public == True)
-        
+        stmt = select(Agent).where(Agent.is_public == True)
         if agent_type:
-            query = query.filter(Agent.type == agent_type)
+            stmt = stmt.where(Agent.type == agent_type)
             
-        return query.offset(skip).limit(limit).all()
+        stmt = stmt.offset(skip).limit(limit)
+        result = await db.execute(stmt)
+        return result.scalars().all()
     
     @staticmethod
     def update_agent(db: Session, agent_id: int, agent_data: AgentUpdate) -> Optional[Agent]:

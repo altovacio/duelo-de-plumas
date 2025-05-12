@@ -16,7 +16,7 @@ from app.schemas.agent import (
 )
 from app.services.agent_service import AgentService
 
-router = APIRouter(prefix="/agents", tags=["agents"])
+router = APIRouter(tags=["agents"])
 
 
 @router.post("", response_model=AgentResponse)

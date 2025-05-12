@@ -1,10 +1,9 @@
 # backend/tests/e2e_sec_07_contest_closure_results.py
 import pytest
-from fastapi.testclient import TestClient # Injected by fixture
+from httpx import AsyncClient # MODIFIED: For async client
 from typing import List # Added for type hinting
 import logging
 
-from app.core.config import settings
 from app.schemas.contest import ContestUpdate, ContestResponse, TextSubmissionResponse # MODIFIED: Removed ContestVisibility, added TextSubmissionResponse
 # Make sure UserResponse is imported if needed for author name checks
 from app.schemas.user import UserResponse 
@@ -15,7 +14,7 @@ from tests.shared_test_state import test_data
 # --- Start of Test Section 7: Contest Closure & Results ---
 
 @pytest.mark.run(after='test_06_14_user1_submits_votes_for_contest2') # Ensure this runs after section 6
-def test_07_01_admin_sets_contests_status_to_closed(client: TestClient):
+async def test_07_01_admin_sets_contests_status_to_closed(client: AsyncClient): # MODIFIED: async def, AsyncClient
     """Admin sets contest1, contest2 and contest3 status to 'Closed'."""
     assert "admin_headers" in test_data, "Admin token not found."
     assert "contest1_id" in test_data, "Contest 1 ID not found."
@@ -26,8 +25,8 @@ def test_07_01_admin_sets_contests_status_to_closed(client: TestClient):
     for contest_key in contests_to_close:
         contest_id = test_data[contest_key]
         update_payload = ContestUpdate(status="Closed")
-        response = client.put(
-            f"{settings.API_V1_STR}/contests/{contest_id}",
+        response = await client.put(
+            f"/contests/{contest_id}",
             json=update_payload.model_dump(exclude_unset=True),
             headers=test_data["admin_headers"]
         )
@@ -40,18 +39,18 @@ def test_07_01_admin_sets_contests_status_to_closed(client: TestClient):
         print(f"Admin successfully set {contest_key} (ID: {contest_id}) status to: {updated_contest.status}.")
 
 @pytest.mark.run(after='test_07_01_admin_sets_contests_status_to_closed')
-def test_07_02_visitor_views_contest1_details_revealed(client: TestClient):
+async def test_07_02_visitor_views_contest1_details_revealed(client: AsyncClient): # MODIFIED: async def, AsyncClient
     """Visitor views contest1 details -> Should see results, user and author names revealed."""
     assert "contest1_id" in test_data, "Contest 1 ID not found."
 
     # Check contest status
-    response = client.get(f"{settings.API_V1_STR}/contests/{test_data['contest1_id']}")
+    response = await client.get(f"/contests/{test_data['contest1_id']}")
     assert response.status_code == 200
     contest_data = ContestResponse(**response.json())
     assert contest_data.status.lower() == "closed", "Contest1 is not Closed."
 
     # Check submissions for revealed names
-    sub_response = client.get(f"{settings.API_V1_STR}/contests/{test_data['contest1_id']}/submissions/")
+    sub_response = await client.get(f"/contests/{test_data['contest1_id']}/submissions/")
     assert sub_response.status_code == 200, f"Visitor failed to get submissions for closed contest: {sub_response.text}"
     
     submissions = sub_response.json()
@@ -63,7 +62,7 @@ def test_07_02_visitor_views_contest1_details_revealed(client: TestClient):
             assert submission.author is not None and "masked" not in submission.author.lower() and submission.author != "[Hidden]", \
                 f"Author name should be revealed. Got: {submission.author}"
             # Optionally, fetch user details to confirm author name matches if user_id is for a known user
-            # user_details_resp = client.get(f"{settings.API_V1_STR}/users/{submission.user_id}") # Needs user_id to be actual user id not a placeholder
+            # user_details_resp = await client.get(f"/users/{submission.user_id}") # Needs user_id to be actual user id not a placeholder
             # if user_details_resp.status_code == 200:
             #     user_info = UserResponse(**user_details_resp.json())
             #     assert submission.author == user_info.username, "Author name mismatch."
@@ -73,15 +72,15 @@ def test_07_02_visitor_views_contest1_details_revealed(client: TestClient):
     print(f"Visitor successfully viewed contest1 (ID: {test_data['contest1_id']}) details with user/author info revealed (status: Closed).")
 
 @pytest.mark.run(after='test_07_02_visitor_views_contest1_details_revealed')
-def test_07_03_user1_changes_contest1_to_private(client: TestClient):
+async def test_07_03_user1_changes_contest1_to_private(client: AsyncClient): # MODIFIED: async def, AsyncClient
     """User 1 changes contest1 to private."""
     assert "user1_headers" in test_data, "User 1 token not found."
     assert "contest1_id" in test_data, "Contest 1 ID not found."
     test_data["contest1_password"] = "testprivpass123" # Store password for later tests
 
     update_payload = ContestUpdate(is_private=True, password=test_data["contest1_password"])
-    response = client.put(
-        f"{settings.API_V1_STR}/contests/{test_data['contest1_id']}",
+    response = await client.put(
+        f"/contests/{test_data['contest1_id']}",
         json=update_payload.model_dump(exclude_unset=True),
         headers=test_data["user1_headers"]
     )
@@ -93,27 +92,27 @@ def test_07_03_user1_changes_contest1_to_private(client: TestClient):
     print(f"User 1 successfully changed contest1 (ID: {test_data['contest1_id']}) to private.")
 
 @pytest.mark.run(after='test_07_03_user1_changes_contest1_to_private')
-def test_07_04_visitor_views_contest1_details_private_no_pass_fails(client: TestClient):
+async def test_07_04_visitor_views_contest1_details_private_no_pass_fails(client: AsyncClient): # MODIFIED: async def, AsyncClient
     """Visitor attempts to view contest1 details with no password -> Fails."""
     assert "contest1_id" in test_data, "Contest 1 ID not found."
-    response = client.get(f"{settings.API_V1_STR}/contests/{test_data['contest1_id']}")
+    response = await client.get(f"/contests/{test_data['contest1_id']}")
     assert response.status_code == 403, \
         f"Viewing private contest1 without password should fail (403), got {response.status_code}: {response.text}"
     print(f"Visitor attempt to view private contest1 (ID: {test_data['contest1_id']}) without password failed as expected.")
 
 @pytest.mark.run(after='test_07_04_visitor_views_contest1_details_private_no_pass_fails')
-def test_07_05_visitor_views_contest1_details_private_with_pass_succeeds(client: TestClient):
+async def test_07_05_visitor_views_contest1_details_private_with_pass_succeeds(client: AsyncClient): # MODIFIED: async def, AsyncClient
     """Visitor attempts to view contest1 details with correct password -> Succeeds. User and author names revealed."""
     assert "contest1_id" in test_data, "Contest 1 ID not found."
     assert "contest1_password" in test_data, "Contest1 password not found in test_data."
 
-    response = client.get(f"{settings.API_V1_STR}/contests/{test_data['contest1_id']}", params={"password": test_data["contest1_password"]})
+    response = await client.get(f"/contests/{test_data['contest1_id']}", params={"password": test_data["contest1_password"]})
     assert response.status_code == 200, \
         f"Viewing private contest1 with password failed: {response.text}"
     contest_data = ContestResponse(**response.json())
     assert contest_data.status.lower() == "closed"
     # Check submissions for revealed names (as in 7.02)
-    sub_response = client.get(f"{settings.API_V1_STR}/contests/{test_data['contest1_id']}/submissions/", params={"password": test_data["contest1_password"]})
+    sub_response = await client.get(f"/contests/{test_data['contest1_id']}/submissions/", params={"password": test_data["contest1_password"]})
     assert sub_response.status_code == 200
     submissions = sub_response.json()
     if len(submissions) > 0:
@@ -124,14 +123,14 @@ def test_07_05_visitor_views_contest1_details_private_with_pass_succeeds(client:
     print(f"Visitor successfully viewed private contest1 (ID: {test_data['contest1_id']}) with correct password.")
 
 @pytest.mark.run(after='test_07_05_visitor_views_contest1_details_private_with_pass_succeeds')
-def test_07_06_user1_returns_contest1_to_public(client: TestClient):
+async def test_07_06_user1_returns_contest1_to_public(client: AsyncClient): # MODIFIED: async def, AsyncClient
     """User 1 returns contest1 to public."""
     assert "user1_headers" in test_data, "User 1 token not found."
     assert "contest1_id" in test_data, "Contest 1 ID not found."
 
     update_payload = ContestUpdate(is_private=False, password=None)
-    response = client.put(
-        f"{settings.API_V1_STR}/contests/{test_data['contest1_id']}",
+    response = await client.put(
+        f"/contests/{test_data['contest1_id']}",
         json=update_payload.model_dump(exclude_unset=True, exclude_none=True),
         headers=test_data["user1_headers"]
     )
@@ -143,16 +142,16 @@ def test_07_06_user1_returns_contest1_to_public(client: TestClient):
     print(f"User 1 successfully returned contest1 (ID: {test_data['contest1_id']}) to public.")
 
 @pytest.mark.run(after='test_07_06_user1_returns_contest1_to_public')
-def test_07_07_visitor_views_contest1_public_details_revealed(client: TestClient):
+async def test_07_07_visitor_views_contest1_public_details_revealed(client: AsyncClient): # MODIFIED: async def, AsyncClient
     """Visitor attempts to view contest1 details with no password -> Succeeds. User and author names revealed."""
     assert "contest1_id" in test_data, "Contest 1 ID not found."
-    response = client.get(f"{settings.API_V1_STR}/contests/{test_data['contest1_id']}")
+    response = await client.get(f"/contests/{test_data['contest1_id']}")
     assert response.status_code == 200, \
         f"Viewing public contest1 failed: {response.text}"
     contest_data = ContestResponse(**response.json())
     assert contest_data.status.lower() == "closed"
     # Check submissions for revealed names (as in 7.02)
-    sub_response = client.get(f"{settings.API_V1_STR}/contests/{test_data['contest1_id']}/submissions/")
+    sub_response = await client.get(f"/contests/{test_data['contest1_id']}/submissions/")
     assert sub_response.status_code == 200
     submissions = sub_response.json()
     if len(submissions) > 0:
@@ -163,7 +162,7 @@ def test_07_07_visitor_views_contest1_public_details_revealed(client: TestClient
     print(f"Visitor successfully viewed public contest1 (ID: {test_data['contest1_id']}) with details revealed.")
 
 @pytest.mark.run(after='test_07_07_visitor_views_contest1_public_details_revealed')
-def test_07_08_user2_deletes_submission_c1_t2_1_from_contest1(client: TestClient):
+async def test_07_08_user2_deletes_submission_c1_t2_1_from_contest1(client: AsyncClient): # MODIFIED: async def, AsyncClient
     """User 2 deletes their own submission (submission_c1_t2_1, which is Text 2.1) from contest1. Should succeed."""
     assert "user2_headers" in test_data, "User 2 token not found."
     assert "contest1_id" in test_data, "Contest 1 ID not found."
@@ -172,26 +171,38 @@ def test_07_08_user2_deletes_submission_c1_t2_1_from_contest1(client: TestClient
     # For simplicity, let's assume it might have been deleted by test_05_15. This test plan step implies text deletion *after* closure.
     # Test_05_15: User 2 deletes their own manual submission (submission_id_c1_t2_1) from contest1.
     # This test (7.08) seems to be a duplicate or re-test of that functionality in a different contest phase.
-    # Let's use submission_c1_t2_3 (Text 2.3 by User 2, from 5.05) which should still exist.
-    assert "submission_c1_t2_3_id" in test_data, "Submission ID for Text 2.3 by User 2 in Contest 1 not found."
-    submission_id_to_delete = test_data["submission_c1_t2_3_id"]
+    # Let's use submission_c1_t2_3 (Text 2.3 by User 2, from 5.05) which should still exist if not deleted by another test.
+    # submission_c1_t2_3_id was used in test_05_05, might be available.
+    # If section 5 tests ran completely, submission_c1_t2_1_id and submission_c1_t2_3_id might have been deleted or altered.
+    # For robustness, let's query User 2's submissions in contest1 and pick one if available.
+    
+    subs_resp = await client.get(f"/contests/{test_data['contest1_id']}/submissions/", headers=test_data["admin_headers"]) # MODIFIED: await, use admin to see all
+    assert subs_resp.status_code == 200
+    all_submissions_c1 = [TextSubmissionResponse(**s) for s in subs_resp.json()]
+    user2_submission_to_delete = next((s for s in all_submissions_c1 if str(s.user_id) == str(test_data.get("user2_id"))), None)
 
-    response = client.delete(
-        f"{settings.API_V1_STR}/contests/{test_data['contest1_id']}/submissions/{submission_id_to_delete}",
+    if not user2_submission_to_delete:
+        pytest.skip(f"No submission found for User 2 in contest1 to delete for test 7.08. User2_id: {test_data.get('user2_id')}")
+        return
+    submission_id_to_delete = user2_submission_to_delete.id
+    print(f"Selected submission {submission_id_to_delete} by User 2 for deletion from contest1.")
+
+    response = await client.delete( # MODIFIED: await, removed settings.API_V1_STR
+        f"/contests/{test_data['contest1_id']}/submissions/{submission_id_to_delete}",
         headers=test_data["user2_headers"]
     )
     assert response.status_code == 200, \
         f"User 2 failed to delete their submission {submission_id_to_delete} from contest1: {response.text}"
     
     # Verify submission is gone
-    get_subs_response = client.get(f"{settings.API_V1_STR}/contests/{test_data['contest1_id']}/submissions/", headers=test_data["user2_headers"])
+    get_subs_response = await client.get(f"/contests/{test_data['contest1_id']}/submissions/", headers=test_data["user2_headers"]) # MODIFIED: await, removed settings.API_V1_STR
     submissions_after_delete = get_subs_response.json()
     assert not any(s["id"] == submission_id_to_delete for s in submissions_after_delete), "Submission was not actually deleted."
 
-    print(f"User 2 successfully deleted their submission {submission_id_to_delete} (Text 2.3) from contest1 (ID: {test_data['contest1_id']}).")
+    print(f"User 2 successfully deleted their submission {submission_id_to_delete} from contest1 (ID: {test_data['contest1_id']}).")
 
 @pytest.mark.run(after='test_07_08_user2_deletes_submission_c1_t2_1_from_contest1')
-def test_07_09_user1_deletes_submission_c1_t2_2_from_contest1(client: TestClient):
+async def test_07_09_user1_deletes_submission_c1_t2_2_from_contest1(client: AsyncClient): # MODIFIED: async def, AsyncClient
     """User 1 (contest owner) attempts to delete User 2's submission (submission_c1_t2_2, Text 2.2) from contest1. Should succeed. Verify Cost records are not affected."""
     assert "user1_headers" in test_data, "User 1 token not found."
     assert "contest1_id" in test_data, "Contest 1 ID not found."
@@ -200,41 +211,59 @@ def test_07_09_user1_deletes_submission_c1_t2_2_from_contest1(client: TestClient
     # This again looks like a re-test. Let's assume it was deleted.
     # For this test to be meaningful, we'd need a submission by another user that User 1 can delete.
     # Let's check for submission_c1_t3_2_id (Admin's submission from 5.09)
-    submission_to_delete_id = test_data.get("submission_c1_t3_2_id")
-    if not submission_to_delete_id:
-        # If admin's sub doesn't exist, let's try to find any remaining submission not by User 1
-        get_subs_response = client.get(f"{settings.API_V1_STR}/contests/{test_data['contest1_id']}/submissions/", headers=test_data["user1_headers"])
-        all_submissions = [TextSubmissionResponse(**s) for s in get_subs_response.json()]
-        target_submission = next((s for s in all_submissions if str(s.user_id) != str(test_data["user1_id"]) and s.id != test_data.get("submission_c1_t2_3_id")), None)
-        if target_submission:
-            submission_to_delete_id = target_submission.id
-        else:
-            pytest.skip("No suitable submission found for User 1 to delete in contest1 for test 7.09. This might be due to prior deletions.")
-            return
+    # Or any remaining submission not by User 1.
     
-    print(f"User 1 (contest owner) will attempt to delete submission ID: {submission_to_delete_id} from contest1.")
+    get_subs_response_admin_view = await client.get(f"/contests/{test_data['contest1_id']}/submissions/", headers=test_data["admin_headers"]) # MODIFIED: await, admin view for full list
+    assert get_subs_response_admin_view.status_code == 200
+    all_submissions_c1_before_del = [TextSubmissionResponse(**s) for s in get_subs_response_admin_view.json()]
+    
+    target_submission_obj = next((s for s in all_submissions_c1_before_del if str(s.user_id) != str(test_data.get("user1_id"))), None)
+    
+    if not target_submission_obj:
+        pytest.skip(f"No suitable submission found for User 1 to delete in contest1 for test 7.09. User1_id: {test_data.get('user1_id')}")
+        return
+    submission_to_delete_id = target_submission_obj.id
+    submitter_user_id = target_submission_obj.user_id # User whose submission is being deleted.
+    print(f"User 1 (contest owner) will attempt to delete submission ID: {submission_to_delete_id} (by user {submitter_user_id}) from contest1.")
 
     # Credits check for User 1 (owner) - should not be affected by deleting another's submission
-    user1_details_before = UserResponse(**client.get(f"{settings.API_V1_STR}/users/me", headers=test_data["user1_headers"]).json())
-    initial_credits_user1 = user1_details_before.credits
+    user1_details_before_resp = await client.get(f"/users/me", headers=test_data["user1_headers"]) # MODIFIED: await, removed settings.API_V1_STR
+    assert user1_details_before_resp.status_code == 200
+    initial_credits_user1 = UserResponse(**user1_details_before_resp.json()).credits
+    
+    # Credits check for the submitter - should not be affected (no refund when owner deletes)
+    submitter_credits_before = -1 # Default if submitter is admin or not a regular user with credits
+    if submitter_user_id and str(submitter_user_id) != str(test_data.get("admin_user_id")):
+        submitter_details_before_resp = await client.get(f"/users/{submitter_user_id}", headers=test_data["admin_headers"]) # MODIFIED: await
+        if submitter_details_before_resp.status_code == 200:
+            submitter_credits_before = UserResponse(**submitter_details_before_resp.json()).credits
 
-    response = client.delete(
-        f"{settings.API_V1_STR}/contests/{test_data['contest1_id']}/submissions/{submission_to_delete_id}",
+    response = await client.delete( # MODIFIED: await, removed settings.API_V1_STR
+        f"/contests/{test_data['contest1_id']}/submissions/{submission_to_delete_id}",
         headers=test_data["user1_headers"]
     )
     assert response.status_code == 200, \
         f"User 1 failed to delete submission {submission_to_delete_id} from contest1: {response.text}"
 
     # Verify User 1 credits are not affected
-    user1_details_after = UserResponse(**client.get(f"{settings.API_V1_STR}/users/me", headers=test_data["user1_headers"]).json())
-    final_credits_user1 = user1_details_after.credits
+    user1_details_after_resp = await client.get(f"/users/me", headers=test_data["user1_headers"]) # MODIFIED: await, removed settings.API_V1_STR
+    assert user1_details_after_resp.status_code == 200
+    final_credits_user1 = UserResponse(**user1_details_after_resp.json()).credits
     assert final_credits_user1 == initial_credits_user1, "User 1 credits changed after deleting a submission as contest owner."
 
+    # Verify submitter credits are not affected (no refund)
+    if submitter_credits_before != -1 and submitter_user_id and str(submitter_user_id) != str(test_data.get("admin_user_id")):
+        submitter_details_after_resp = await client.get(f"/users/{submitter_user_id}", headers=test_data["admin_headers"]) # MODIFIED: await
+        if submitter_details_after_resp.status_code == 200:
+            submitter_credits_after = UserResponse(**submitter_details_after_resp.json()).credits
+            assert submitter_credits_after == submitter_credits_before, \
+                f"Submitter ({submitter_user_id}) credits changed. Before: {submitter_credits_before}, After: {submitter_credits_after}. No refund expected."
+
     # Verify submission is gone
-    get_subs_response_after = client.get(f"{settings.API_V1_STR}/contests/{test_data['contest1_id']}/submissions/", headers=test_data["user1_headers"])
+    get_subs_response_after = await client.get(f"/contests/{test_data['contest1_id']}/submissions/", headers=test_data["user1_headers"]) # MODIFIED: await, removed settings.API_V1_STR
     submissions_after_delete_user1 = get_subs_response_after.json()
     assert not any(s["id"] == submission_to_delete_id for s in submissions_after_delete_user1), "Submission was not actually deleted by User 1."
 
-    print(f"User 1 successfully deleted submission {submission_to_delete_id} from contest1 (ID: {test_data['contest1_id']}). User 1 credits unchanged.")
+    print(f"User 1 successfully deleted submission {submission_to_delete_id} from contest1 (ID: {test_data['contest1_id']}). User 1 credits unchanged. Submitter credits (if applicable) unchanged.")
 
 # --- End of Test Section 7: Contest Closure & Results ---

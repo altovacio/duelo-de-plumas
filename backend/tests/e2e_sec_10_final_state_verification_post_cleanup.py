@@ -1,10 +1,9 @@
 # backend/tests/e2e_sec_10_final_state_verification_post_cleanup.py
 import pytest
-from fastapi.testclient import TestClient
+from httpx import AsyncClient # MODIFIED: For async client
 from typing import List # Keep if listing endpoints are used for verification
 import logging
 
-from app.core.config import settings
 from app.schemas.credit import CreditUsageSummary # MODIFIED: Was AIServiceCostSummaryResponse
 from tests.shared_test_state import test_data
 
@@ -13,7 +12,7 @@ from tests.shared_test_state import test_data
 # --- Start of Test Section 10: Final State Verification & Cost Monitoring (Post-Cleanup) ---
 
 @pytest.mark.run(after='test_09_11_admin_deletes_user2') # After section 9
-def test_10_01_verify_all_test_entities_are_deleted(client: TestClient):
+async def test_10_01_verify_all_test_entities_are_deleted(client: AsyncClient): # MODIFIED: async def, AsyncClient
     """Verify all users, contests, AI agents, submissions, votes created in the test are deleted."""
     assert "admin_headers" in test_data, "Admin token not found for verification. Some entities might require auth to check."
     # Note: Admin user itself might be deleted if part of cleanup. 
@@ -45,7 +44,7 @@ def test_10_01_verify_all_test_entities_are_deleted(client: TestClient):
 
     # Example: Check if any contests remain (should be 0 if all were test-created and deleted)
     # This requires admin privileges for listing all contests if such an endpoint exists.
-    # response_contests = client.get(f"{settings.API_V1_STR}/admin/contests/all", headers=test_data["admin_headers"]) # Fictional endpoint
+    # response_contests = await client.get("/admin/contests/all", headers=test_data["admin_headers"]) # Fictional endpoint, MODIFIED: await
     # if response_contests.status_code == 200:
     #    assert len(response_contests.json()) == 0, "Some contests still exist after cleanup."
 
@@ -54,13 +53,13 @@ def test_10_01_verify_all_test_entities_are_deleted(client: TestClient):
     print("Section 10.01: Conceptual verification that all test entities should be deleted based on Section 9 actions.")
 
 @pytest.mark.run(after='test_10_01_verify_all_test_entities_are_deleted')
-def test_10_02_admin_checks_ai_costs_summary_post_cleanup(client: TestClient):
+async def test_10_02_admin_checks_ai_costs_summary_post_cleanup(client: AsyncClient): # MODIFIED: async def, AsyncClient
     """Admin checks AI costs summary again, it should be unaffected by deletions of users/contests/agents etc."""
     assert "admin_headers" in test_data, "Admin token not found."
     # Assumes admin_user was not deleted, or a new admin session is used.
 
     # Fetch current AI costs summary
-    response = client.get(f"{settings.API_V1_STR}/admin/ai-costs-summary", headers=test_data["admin_headers"])
+    response = await client.get("/admin/ai-costs-summary", headers=test_data["admin_headers"]) # MODIFIED: await, removed settings.API_V1_STR
     assert response.status_code == 200, f"Admin failed to get AI costs summary post-cleanup: {response.text}"
     
     costs_summary_after = CreditUsageSummary(**response.json()) # MODIFIED
@@ -72,8 +71,9 @@ def test_10_02_admin_checks_ai_costs_summary_post_cleanup(client: TestClient):
     # The critical check is that costs are not *negatively* affected (e.g. refunded) by deletions.
     # If cost records are persistent and tied to historical usage, the total should not decrease due to cleanup.
     # If specific costs were tracked from Section 8 (e.g. test_data['initial_ai_total_cost']):
-    #   assert costs_summary_after.total_credits_used >= test_data['initial_ai_total_cost'], \ # MODIFIED
-    #       "AI total cost should not decrease after cleanup."
+    #   stored_pre_cleanup_cost = test_data.get('ai_total_cost_pre_cleanup', 0) # Fetch stored value or default
+    #   assert costs_summary_after.total_credits_used >= stored_pre_cleanup_cost, \
+    #       f"AI total cost should not decrease after cleanup. Post-cleanup: {costs_summary_after.total_credits_used}, Pre-cleanup: {stored_pre_cleanup_cost}" # MODIFIED
 
     print(f"AI costs summary post-cleanup total: {costs_summary_after.total_credits_used}. This should ideally match or be greater than pre-cleanup if costs are only additive.") # MODIFIED
 

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from jose import JWTError, jwt
@@ -55,11 +55,52 @@ async def get_current_user(
         
     return user
 
-# Removed get_current_active_user placeholder
-# async def get_current_active_user(current_user: UserResponse = Depends(get_current_user)):
-#     # TODO: Implement a proper is_active check if User model gets an is_active field.
-#     # For now, any user returned by get_current_user is considered active.
-#     return current_user
+# New dependency to get user OR None if not authenticated
+async def get_optional_current_user(
+    request: Request, # Depend on the Request
+    db: AsyncSession = Depends(get_db)
+) -> Optional[UserResponse]: # Correct DB Model type hint
+    token = request.headers.get("Authorization")
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    if token is None or not token.startswith("Bearer "):
+        return None # No token header or wrong scheme
+
+    try:
+        token_value = token.split("Bearer ")[1]
+        payload = jwt.decode(
+            token_value,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM]
+        )
+        username: Optional[str] = payload.get("sub")
+        user_id: Optional[int] = payload.get("id") # Added Optional just in case
+
+        if username is None or user_id is None:
+            # Invalid payload
+            return None 
+
+        token_data = TokenData(username=username, user_id=user_id)
+    except JWTError:
+        # Invalid token (e.g., expired, bad signature)
+        return None
+    except IndexError:
+        # Malformed Bearer token
+        return None
+    
+    # If token is valid, try to fetch user
+    user_repo = UserRepository(db)
+    user = await user_repo.get_by_username(token_data.username)
+
+    if user is None:
+        # User ID from token not found in DB
+        return None
+
+    return user # Valid user found
 
 # Dependency for admin users - now depends directly on get_current_user
 async def get_current_admin_user(current_user: UserResponse = Depends(get_current_user)):

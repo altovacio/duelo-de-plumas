@@ -26,7 +26,8 @@ async def test_03_01_user1_creates_public_contest1_and_assigns_judge(client: Asy
         json=contest_in.model_dump(),
         headers=test_data["user1_headers"]
     )
-    assert response.status_code == 200, f"User 1 creating contest1 failed: {response.text}"
+    assert response.status_code == 201, f"User 1 creating contest1 failed: {response.text}"
+    assert "id" in response.json(), "Contest ID not in response after creation."
     contest1_data = ContestResponse(**response.json())
     assert contest1_data.title == contest_in.title
     assert not contest1_data.is_private
@@ -66,7 +67,7 @@ async def test_03_02_admin_creates_private_contest2_and_assigns_judges(client: A
         json=contest_in.model_dump(exclude_none=True),
         headers=test_data["admin_headers"]
     )
-    assert response.status_code == 200, f"Admin creating contest2 failed: {response.text}"
+    assert response.status_code == 201, f"Admin creating contest2 failed: {response.text}"
     contest2_data = ContestResponse(**response.json())
     assert contest2_data.title == contest_in.title
     assert contest2_data.is_private
@@ -85,10 +86,17 @@ async def test_03_02_admin_creates_private_contest2_and_assigns_judges(client: A
             json=judge_payload,
             headers=test_data["admin_headers"]
         )
-        assert assign_judge_response.status_code in [200, 201], \
-            f"Admin assigning judge {judge_payload} to contest2 failed: {assign_judge_response.text}"
         judge_id_key = "user_id" if "user_id" in judge_payload else "agent_id"
-        print(f"Admin assigned judge (ID: {judge_payload[judge_id_key]}) to contest2 successfully.")
+        judge_id_value = judge_payload[judge_id_key]
+
+        if judge_id_key == "agent_id" and judge_id_value == test_data["judge1_id"]:
+            assert assign_judge_response.status_code == 403, \
+                f"Admin assigning user1's private judge1 (ID: {judge_id_value}) should fail (403), but got {assign_judge_response.status_code}: {assign_judge_response.text}"
+            print(f"Admin failed to assign user1's private judge1 (ID: {judge_id_value}) to contest2 as expected (403).")
+        else:
+            assert assign_judge_response.status_code in [200, 201], \
+                f"Admin assigning judge {judge_payload} to contest2 failed: {assign_judge_response.text}"
+            print(f"Admin assigned judge (ID: {judge_id_value}) to contest2 successfully.")
 
 @pytest.mark.run(after='test_03_02_admin_creates_private_contest2_and_assigns_judges')
 async def test_03_03_user2_creates_contest3(client: AsyncClient): # Changed
@@ -104,7 +112,7 @@ async def test_03_03_user2_creates_contest3(client: AsyncClient): # Changed
         json=contest_in.model_dump(),
         headers=test_data["user2_headers"]
     )
-    assert response.status_code == 200, f"User 2 creating contest3 failed: {response.text}"
+    assert response.status_code == 201, f"User 2 creating contest3 failed: {response.text}"
     contest3_data = ContestResponse(**response.json())
     assert contest3_data.title == contest_in.title
     assert contest3_data.creator_id == test_data["user2_id"]
@@ -140,7 +148,7 @@ async def test_03_05_user1_edits_contest1_succeeds(client: AsyncClient): # Chang
     assert response.status_code == 200, f"User 1 editing contest1 failed: {response.text}"
     updated_contest = ContestResponse(**response.json())
     assert updated_contest.description == new_description
-    print(f"User 1 successfully edited contest1 description. New status: {updated_contest.status}.")
+    print(f"User 1 successfully edited contest1 description. New state: {updated_contest.state}.")
 
 @pytest.mark.run(after='test_03_05_user1_edits_contest1_succeeds')
 async def test_03_06_admin_edits_contest3_succeeds(client: AsyncClient): # Changed
@@ -157,7 +165,7 @@ async def test_03_06_admin_edits_contest3_succeeds(client: AsyncClient): # Chang
     assert response.status_code == 200, f"Admin editing contest3 failed: {response.text}"
     updated_contest = ContestResponse(**response.json())
     assert updated_contest.description == new_description_admin
-    print(f"Admin successfully edited contest3 description. New status: {updated_contest.status}.")
+    print(f"Admin successfully edited contest3 description. New state: {updated_contest.state}.")
 
 @pytest.mark.run(after='test_03_06_admin_edits_contest3_succeeds')
 async def test_03_07_user2_assign_judge1_to_contest3_fails(client: AsyncClient): # Changed
@@ -252,34 +260,35 @@ async def test_03_11_user2_assigns_self_as_judge_to_contest3_succeeds(client: As
 
 @pytest.mark.run(after='test_03_11_user2_assigns_self_as_judge_to_contest3_succeeds')
 async def test_03_12_visitor_lists_contests(client: AsyncClient): # Changed
-    """Visitor lists contests -> Should see only public, non-password-protected contests."""
+    """Visitor lists contests -> Should see ALL contests listed."""
     response = await client.get("/contests/") # Changed
+    # Expect 200 OK now
     assert response.status_code == 200, f"Visitor listing contests failed: {response.text}"
     contests = [ContestResponse(**c) for c in response.json()]
     
-    # contest1 should be visible, contest3 should be visible. contest2 (private) should not.
+    # Visitor should see ALL contests (public and private) in the list
     contest_ids_visible = {c.id for c in contests}
     assert test_data["contest1_id"] in contest_ids_visible, "Contest 1 not visible to visitor."
+    assert test_data["contest2_id"] in contest_ids_visible, "Contest 2 (private) not visible to visitor in list."
     assert test_data["contest3_id"] in contest_ids_visible, "Contest 3 not visible to visitor."
-    assert test_data["contest2_id"] not in contest_ids_visible, "Contest 2 (private) should not be visible to visitor."
-    print("Visitor listed contests successfully, saw only public ones.")
+    print("Visitor listed contests successfully, saw all contests (public and private). ")
 
 @pytest.mark.run(after='test_03_12_visitor_lists_contests')
 async def test_03_13_user1_lists_contests(client: AsyncClient): # Changed
-    """User 1 lists contests -> Should see all public, and own private contests."""
+    """User 1 lists contests -> Should see ALL contests listed."""
     assert "user1_headers" in test_data, "User 1 token not found."
     response = await client.get("/contests/", headers=test_data["user1_headers"]) # Changed
     assert response.status_code == 200, f"User 1 listing contests failed: {response.text}"
     contests = [ContestResponse(**c) for c in response.json()]
 
     contest_ids_visible = {c.id for c in contests}
-    # User 1 created contest1 (public). Admin created contest2 (private). User 2 created contest3 (public).
-    # User 1 should see contest1 and contest3. contest2 is private and not owned by user1.
-    assert test_data["contest1_id"] in contest_ids_visible, "Contest 1 (own, public) not visible to User 1."
-    assert test_data["contest3_id"] in contest_ids_visible, "Contest 3 (other, public) not visible to User 1."
-    assert test_data["contest2_id"] not in contest_ids_visible, "Contest 2 (other, private) should not be visible to User 1."
-    print("User 1 listed contests successfully, saw public and own private (if any).")
-
+    # User 1 should also see ALL contests (public and private) in the list view.
+    # Access control for private details is handled elsewhere (GET /{id}).
+    assert test_data["contest1_id"] in contest_ids_visible, "Contest 1 not visible to User 1."
+    assert test_data["contest2_id"] in contest_ids_visible, "Contest 2 (private) not visible to User 1 in list."
+    assert test_data["contest3_id"] in contest_ids_visible, "Contest 3 not visible to User 1."
+    # assert test_data["contest2_id"] not in contest_ids_visible, "Contest 2 (other, private) should not be visible to User 1."
+    print("User 1 listed contests successfully, saw all contests (public and private).")
 
 @pytest.mark.run(after='test_03_13_user1_lists_contests')
 async def test_03_14_visitor_view_contest2_details_wrong_password_fails(client: AsyncClient): # Changed

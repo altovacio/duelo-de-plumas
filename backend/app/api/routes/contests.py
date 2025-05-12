@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
-from app.api.routes.auth import get_current_user
+from app.api.routes.auth import get_current_user, get_optional_current_user
 from app.schemas.contest import (
     ContestCreate, ContestResponse, ContestUpdate, ContestDetailResponse,
     TextSubmission, TextSubmissionResponse, JudgeAssignment, JudgeAssignmentResponse
@@ -31,19 +31,21 @@ async def get_contests(
     skip: int = 0,
     limit: int = 100,
     state: Optional[str] = None,
-    is_private: Optional[bool] = None,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[UserModel] = Depends(get_current_user)
+    current_user: Optional[UserModel] = Depends(get_optional_current_user)
 ):
     """
-    Get list of contests with optional filtering
+    Get list of contests with optional filtering.
+    All users (authenticated or visitor) see all contests listed.
+    Access to details of private contests is handled by the GET /{contest_id} endpoint.
     """
+    user_id = current_user.id if current_user else None
     return await ContestService.get_contests(
         db=db,
         skip=skip,
         limit=limit,
         state=state,
-        is_private=is_private
+        current_user_id=user_id
     )
 
 
@@ -52,7 +54,7 @@ async def get_contest(
     contest_id: int,
     password: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[UserModel] = Depends(get_current_user)
+    current_user: Optional[UserModel] = Depends(get_optional_current_user)
 ):
     """
     Get contest details including participant and text counts
@@ -211,21 +213,25 @@ async def assign_judge_to_contest(
     current_user: UserModel = Depends(get_current_user)
 ):
     """
-    Assign a judge to a contest
+    Assign a judge (user or AI agent) to a contest.
     
-    Only the contest creator or admin can assign judges
+    Only the contest creator or admin can assign judges.
     """
-    contest_judge = await ContestService.assign_judge_to_contest(
+    contest_judge_entry = await ContestService.assign_judge_to_contest(
         db=db,
         contest_id=contest_id,
         assignment=assignment,
         current_user_id=current_user.id
     )
     
+    # The ContestJudge object is returned by the service
     return JudgeAssignmentResponse(
-        contest_id=contest_judge.contest_id,
-        judge_id=contest_judge.judge_id,
-        assignment_date=contest_judge.assignment_date
+        assignment_id=contest_judge_entry.id,
+        contest_id=contest_judge_entry.contest_id,
+        user_id=contest_judge_entry.user_judge_id,
+        agent_id=contest_judge_entry.agent_judge_id,
+        assignment_date=contest_judge_entry.assignment_date,
+        has_voted=contest_judge_entry.has_voted
     )
 
 

@@ -10,6 +10,7 @@ from app.schemas.contest import (
 from app.db.repositories.contest_repository import ContestRepository
 from app.db.repositories.text_repository import TextRepository
 from app.db.repositories.user_repository import UserRepository
+from app.db.repositories.agent_repository import AgentRepository
 from app.db.models.contest import Contest
 from app.db.models.contest_text import ContestText
 from app.db.models.contest_judge import ContestJudge
@@ -33,16 +34,14 @@ class ContestService:
         skip: int = 0, 
         limit: int = 100,
         state: Optional[str] = None,
-        is_private: Optional[bool] = None,
-        creator_id: Optional[int] = None
+        current_user_id: Optional[int] = None
     ) -> List[Contest]:
         return await ContestRepository.get_contests(
             db=db, 
             skip=skip, 
             limit=limit, 
             state=state,
-            is_private=is_private,
-            creator_id=creator_id
+            current_user_id=current_user_id
         )
     
     @staticmethod
@@ -288,86 +287,97 @@ class ContestService:
     ) -> bool:
         # Get the contest
         contest = await ContestService.get_contest(db=db, contest_id=contest_id)
-        
-        # Get the text
         text_repo = TextRepository(db)
-        text_to_remove = await text_repo.get_text(text_id)
-        if not text_to_remove:
+        text = await text_repo.get_text(text_id)
+        
+        if not text:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Text with id {text_id} not found"
             )
         
-        # Check permissions (text owner, contest creator, or admin)
+        # Check permissions
         user_repo = UserRepository(db)
         is_admin_user = await user_repo.is_admin(current_user_id)
+        is_text_owner = text.owner_id == current_user_id
         is_contest_creator = contest.creator_id == current_user_id
-        is_text_owner = text_to_remove.owner_id == current_user_id
         
-        if not (is_admin_user or is_contest_creator or is_text_owner):
+        if not (is_text_owner or is_contest_creator or is_admin_user):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don't have permission to remove this text"
+                detail="You don't have permission to remove this text from the contest"
             )
             
-        # # Check if contest is not in closed state
-        # if contest.state == "closed" and not is_admin_user:
-        #     raise HTTPException(
-        #         status_code=status.HTTP_400_BAD_REQUEST,
-        #         detail="Cannot remove texts from closed contests"
-        #     )
-            
-        # Remove the text
-        return await ContestRepository.remove_text_from_contest(
-            db=db, 
-            contest_id=contest_id, 
-            text_id=text_id
-        )
+        return await ContestRepository.remove_text_from_contest(db, contest_id, text_id)
     
     # Judge assignment methods
     @staticmethod
     async def assign_judge_to_contest(
         db: AsyncSession, 
         contest_id: int, 
-        assignment: JudgeAssignment, 
+        assignment: JudgeAssignment,
         current_user_id: int
     ) -> ContestJudge:
-        # Get contest
         contest = await ContestService.get_contest(db=db, contest_id=contest_id)
         
-        # Check permissions (contest creator or admin)
         user_repo = UserRepository(db)
         is_admin_user = await user_repo.is_admin(current_user_id)
-        is_creator = contest.creator_id == current_user_id
-        
-        if not (is_admin_user or is_creator):
+        if contest.creator_id != current_user_id and not is_admin_user:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only contest creator and admins can assign judges"
+                detail="You don't have permission to assign judges to this contest"
             )
-            
-        # Check if user exists
-        judge_user = await user_repo.get_by_id(assignment.user_id)
-        if not judge_user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User with id {assignment.user_id} not found"
-            )
-            
-        # Assign the judge
-        contest_judge = await ContestRepository.assign_judge_to_contest(
-            db=db, 
-            contest_id=contest_id, 
-            judge_id=assignment.user_id
-        )
-        
-        if not contest_judge:
+
+        user_judge_id_to_assign: Optional[int] = None
+        agent_judge_id_to_assign: Optional[int] = None
+
+        if assignment.user_id is not None:
+            judge_user = await user_repo.get_by_id(assignment.user_id)
+            if not judge_user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"User with id {assignment.user_id} not found to assign as judge."
+                )
+            user_judge_id_to_assign = judge_user.id
+            # TODO: Consider contest.judge_restrictions for user authors
+
+        elif assignment.agent_id:
+            # Verify agent exists using the static method and correct name
+            agent_to_assign = await AgentRepository.get_agent_by_id(db, assignment.agent_id)
+            if not agent_to_assign:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Agent with id {assignment.agent_id} not found")
+            # Check if the agent is public OR if it belongs to the current_user_id
+            if not agent_to_assign.is_public and agent_to_assign.owner_id != current_user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You can only assign your own private agents or public agents"
+                )
+            agent_judge_id_to_assign = assignment.agent_id # Correct variable assignment
+            # TODO: Consider contest.judge_restrictions for agent owners
+        else:
+            # This should ideally be caught by Pydantic validation in the schema itself
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Judge has already been assigned to this contest"
+                detail="Invalid assignment: Either user_id or agent_id must be provided."
+            )
+
+        # Call updated repository method (to be created/updated in ContestRepository)
+        assigned_judge_entry = await ContestRepository.assign_judge_to_contest(
+            db=db, 
+            contest_id=contest_id, 
+            user_judge_id=user_judge_id_to_assign,
+            agent_judge_id=agent_judge_id_to_assign
+        )
+        
+        if not assigned_judge_entry:
+            judge_type = "User" if user_judge_id_to_assign else "Agent"
+            judge_id_val = user_judge_id_to_assign if user_judge_id_to_assign else agent_judge_id_to_assign
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"{judge_type} with id {judge_id_val} is already assigned as a judge to this contest or another error occurred."
             )
             
-        return contest_judge
+        return assigned_judge_entry
     
     @staticmethod
     async def get_contest_judges(

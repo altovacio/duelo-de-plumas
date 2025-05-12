@@ -168,6 +168,5 @@ duelo-de-plumas/
 │
 ├── .gitignore                  # Git ignore file
 ├── docker-compose.yml          # Docker Compose configuration for both services
-├── README.md                   # Project documentation
-└── .env.example                # Example environment variables
+└── README.md                   # Project documentation
 ``` 

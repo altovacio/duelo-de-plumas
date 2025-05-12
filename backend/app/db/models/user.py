@@ -17,7 +17,19 @@ class User(Base):
     
     texts = relationship("Text", back_populates="owner", cascade="all, delete-orphan")
     contests = relationship("Contest", back_populates="creator", cascade="all, delete-orphan")
-    contest_judges = relationship("ContestJudge", foreign_keys="ContestJudge.judge_id", cascade="all, delete-orphan")
-    votes = relationship("Vote", back_populates="judge", cascade="all, delete-orphan")
+    contest_judges = relationship(
+        "ContestJudge", 
+        foreign_keys="ContestJudge.user_judge_id", 
+        back_populates="user_judge",
+        cascade="all, delete-orphan"
+    )
+    votes = relationship(
+        "Vote",
+        secondary="join(ContestJudge, Vote, ContestJudge.id == Vote.contest_judge_id)",
+        primaryjoin="User.id == ContestJudge.user_judge_id",
+        secondaryjoin="ContestJudge.id == Vote.contest_judge_id",
+        viewonly=True,
+        overlaps="contest_judges"
+    )
     credit_transactions = relationship("CreditTransaction", back_populates="user", cascade="all, delete-orphan")
     agents = relationship("Agent", back_populates="owner", cascade="all, delete-orphan") 

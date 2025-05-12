@@ -22,4 +22,14 @@ class Agent(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
-    owner = relationship("User", back_populates="agents") 
+    owner = relationship("User", back_populates="agents")
+    # Add relationship to ContestJudge for when an agent is a judge
+    contest_judges = relationship(
+        "ContestJudge", 
+        foreign_keys="ContestJudge.agent_judge_id", 
+        back_populates="agent_judge", # Will add agent_judge to ContestJudge model
+        cascade="all, delete-orphan"
+    )
+    executions = relationship("AgentExecution", back_populates="agent", cascade="all, delete-orphan") # Assuming AgentExecution has a back_populates="agent"
+
+# Helper for AgentType if needed, or use string directly 

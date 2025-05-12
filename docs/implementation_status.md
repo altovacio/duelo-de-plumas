@@ -20,6 +20,7 @@ The following is a comparison between the planned structure (from project_struct
 | **Dashboard** | ✅ | Basic dashboard with credit information implemented |
 | **Admin Features** | ✅ | Admin routes for user and credit management implemented |
 | **Tests** | 🚧 | E2E tests: Sections 1 & 2 are now passing after significant async/await and endpoint corrections. Continuing to fix subsequent sections. Database interactions in services/repositories are being progressively converted to async. |
+| **Agent Execution** | ✅ | Tracks AI agent executions |
 
 ### Frontend Implementation
 
@@ -52,7 +53,7 @@ duelo-de-plumas/
 │   │   │   │   ├── users.py                     ✅ (Added GET /users/me, Async)
 │   │   │   │   ├── texts.py                     ✅ (Async)
 │   │   │   │   ├── contests.py                  ✅ (Async)
-│   │   │   │   ├── votes.py                     ✅ (Updated with multi-vote support, Async)
+│   │   │   │   ├── votes.py                     ✅ (Refactored for uniform judge linking via ContestJudge, links to AgentExecution)
 │   │   │   │   ├── agents.py                    ✅ (Router prefix corrected, Async)
 │   │   │   │   ├── admin.py                     ✅ (Async)
 │   │   │   │   └── dashboard.py                 ✅ (Async)
@@ -75,9 +76,9 @@ duelo-de-plumas/
 │   │   │   │   ├── contest.py                   ✅
 │   │   │   │   ├── contest_text.py              ✅
 │   │   │   │   ├── contest_judge.py             ✅
-│   │   │   │   ├── vote.py                      ✅ (Updated with multi-vote capabilities)
+│   │   │   │   ├── vote.py                      ✅ (Refactored for uniform judge linking via ContestJudge, links to AgentExecution)
 │   │   │   │   ├── agent.py                     ✅
-│   │   │   │   ├── agent_execution.py           ✅
+│   │   │   │   ├── agent_execution.py           ✅ (Added relationship back to Vote)
 │   │   │   │   └── credit_transaction.py        ✅
 │   │   │   │
 │   │   │   └── repositories/
@@ -119,7 +120,7 @@ duelo-de-plumas/
 │   │       └── validation_utils.py              ✅
 │   │
 │   ├── migrations/                              ✅
-│   │   ├── versions/                            ✅ (Initial migration generated)
+│   │   ├── versions/                            ✅ (Empty, will regenerate)
 │   │   ├── env.py                               ✅
 │   │   └── alembic.ini                          ✅
 │   │

@@ -1,6 +1,6 @@
 from typing import Optional, List
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 
 class ContestBase(BaseModel):
@@ -66,13 +66,24 @@ class TextSubmissionResponse(BaseModel):
 
 # For assigning judges to contests
 class JudgeAssignment(BaseModel):
-    user_id: int
+    user_id: Optional[int] = None
+    agent_id: Optional[int] = None
+
+    @model_validator(mode='after')
+    def check_exactly_one_id_provided(cls, data):
+        if (data.user_id is not None and data.agent_id is not None) or \
+           (data.user_id is None and data.agent_id is None):
+            raise ValueError('Exactly one of user_id or agent_id must be provided.')
+        return data
 
 
 class JudgeAssignmentResponse(BaseModel):
+    assignment_id: int
     contest_id: int
-    judge_id: int
+    user_id: Optional[int] = None
+    agent_id: Optional[int] = None
     assignment_date: datetime
+    has_voted: Optional[bool] = None
     
     class Config:
         orm_mode = True

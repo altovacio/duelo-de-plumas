@@ -17,7 +17,6 @@ from app.services.ai_provider_service import (
     AIProviderInterface
 )
 from app.core.config import settings
-from app.utils.logging_utils import logger
 from app.utils.judge_prompts import JUDGE_BASE_PROMPT
 from app.utils.writer_prompts import WRITER_BASE_PROMPT
 

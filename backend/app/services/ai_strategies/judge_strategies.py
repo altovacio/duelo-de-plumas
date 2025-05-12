@@ -1,9 +1,13 @@
 import re
 from typing import List, Dict, Tuple, Optional, Any
+import logging # Added standard logging
+
 from app.services.ai_strategies.base_strategy import JudgeStrategyInterface
 from app.services.ai_provider_service import AIProviderInterface
 from app.utils.judge_prompts import JUDGE_BASE_PROMPT # Import base prompt
-from app.utils.logging_utils import logger
+# from app.utils.logging_utils import logger # Removed this import
+
+logger = logging.getLogger(__name__) # Initialized standard logger
 
 class SimpleChatCompletionJudgeStrategy(JudgeStrategyInterface):
     DEFAULT_TEMPERATURE = 0.3

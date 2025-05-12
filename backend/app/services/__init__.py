@@ -8,13 +8,15 @@ from app.services.ai_service import AIService
 from app.services.credit_service import CreditService
 
 # auth_service = AuthService() # Commented out
-user_service = UserService()
-text_service = TextService()
-contest_service = ContestService()
-vote_service = VoteService()
-agent_service = AgentService()
-ai_service = AIService()
-credit_service = CreditService()
+# user_service = UserService() # No longer instantiating here
+# text_service = TextService()
+# contest_service = ContestService()
+# vote_service = VoteService()
+# agent_service = AgentService()
+# ai_service = AIService()
+# credit_service = CreditService()
+
+# __all__ = [] # No longer exporting instances, classes will be imported directly
 
 __all__ = [
     "user_service",

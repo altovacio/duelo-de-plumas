@@ -3,8 +3,9 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.core.security import get_current_active_user
-from app.schemas.user import User
+from app.api.routes.auth import get_current_user
+from app.db.models.user import User as UserModel
+from app.schemas.user import UserResponse
 from app.schemas.agent import (
     AgentCreate,
     AgentUpdate,
@@ -22,7 +23,7 @@ router = APIRouter(prefix="/agents", tags=["agents"])
 async def create_agent(
     agent_data: AgentCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: UserModel = Depends(get_current_user)
 ):
     """
     Create a new AI agent.
@@ -38,7 +39,7 @@ async def get_agents(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: UserModel = Depends(get_current_user)
 ):
     """
     Get a list of AI agents.
@@ -55,7 +56,7 @@ async def get_agents(
 async def get_agent(
     agent_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: UserModel = Depends(get_current_user)
 ):
     """
     Get details of a specific AI agent.
@@ -69,7 +70,7 @@ async def update_agent(
     agent_id: int,
     agent_data: AgentUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: UserModel = Depends(get_current_user)
 ):
     """
     Update an AI agent.
@@ -83,7 +84,7 @@ async def update_agent(
 async def delete_agent(
     agent_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: UserModel = Depends(get_current_user)
 ):
     """
     Delete an AI agent.
@@ -96,7 +97,7 @@ async def delete_agent(
 async def clone_agent(
     agent_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: UserModel = Depends(get_current_user)
 ):
     """
     Clone a public agent to the user's account.
@@ -109,7 +110,7 @@ async def clone_agent(
 async def execute_judge_agent(
     request: AgentExecuteJudge,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: UserModel = Depends(get_current_user)
 ):
     """
     Execute a judge agent on a contest.
@@ -124,7 +125,7 @@ async def execute_judge_agent(
 async def execute_writer_agent(
     request: AgentExecuteWriter,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: UserModel = Depends(get_current_user)
 ):
     """
     Execute a writer agent to generate a text.
@@ -139,7 +140,7 @@ async def get_agent_executions(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: UserModel = Depends(get_current_user)
 ):
     """
     Get a list of agent executions performed by the current user.

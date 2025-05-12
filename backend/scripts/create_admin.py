@@ -15,36 +15,36 @@ from dotenv import load_dotenv
 # Load .env file
 load_dotenv()
 
-async def create_admin_user(username: str, email: str, password: str):
-    """Create an admin user."""
-    async with AsyncSessionLocal() as db:
-        # Check if user exists
-        from app.services.auth_service import get_user_by_username, get_user_by_email
+async def create_admin_user(db: AsyncSession, username: str, email: str, password: str):
+    """Create an admin user using the provided session."""
+    # Check if user exists
+    from app.services.auth_service import get_user_by_username, get_user_by_email
+    
+    existing_user = await get_user_by_username(db, username)
+    if existing_user:
+        print(f"User with username '{username}' already exists.")
+        return
         
-        existing_user = await get_user_by_username(db, username)
-        if existing_user:
-            print(f"User with username '{username}' already exists.")
-            return
-            
-        existing_user = await get_user_by_email(db, email)
-        if existing_user:
-            print(f"User with email '{email}' already exists.")
-            return
-        
-        # Create admin user
-        hashed_password = get_password_hash(password)
-        admin_user = User(
-            username=username,
-            email=email,
-            hashed_password=hashed_password,
-            is_admin=True,
-            credits=1000  # Give admin some initial credits
-        )
-        
-        db.add(admin_user)
-        await db.commit()
-        
-        print(f"Admin user '{username}' created successfully!")
+    existing_user = await get_user_by_email(db, email)
+    if existing_user:
+        print(f"User with email '{email}' already exists.")
+        return
+    
+    # Create admin user
+    hashed_password = get_password_hash(password)
+    admin_user = User(
+        username=username,
+        email=email,
+        hashed_password=hashed_password,
+        is_admin=True,
+        credits=1000  # Give admin some initial credits
+    )
+    
+    db.add(admin_user)
+    await db.commit()
+    # await db.refresh(admin_user) # Optional: if you need the ID or defaults back immediately
+    
+    print(f"Admin user '{username}' created successfully!")
 
 if __name__ == "__main__":
     # Try to get credentials from .env file if not provided as arguments
@@ -68,5 +68,11 @@ if __name__ == "__main__":
         email = sys.argv[2]
         password = sys.argv[3]
     
+    # For CLI execution, we still need to create a session
+    from app.db.database import AsyncSessionLocal # Keep import here for __main__
+    async def main_create_admin():
+        async with AsyncSessionLocal() as session:
+            await create_admin_user(session, username, email, password)
+            
     print(f"Creating admin user: {username} ({email})")
-    asyncio.run(create_admin_user(username, email, password)) 
+    asyncio.run(main_create_admin()) 

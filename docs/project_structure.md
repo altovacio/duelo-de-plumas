@@ -105,6 +105,10 @@ duelo-de-plumas/
 │   │   ├── shared_test_state.py # Shared state for E2E tests (e.g., test_data dict)
 │   │   ├── e2e_test_plan_config.py # Stores the main E2E test plan string
 │   │   │
+│   │   ├── debug_tests/        # Simplified tests for debugging (NEW)
+│   │   │   ├── __init__.py     # Makes 'debug_tests' a Python package (NEW)
+│   │   │   └── test_simple_auth.py # Basic auth tests (NEW)
+│   │   │
 │   │   ├── e2e_sec_01_setup_user_registration.py
 │   │   ├── e2e_sec_02_ai_agent_creation.py
 │   │   ├── e2e_sec_03_contest_creation_management.py

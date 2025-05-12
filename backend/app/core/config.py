@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     
     # Database
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./duelo_de_plumas.db")
+    DATABASE_URL_TEST: str | None = os.getenv("DATABASE_URL_TEST") # For test environment
     
     # Security
     SECRET_KEY: str = os.getenv("SECRET_KEY", "insecure_key_for_dev")
@@ -26,5 +27,12 @@ class Settings(BaseSettings):
     # App settings
     DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8000"] # Pydantic will parse from JSON env var if present
+
+    # Superuser Credentials (for initial setup/tests)
+    # These should align with the credentials used by scripts/create_admin.py
+    # and be present in the .env file for the testing environment.
+    FIRST_SUPERUSER_USERNAME: str = os.getenv("ADMIN_USERNAME", "admin")
+    FIRST_SUPERUSER_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "supersecretpassword") # Ensure .env provides this
+    FIRST_SUPERUSER_EMAIL: str = os.getenv("ADMIN_EMAIL", "admin@example.com")
 
 settings = Settings() 

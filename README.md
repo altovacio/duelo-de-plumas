@@ -53,7 +53,7 @@ These instructions assume you are in the **project root directory**.
 
 3.  **Run Tests:**
     ```bash
-    docker-compose exec backend pytest
+    docker-compose exec backend pytest tests -x -v
     ```
 
 4.  **Stop Services:**

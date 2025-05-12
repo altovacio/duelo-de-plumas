@@ -19,7 +19,7 @@ The following is a comparison between the planned structure (from project_struct
 | **Credit System** | ✅ | Credit transaction tracking, admin management implemented |
 | **Dashboard** | ✅ | Basic dashboard with credit information implemented |
 | **Admin Features** | ✅ | Admin routes for user and credit management implemented |
-| **Tests** | 🚧 | E2E tests structure in place, fixing import/runtime issues. |
+| **Tests** | 🚧 | E2E tests: All test files have had import errors resolved. The `ModuleNotFoundError` in `conftest.py` should now be resolved due to successful backend startup with new migrations. Tests need to be re-run to confirm. |
 
 ### Frontend Implementation
 
@@ -119,7 +119,7 @@ duelo-de-plumas/
 │   │       └── validation_utils.py              ✅
 │   │
 │   ├── migrations/                              ✅
-│   │   ├── versions/                            ✅ (empty)
+│   │   ├── versions/                            ✅ (Initial migration generated)
 │   │   ├── env.py                               ✅
 │   │   └── alembic.ini                          ✅
 │   │
@@ -131,6 +131,11 @@ duelo-de-plumas/
 │   │   ├── conftest.py                          ✅ (Updated imports)
 │   │   ├── shared_test_state.py                 ✅
 │   │   ├── e2e_test_plan_config.py              ✅
+│   │   │
+│   │   ├── debug_tests/                         ✅ (NEW - for simplified debugging tests)
+│   │   │   ├── __init__.py                      ✅ (NEW)
+│   │   │   └── test_simple_auth.py              ✅ (NEW)
+│   │   │
 │   │   ├── e2e_sec_01_setup_user_registration.py ✅ (Updated imports)
 │   │   ├── e2e_sec_02_ai_agent_creation.py      ✅ (Updated imports)
 │   │   ├── e2e_sec_03_contest_creation_management.py ✅ (Updated imports)
@@ -155,9 +160,12 @@ duelo-de-plumas/
 ## E2E Tests
 - Monolithic E2E test file (`backend/tests/end_to_end_test.py`) has been refactored.
 - E2E tests are now split into multiple files per section (e.g., `backend/tests/e2e_sec_01_setup_user_registration.py`, etc.) for better organization.
+- NEW: A `debug_tests` directory (`backend/tests/debug_tests`) has been added for simpler, isolated test cases to help in debugging core functionalities.
 - Shared state is managed in `backend/tests/shared_test_state.py`.
 - Common fixtures and helpers are in `backend/tests/conftest.py`.
 - The main test plan docstring is now in `backend/tests/e2e_test_plan_config.py`.
+- All import errors within individual test files (`e2e_sec_*.py`) have been resolved.
+- Current failure point: `ModuleNotFoundError: No module named 'app.main'` originating from `backend/tests/conftest.py` when pytest attempts to collect tests.
 
 | Section | Description | Status |
 |---|---|---|

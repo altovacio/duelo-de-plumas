@@ -34,7 +34,7 @@ The recommended way to develop, run, and test the backend is using Docker Compos
 4.  **Running Tests:**
     *   With the services running, execute tests inside the `backend` container:
         ```bash
-        docker-compose exec backend pytest
+        docker-compose exec backend pytest tests -x -v
         ```
     *   Test results will be displayed in your terminal.
 

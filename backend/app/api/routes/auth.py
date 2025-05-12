@@ -53,6 +53,21 @@ async def get_current_user(
         
     return user
 
+# Removed get_current_active_user placeholder
+# async def get_current_active_user(current_user: UserResponse = Depends(get_current_user)):
+#     # TODO: Implement a proper is_active check if User model gets an is_active field.
+#     # For now, any user returned by get_current_user is considered active.
+#     return current_user
+
+# Dependency for admin users - now depends directly on get_current_user
+async def get_current_admin_user(current_user: UserResponse = Depends(get_current_user)):
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="The user doesn't have enough privileges"
+        )
+    return current_user
+
 @router.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def signup(user: UserCreate, db: AsyncSession = Depends(get_db)):
     """

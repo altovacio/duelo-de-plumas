@@ -3,13 +3,14 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.core.security import get_current_user
+from app.api.routes.auth import get_current_user
 from app.schemas.contest import (
     ContestCreate, ContestResponse, ContestUpdate, ContestDetailResponse,
     TextSubmission, TextSubmissionResponse, JudgeAssignment, JudgeAssignmentResponse
 )
 from app.schemas.user import UserResponse
 from app.services.contest_service import ContestService
+from app.db.models.user import User
 
 router = APIRouter()
 

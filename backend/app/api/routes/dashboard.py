@@ -3,8 +3,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.core.security import get_current_active_user
-from app.schemas.user import User
+from app.api.routes.auth import get_current_user
+from app.db.models.user import User as UserModel
+from app.schemas.user import UserResponse
 from app.schemas.credit import CreditTransactionResponse
 from app.schemas.contest import ContestResponse
 from app.services.contest_service import ContestService
@@ -16,7 +17,7 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 @router.get("", response_model=dict)
 def get_user_dashboard(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: UserModel = Depends(get_current_user)
 ):
     """Get the current user's dashboard data."""
     # Get contests where the user is an author
@@ -37,7 +38,7 @@ def get_user_credit_transactions(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: UserModel = Depends(get_current_user)
 ):
     """Get the current user's credit transaction history."""
     return CreditService.get_user_transactions(db, current_user.id, skip, limit) 

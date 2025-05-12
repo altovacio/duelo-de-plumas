@@ -2,7 +2,6 @@ from typing import Tuple, Optional, List, Dict, Any
 from app.services.ai_strategies.base_strategy import WriterStrategyInterface
 from app.services.ai_provider_service import AIProviderInterface
 from app.utils.writer_prompts import WRITER_BASE_PROMPT # Import base prompt
-from app.utils.logging_utils import logger
 
 class SimpleChatCompletionWriterStrategy(WriterStrategyInterface):
     async def generate(

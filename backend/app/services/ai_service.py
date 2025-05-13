@@ -82,13 +82,13 @@ class AIService:
         cls, 
         model: str, 
         personality_prompt: str,
-        contest_description: Optional[str] = None,
         user_guidance_title: Optional[str] = None,
         user_guidance_description: Optional[str] = None,
-        temperature: float = 0.7,
+        contest_description: Optional[str] = None,
+        temperature: Optional[float] = None, 
         max_tokens: Optional[int] = None,
-        strategy_name: str = "simple_chat_completion" # Added to select strategy
-    ) -> Tuple[str, int, float]: # generated_content, total_tokens, avg_cost_per_1k
+        strategy_name: str = "simple_chat_completion" 
+    ) -> Tuple[str, int, int]:
         
         provider = cls._get_provider(model)
         
@@ -102,6 +102,10 @@ class AIService:
                 detail=f"Unknown writer strategy: {strategy_name}"
             )
 
+        # Determine actual parameters to use, falling back to config defaults
+        actual_temperature = temperature if temperature is not None else settings.DEFAULT_WRITER_TEMPERATURE
+        actual_max_tokens = max_tokens if max_tokens is not None else settings.DEFAULT_WRITER_MAX_TOKENS
+
         try:
             generated_content, prompt_tokens, completion_tokens = await writer_strategy.generate(
                 provider=provider,
@@ -110,20 +114,11 @@ class AIService:
                 contest_description=contest_description,
                 user_guidance_title=user_guidance_title,
                 user_guidance_description=user_guidance_description,
-                temperature=temperature,
-                max_tokens=max_tokens
+                temperature=actual_temperature, 
+                max_tokens=actual_max_tokens
             )
             
-            total_tokens = prompt_tokens + completion_tokens
-            model_info = get_model_by_id(model)
-            avg_cost_per_1k = 0.0
-            if model_info and total_tokens > 0:
-                avg_cost_per_1k = (
-                    model_info.input_cost_usd_per_1k_tokens * prompt_tokens +
-                    model_info.output_cost_usd_per_1k_tokens * completion_tokens
-                ) / total_tokens * 1000
-            
-            return generated_content, total_tokens, avg_cost_per_1k
+            return generated_content, prompt_tokens, completion_tokens
         except Exception as e:
             logger.error(f"Error in AIService.generate_text with strategy {strategy_name}: {str(e)}")
             # Re-raise or handle more gracefully if the exception is from the provider vs strategy
@@ -141,10 +136,8 @@ class AIService:
         personality_prompt: str,
         contest_description: str,
         texts: List[Dict[str, Any]],
-        # Temperature and max_tokens can be made optional here if strategies have robust defaults
-        # For now, keeping them to allow override from agent_service if ever needed for a specific call type
-        temperature: Optional[float] = None, # Default to None, strategy will use its own default
-        max_tokens: Optional[int] = None,    # Default to None, strategy will use its own default
+        temperature: Optional[float] = None, 
+        max_tokens: Optional[int] = None,    
         strategy_name: str = "simple_chat_completion"
     ) -> Tuple[List[Dict[str, Any]], int, float]:
         
@@ -159,6 +152,10 @@ class AIService:
                 detail=f"Unknown judge strategy: {strategy_name}"
             )
         
+        # Determine actual parameters to use, falling back to config defaults
+        actual_temperature = temperature if temperature is not None else settings.DEFAULT_JUDGE_TEMPERATURE
+        actual_max_tokens = max_tokens if max_tokens is not None else settings.DEFAULT_JUDGE_MAX_TOKENS
+
         try:
             # Strategy now handles its default temperature/max_tokens if these are None
             parsed_votes, prompt_tokens, completion_tokens = await judge_strategy.judge(
@@ -167,8 +164,8 @@ class AIService:
                 personality_prompt=personality_prompt,
                 contest_description=contest_description,
                 texts=texts,
-                temperature=temperature, # Pass through; strategy will use its default if this is None
-                max_tokens=max_tokens    # Pass through; strategy will use its default if this is None
+                temperature=actual_temperature,
+                max_tokens=actual_max_tokens   
             )
 
             total_tokens = prompt_tokens + completion_tokens

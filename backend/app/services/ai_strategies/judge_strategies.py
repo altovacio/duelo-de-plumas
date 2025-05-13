@@ -10,9 +10,6 @@ from app.utils.judge_prompts import JUDGE_BASE_PROMPT # Import base prompt
 logger = logging.getLogger(__name__) # Initialized standard logger
 
 class SimpleChatCompletionJudgeStrategy(JudgeStrategyInterface):
-    DEFAULT_TEMPERATURE = 0.3
-    DEFAULT_MAX_TOKENS = None # Or a specific value like 2048 if appropriate
-
     async def judge(
         self,
         provider: AIProviderInterface,
@@ -41,8 +38,8 @@ class SimpleChatCompletionJudgeStrategy(JudgeStrategyInterface):
         )
         
         system_message_for_provider = None
-        current_temperature = temperature if temperature is not None else self.DEFAULT_TEMPERATURE
-        current_max_tokens = max_tokens if max_tokens is not None else self.DEFAULT_MAX_TOKENS
+        current_temperature = temperature
+        current_max_tokens = max_tokens
 
         llm_response, prompt_tokens, completion_tokens = await provider.generate_text(
             model_id=model_id,

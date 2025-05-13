@@ -141,7 +141,7 @@ async def execute_judge_agent(
     return await AgentService.execute_judge_agent(db, request, current_user.id)
 
 
-@router.post("/execute/writer", response_model=TextSchemaResponse)
+@router.post("/execute/writer", response_model=AgentExecutionResponse)
 async def execute_writer_agent(
     request: AgentExecuteWriter,
     db: AsyncSession = Depends(get_db),

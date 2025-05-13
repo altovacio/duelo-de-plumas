@@ -28,6 +28,7 @@ from app.db.models.contest_judge import ContestJudge
 from app.db.models.user import User as UserModel
 from app.db.models.text import Text as TextModel
 from app.db.models.vote import Vote as VoteModel
+from app.utils.ai_models import estimate_credits
 
 
 class AgentService:
@@ -232,10 +233,10 @@ class AgentService:
         estimated_input_tokens = len(agent.prompt) + len(contest.description) + sum(len(t["content"].split()) for t in text_details_for_ai)
         estimated_total_tokens = estimated_input_tokens * 2 * len(text_details_for_ai) 
 
-        estimated_cost = await AIService.estimate_cost(request.model, estimated_total_tokens)
+        estimated_cost = AIService.estimate_cost(request.model, estimated_total_tokens)
         if not await CreditService.has_sufficient_credits(db, current_user_id, estimated_cost):
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=status.status.HTTP_402_PAYMENT_REQUIRED,
                 detail=f"Insufficient credits. Required approx: {estimated_cost}"
             )
         
@@ -296,7 +297,7 @@ class AgentService:
     @staticmethod
     async def execute_writer_agent(
         db: AsyncSession, request: AgentExecuteWriter, current_user_id: int
-    ) -> TextModel:
+    ) -> AgentExecutionResponse:
         """Execute a writer agent to generate text."""
         agent = await AgentService.get_agent_by_id(db, request.agent_id, current_user_id, skip_auth_check=True)
         
@@ -314,12 +315,19 @@ class AgentService:
                 detail="You don't have permission to use this private agent"
             )
         
-        estimated_total_tokens = len(agent.prompt.split()) + len(request.topic.split()) * 3
-        
-        estimated_cost = await AIService.estimate_cost(request.model, estimated_total_tokens)
+        # Estimate tokens loosely (improve later if needed)
+        # Simple split by space and assume average token length
+        # Add a buffer (e.g., multiply description length by 3)
+        estimated_base_tokens = len(agent.prompt.split()) + (len(request.title.split()) if request.title else 0) * 2 # Added check for None title
+        estimated_desc_tokens = (len(request.description.split()) * 3) if request.description else 0 # Changed request.topic to request.description and added check for None
+        estimated_total_tokens = estimated_base_tokens + estimated_desc_tokens
+
+        # Estimate cost based on estimated tokens (refine with actual model costs later)
+        # Placeholder: Assume 1 credit per 1000 tokens for estimation
+        estimated_cost = AIService.estimate_cost(request.model, estimated_total_tokens)
         if not await CreditService.has_sufficient_credits(db, current_user_id, estimated_cost):
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
                 detail=f"Insufficient credits. Required approx: {estimated_cost}"
             )
         
@@ -332,13 +340,14 @@ class AgentService:
         error_msg_for_exec = None
 
         try:
-            generated_title, generated_content, actual_tokens_used, actual_cost_per_k_tokens = await AIService.generate_text(
-                model_name=request.model,
-                system_prompt=agent.prompt,
-                user_topic=request.topic,
-                max_tokens=request.max_tokens
+            generated_content, prompt_tokens, completion_tokens = await AIService.generate_text(
+                model=request.model,
+                personality_prompt=agent.prompt,
+                user_guidance_title=request.title,
+                user_guidance_description=request.description,
+                contest_description=request.contest_description
             )
-            actual_credits_used = round((actual_tokens_used / 1000) * actual_cost_per_k_tokens)
+            actual_credits_used = estimate_credits(request.model, prompt_tokens, completion_tokens)
             exec_status = "completed"
 
         except HTTPException as e:
@@ -349,11 +358,12 @@ class AgentService:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=error_msg_for_exec)
         finally:
             if actual_credits_used > 0:
-                 await CreditService.deduct_credits(db, current_user_id, actual_credits_used, f"AI Writer Agent execution: {agent.name} - Topic: {request.topic[:50]}", request.model, actual_tokens_used)
+                actual_total_tokens = prompt_tokens + completion_tokens
+                await CreditService.deduct_credits(db, current_user_id, actual_credits_used, f"AI Writer Agent execution: {agent.name} - Topic: {request.description[:50]}", request.model, actual_total_tokens)
 
         if exec_status == "completed":
             text_create_data = TextCreate(
-                title=generated_title,
+                title=request.title or "No title.", 
                 content=generated_content,
                 author=f"AI Agent: {agent.name} (Model: {request.model})"
             )
@@ -363,7 +373,8 @@ class AgentService:
         else:
             result_id_for_exec = None
 
-        await AgentRepository.create_agent_execution(
+        # Create the execution record
+        execution_record = await AgentRepository.create_agent_execution(
             db=db, agent_id=agent.id, owner_id=current_user_id,
             execution_type="generate_text", model=request.model, status=exec_status,
             result_id=result_id_for_exec, error_message=error_msg_for_exec,
@@ -371,9 +382,15 @@ class AgentService:
         )
         
         if exec_status == "completed" and created_text:
-            return created_text
+            # MODIFIED: Return the execution record, not the text object directly
+            return AgentExecutionResponse.model_validate(execution_record)
         else:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=error_msg_for_exec or "AI text generation failed and no text was created.")
+            # If failed before text creation or text creation failed, 
+            # still return the execution record which logs the failure.
+            if execution_record:
+                return AgentExecutionResponse.model_validate(execution_record)
+            # Fallback if somehow execution_record is None (should not happen)
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=error_msg_for_exec or "AI text generation failed and no execution record was created.")
     
     @staticmethod
     async def get_agent_executions(

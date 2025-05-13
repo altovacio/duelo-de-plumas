@@ -157,7 +157,11 @@ async def client(db_session: AsyncSession) -> AsyncClient: # Ensure db_session i
     
     # Ensure setup_database_suite has run and TestAsyncSessionLocal is ready,
     # and dependency_overrides are set. db_session fixture implicitly depends on setup_database_suite.
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), 
+        base_url="http://test",
+        follow_redirects=False
+    ) as ac:
         yield ac
 
 @pytest.fixture(scope="function")

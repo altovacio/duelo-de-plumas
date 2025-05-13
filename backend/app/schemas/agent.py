@@ -44,6 +44,7 @@ class AgentExecuteWriter(BaseModel):
     model: str = Field(..., description="The LLM model to use for execution")
     title: Optional[str] = Field(None, description="Optional title for the generated text")
     description: Optional[str] = Field(None, description="Optional description/instructions for the generated text")
+    contest_description: Optional[str] = Field(None, description="Optional contest description for context")
 
 
 class AgentExecutionResponse(BaseModel):

@@ -15,11 +15,11 @@ The following is a comparison between the planned structure (from project_struct
 | **Text Management** | ✅ | Text model, routes, repository and service implemented |
 | **Contest Management** | ✅ | Contest model, routes, repository and service implemented |
 | **Voting System** | ✅ | Vote model, routes, repository and service implemented with enhanced multi-vote capabilities |
-| **AI Agent System** | ✅ | Agent models, routes, repository and service implemented. API endpoint for agents corrected to `/agents` (from `/agents/agents`). Repository and service methods progressively being updated to full async/await. |
-| **Credit System** | ✅ | Credit transaction tracking, admin management implemented |
+| **AI Agent System** | ✅ | Agent models, routes, repository and service implemented. API endpoint for agents corrected to `/agents` (from `/agents/agents`). Repository and service methods progressively being updated to full async/await. `execute_writer` endpoint now correctly returns `AgentExecutionResponse`. |
+| **Credit System** | ✅ | Credit transaction tracking, admin management implemented. Actual cost calculation centralized in `utils.ai_models.estimate_credits`. |
 | **Dashboard** | ✅ | Basic dashboard with credit information implemented |
 | **Admin Features** | ✅ | Admin routes for user and credit management implemented |
-| **Tests** | 🚧 | E2E tests: Sections 1 & 2 are now passing after significant async/await and endpoint corrections. Continuing to fix subsequent sections. Database interactions in services/repositories are being progressively converted to async. |
+| **Tests** | 🚧 | E2E tests: Sections 1-4 are now passing after significant async/await and endpoint corrections. Continuing to fix subsequent sections. Database interactions in services/repositories are being progressively converted to async. |
 | **Agent Execution** | ✅ | Tracks AI agent executions |
 
 ### Frontend Implementation
@@ -166,7 +166,8 @@ duelo-de-plumas/
 - Common fixtures and helpers are in `backend/tests/conftest.py`.
 - The main test plan docstring is now in `backend/tests/e2e_test_plan_config.py`.
 - All import errors within individual test files (`e2e_sec_*.py`) have been resolved.
-- Current failure point: `fastapi.exceptions.ResponseValidationError` in `e2e_sec_03_contest_creation_management.py`. All main repositories/services converted to async. Further debugging needed for E2E test failures.
+- Current failure point: Tests proceed past section 4. Next section's status TBD.
+- Deviation Note: Pre-execution credit estimation (`AIService.estimate_cost`) uses a simplified total token count rather than separate input/output estimates required by the core `estimate_credits` function. This might lead to inaccuracies in the pre-check but does not affect the final credit deduction, which uses the correct logic.
 
 | Section | Description | Status | Deviations from Plan |
 |---|---|---|---|

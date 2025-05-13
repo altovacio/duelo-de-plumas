@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import List, Optional
 import os
 from dotenv import load_dotenv
 import json
@@ -34,5 +34,12 @@ class Settings(BaseSettings):
     FIRST_SUPERUSER_USERNAME: str = os.getenv("ADMIN_USERNAME", "admin")
     FIRST_SUPERUSER_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "supersecretpassword") # Ensure .env provides this
     FIRST_SUPERUSER_EMAIL: str = os.getenv("ADMIN_EMAIL", "admin@example.com")
+
+    # AI Service Defaults
+    DEFAULT_WRITER_TEMPERATURE: float = 0.7
+    DEFAULT_JUDGE_TEMPERATURE: float = 0.3
+    DEFAULT_WRITER_MAX_TOKENS: Optional[int] = 4096
+    DEFAULT_JUDGE_MAX_TOKENS: Optional[int] = 4096
+    DEFAULT_TEST_MODEL_ID: str = "gpt-4.1-nano-2025-04-14" # Default model for testing
 
 settings = Settings() 

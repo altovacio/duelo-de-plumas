@@ -5,7 +5,8 @@ import logging
 
 from app.core.config import settings # Keep for other settings
 from app.schemas.text import TextCreate, TextResponse, TextUpdate
-from app.schemas.user import UserResponse, UserCredit # For credit checks and assignments
+from app.schemas.user import UserResponse
+from app.schemas.credit import UserCreditUpdate, CreditTransactionResponse
 from app.schemas.agent import AgentExecuteWriter # MODIFIED: For agent execution, specifically writer
 from tests.shared_test_state import test_data
 
@@ -22,11 +23,11 @@ async def test_04_01_user1_creates_text1_1_manually(client: AsyncClient): # Chan
         author="User1 Author Name"
     )
     response = await client.post( # Changed
-        "/texts/", # Changed
+        "/texts/", # MODIFIED: Added trailing slash back
         json=text_in.model_dump(),
         headers=test_data["user1_headers"]
     )
-    assert response.status_code == 200, f"User 1 creating text1.1 failed: {response.text}"
+    assert response.status_code == 201, f"User 1 creating text1.1 failed: {response.text}"
     text1_1_data = TextResponse(**response.json())
     assert text1_1_data.title == text_in.title
     assert text1_1_data.content == text_in.content
@@ -45,11 +46,11 @@ async def test_04_02_user2_creates_text2_1_manually(client: AsyncClient): # Chan
         author="User2 Pen Name"
     )
     response = await client.post( # Changed
-        "/texts/", # Changed
+        "/texts/", # MODIFIED: Added trailing slash back
         json=text_in.model_dump(),
         headers=test_data["user2_headers"]
     )
-    assert response.status_code == 200, f"User 2 creating text2.1 failed: {response.text}"
+    assert response.status_code == 201, f"User 2 creating text2.1 failed: {response.text}"
     text2_1_data = TextResponse(**response.json())
     assert text2_1_data.title == text_in.title
     assert text2_1_data.content == text_in.content
@@ -119,11 +120,11 @@ async def test_04_06_user1_uses_writer1_no_credits_fails(client: AsyncClient): #
 
     execute_payload = AgentExecuteWriter(
         agent_id=test_data["writer1_id"],
-        model="claude-3-5-haiku-latest", 
+        model=settings.DEFAULT_TEST_MODEL_ID,
         title="Text Gen Attempt No Credits"
     )
     response = await client.post( # Changed
-        "/agents/execute", # Changed
+        "/agents/execute/writer", # MODIFIED: Correct path for writer execution
         json=execute_payload.model_dump(),
         headers=test_data["user1_headers"]
     )
@@ -140,25 +141,38 @@ async def test_04_07_admin_assigns_credits(client: AsyncClient): # Changed
     assert "admin_headers" in test_data, "Admin token not found."
     assert "user1_id" in test_data and "user2_id" in test_data, "User IDs not found."
 
-    credits_user1 = UserCredit(credits=50)
-    response_u1 = await client.post( # Changed
-        f"/admin/users/{test_data['user1_id']}/credits", # Changed
+    credits_user1 = UserCreditUpdate(credits=50, description="Admin grant user 1") # MODIFIED schema
+    response_u1 = await client.patch( # MODIFIED method from POST to PATCH
+        f"/admin/users/{test_data['user1_id']}/credits",
         json=credits_user1.model_dump(),
         headers=test_data["admin_headers"]
     )
     assert response_u1.status_code == 200, f"Admin assigning credits to User 1 failed: {response_u1.text}"
-    assert UserResponse(**response_u1.json()).credits == 50
-    print(f"Admin assigned 50 credits to User 1 (ID: {test_data['user1_id']}).")
+    tx_resp1 = CreditTransactionResponse(**response_u1.json())
+    assert tx_resp1.user_id == test_data["user1_id"]
+    assert tx_resp1.amount == 50 # MODIFIED: Changed 'change' to 'amount'
+    # We cannot assert new_balance directly from the transaction response
 
-    credits_user2 = UserCredit(credits=100)
-    response_u2 = await client.post( # Changed
-        f"/admin/users/{test_data['user2_id']}/credits", # Changed
+    credits_user2 = UserCreditUpdate(credits=100, description="Admin grant user 2") # MODIFIED schema
+    response_u2 = await client.patch( # MODIFIED method from POST to PATCH
+        f"/admin/users/{test_data['user2_id']}/credits",
         json=credits_user2.model_dump(),
         headers=test_data["admin_headers"]
     )
     assert response_u2.status_code == 200, f"Admin assigning credits to User 2 failed: {response_u2.text}"
-    assert UserResponse(**response_u2.json()).credits == 100
-    print(f"Admin assigned 100 credits to User 2 (ID: {test_data['user2_id']}).")
+    tx_resp2 = CreditTransactionResponse(**response_u2.json())
+    assert tx_resp2.user_id == test_data["user2_id"]
+    assert tx_resp2.amount == 100 # MODIFIED: Changed 'change' to 'amount'
+    # We cannot assert new_balance directly from the transaction response
+
+    # Verify final balances by querying user data
+    user1_final_resp = await client.get(f"/users/{test_data['user1_id']}", headers=test_data["admin_headers"]) # Use admin headers to view
+    assert user1_final_resp.status_code == 200
+    assert UserResponse(**user1_final_resp.json()).credits == 50 # Assert final balance
+
+    user2_final_resp = await client.get(f"/users/{test_data['user2_id']}", headers=test_data["admin_headers"]) # Use admin headers to view
+    assert user2_final_resp.status_code == 200
+    assert UserResponse(**user2_final_resp.json()).credits == 100 # Assert final balance
 
 @pytest.mark.run(after='test_04_07_admin_assigns_credits')
 async def test_04_08_user1_uses_writer1_with_credits_succeeds(client: AsyncClient): # Changed
@@ -172,12 +186,12 @@ async def test_04_08_user1_uses_writer1_with_credits_succeeds(client: AsyncClien
 
     execute_payload = AgentExecuteWriter(
         agent_id=test_data["writer1_id"],
-        model="claude-3-5-haiku-latest",
+        model=settings.DEFAULT_TEST_MODEL_ID,
         title="AI Generated Story by User1",
         description="A short story generated by writer1."
     )
     response = await client.post( # Changed
-        "/agents/execute", # Changed
+        "/agents/execute/writer", # MODIFIED: Correct path for writer execution
         json=execute_payload.model_dump(),
         headers=test_data["user1_headers"]
     )
@@ -215,11 +229,11 @@ async def test_04_09_user2_uses_writer1_fails(client: AsyncClient): # Changed
 
     execute_payload = AgentExecuteWriter(
         agent_id=test_data["writer1_id"],
-        model="claude-3-5-haiku-latest",
+        model=settings.DEFAULT_TEST_MODEL_ID,
         title="Attempt by User2 on User1 Agent"
     )
     response = await client.post( # Changed
-        "/agents/execute", # Changed
+        "/agents/execute/writer", # MODIFIED: Correct path for writer execution
         json=execute_payload.model_dump(),
         headers=test_data["user2_headers"]
     )
@@ -239,12 +253,12 @@ async def test_04_10_user2_uses_global_writer_succeeds(client: AsyncClient): # C
 
     execute_payload = AgentExecuteWriter(
         agent_id=test_data["writer_global_id"],
-        model="claude-3-5-haiku-latest",
+        model=settings.DEFAULT_TEST_MODEL_ID,
         title="AI Generated Story by User2 via Global Writer",
         description="A short story generated by writer_global for User2."
     )
     response = await client.post( # Changed
-        "/agents/execute", # Changed
+        "/agents/execute/writer", # MODIFIED: Correct path for writer execution
         json=execute_payload.model_dump(),
         headers=test_data["user2_headers"]
     )
@@ -274,8 +288,8 @@ async def test_04_11_user1_creates_text1_3_manually(client: AsyncClient): # Chan
     """User 1 creates Text 1.3 manually for contest submission later."""
     assert "user1_headers" in test_data, "User 1 token not found."
     text_in = TextCreate(title="User1 Contest Entry A", content="This is User1\'s first entry for the contest.", author="User1 Author Alias")
-    response = await client.post("/texts/", json=text_in.model_dump(), headers=test_data["user1_headers"]) # Changed
-    assert response.status_code == 200, f"User 1 creating text1.3 failed: {response.text}"
+    response = await client.post("/texts/", json=text_in.model_dump(), headers=test_data["user1_headers"]) # MODIFIED: Added trailing slash back
+    assert response.status_code == 201, f"User 1 creating text1.3 failed: {response.text}"
     test_data["text1_3_id"] = TextResponse(**response.json()).id
     print(f"User 1 created Text 1.3 (ID: {test_data['text1_3_id']}) manually.")
 
@@ -284,8 +298,8 @@ async def test_04_12_user2_creates_text2_3_manually(client: AsyncClient): # Chan
     """User 2 creates Text 2.3 manually for contest submission later."""
     assert "user2_headers" in test_data, "User 2 token not found."
     text_in = TextCreate(title="User2 Contest Entry X", content="User2 submits this exciting story for consideration.", author="User2 Writer Tag")
-    response = await client.post("/texts/", json=text_in.model_dump(), headers=test_data["user2_headers"]) # Changed
-    assert response.status_code == 200, f"User 2 creating text2.3 failed: {response.text}"
+    response = await client.post("/texts/", json=text_in.model_dump(), headers=test_data["user2_headers"]) # MODIFIED: Added trailing slash back
+    assert response.status_code == 201, f"User 2 creating text2.3 failed: {response.text}"
     test_data["text2_3_id"] = TextResponse(**response.json()).id
     print(f"User 2 created Text 2.3 (ID: {test_data['text2_3_id']}) manually.")
 
@@ -298,8 +312,8 @@ async def test_04_13_admin_creates_text3_1_manually(client: AsyncClient): # Chan
         content="An exemplary piece by the administrator.", 
         author="The Overseer"
     )
-    response = await client.post("/texts/", json=text_in.model_dump(), headers=test_data["admin_headers"]) # Changed
-    assert response.status_code == 200, f"Admin creating text3.1 failed: {response.text}"
+    response = await client.post("/texts/", json=text_in.model_dump(), headers=test_data["admin_headers"]) # MODIFIED: Added trailing slash back
+    assert response.status_code == 201, f"Admin creating text3.1 failed: {response.text}"
     test_data["text3_1_id"] = TextResponse(**response.json()).id
     print(f"Admin created Text 3.1 (ID: {test_data['text3_1_id']}) manually.")
 
@@ -316,11 +330,11 @@ async def test_04_14_admin_uses_writer_global_succeeds(client: AsyncClient): # C
 
     execute_payload = AgentExecuteWriter(
         agent_id=test_data["writer_global_id"],
-        model="claude-3-5-haiku-latest",
+        model=settings.DEFAULT_TEST_MODEL_ID,
         title="AI Generated Story by Admin via Global Writer",
         description="A short story generated by writer_global for Admin."
     )
-    response = await client.post("/agents/execute", json=execute_payload.model_dump(), headers=test_data["admin_headers"]) # Changed
+    response = await client.post("/agents/execute/writer", json=execute_payload.model_dump(), headers=test_data["admin_headers"]) # MODIFIED: Correct path
     assert response.status_code == 200, f"Admin using writer_global failed: {response.text}"
     exec_response_data = response.json()
     assert "result_id" in exec_response_data
@@ -357,11 +371,11 @@ async def test_04_15_admin_uses_user1_writer1_succeeds(client: AsyncClient): # C
 
     execute_payload = AgentExecuteWriter(
         agent_id=test_data["writer1_id"], # User1's agent
-        model="claude-3-5-haiku-latest",
+        model=settings.DEFAULT_TEST_MODEL_ID,
         title="AI Story by Admin via User1-Writer1",
         description="Admin leveraging User1\'s private agent."
     )
-    response = await client.post("/agents/execute", json=execute_payload.model_dump(), headers=test_data["admin_headers"]) # Changed
+    response = await client.post("/agents/execute/writer", json=execute_payload.model_dump(), headers=test_data["admin_headers"]) # MODIFIED: Correct path
     assert response.status_code == 200, f"Admin using User1\'s writer1 failed: {response.text}"
     exec_response_data = response.json()
     assert "result_id" in exec_response_data

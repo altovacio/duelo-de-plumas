@@ -9,7 +9,6 @@ from app.db.models.user import User as UserModel
 from app.services.text_service import TextService
 
 router = APIRouter(
-    prefix="/texts",
     tags=["texts"]
 )
 

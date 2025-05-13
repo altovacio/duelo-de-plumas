@@ -60,7 +60,7 @@ async def test_03_02_admin_creates_private_contest2_and_assigns_judges(client: A
         is_private=True,
         password=test_data["contest2_password"],
         judge_restrictions=True,
-        owner_restrictions=True
+        author_restrictions=True
     )
     response = await client.post( # Changed
         "/contests/", # Changed

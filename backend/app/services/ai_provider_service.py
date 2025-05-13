@@ -13,6 +13,9 @@ from typing import Dict, List, Optional, Tuple, Any, Union
 import aiohttp
 import logging
 
+# Set up logging
+logger = logging.getLogger(__name__)
+
 # Try importing tiktoken, handle if not available
 try:
     import tiktoken
@@ -23,9 +26,6 @@ except ImportError:
     logger.warning("tiktoken library not found. Falling back to character-based token estimation.")
 
 from app.utils.ai_models import ModelProvider
-
-# Set up logging
-logger = logging.getLogger(__name__)
 
 # Approximation function for token counting
 def estimate_token_count(text: str, model_id: str = "gpt-4") -> int:

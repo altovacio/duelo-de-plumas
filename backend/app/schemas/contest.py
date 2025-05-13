@@ -3,6 +3,7 @@ from datetime import datetime
 from pydantic import BaseModel, model_validator
 
 
+
 class ContestBase(BaseModel):
     title: str
     description: str  # Markdown content
@@ -27,43 +28,6 @@ class ContestUpdate(BaseModel):
     state: Optional[str] = None  # "open", "evaluation", "closed"
 
 
-class ContestResponse(ContestBase):
-    id: int
-    creator_id: int
-    state: str  # "open", "evaluation", "closed"
-    created_at: datetime
-    updated_at: datetime
-    end_date: Optional[datetime] = None
-    judge_restrictions: bool
-    author_restrictions: bool
-    
-    class Config:
-        orm_mode = True
-
-
-# For contest participant counts
-class ContestDetailResponse(ContestResponse):
-    participant_count: int
-    text_count: int
-    
-    class Config:
-        orm_mode = True
-
-
-# For submitting texts to contests
-class TextSubmission(BaseModel):
-    text_id: int
-
-
-class TextSubmissionResponse(BaseModel):
-    contest_id: int
-    text_id: int
-    submission_date: datetime
-    
-    class Config:
-        orm_mode = True
-
-
 # For assigning judges to contests
 class JudgeAssignment(BaseModel):
     user_id: Optional[int] = None
@@ -78,7 +42,7 @@ class JudgeAssignment(BaseModel):
 
 
 class JudgeAssignmentResponse(BaseModel):
-    assignment_id: int
+    id: int
     contest_id: int
     user_id: Optional[int] = None
     agent_id: Optional[int] = None
@@ -86,7 +50,46 @@ class JudgeAssignmentResponse(BaseModel):
     has_voted: Optional[bool] = None
     
     class Config:
-        orm_mode = True
+        from_attributes = True
+
+
+class ContestResponse(ContestBase):
+    id: int
+    creator_id: int
+    state: str  # "open", "evaluation", "closed"
+    created_at: datetime
+    updated_at: datetime
+    end_date: Optional[datetime] = None
+    judge_restrictions: bool
+    author_restrictions: bool
+    participant_count: int
+    text_count: int
+    
+    class Config:
+        from_attributes = True
+
+
+# Now JudgeAssignmentResponse is defined before use here
+class ContestDetailResponse(ContestResponse):
+    judges: List[JudgeAssignmentResponse] = []
+    
+    class Config:
+        from_attributes = True
+
+
+# For submitting texts to contests
+class TextSubmission(BaseModel):
+    text_id: int
+
+
+class TextSubmissionResponse(BaseModel):
+    submission_id: int
+    contest_id: int
+    text_id: int
+    submission_date: datetime
+    
+    class Config:
+        from_attributes = True
 
 
 # For text details within a contest context
@@ -100,4 +103,4 @@ class ContestTextResponse(BaseModel):
     ranking: Optional[int] = None  # 1 for first place, 2 for second, 3 for third, etc.
     
     class Config:
-        orm_mode = True 
+        from_attributes = True 

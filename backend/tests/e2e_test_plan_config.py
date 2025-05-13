@@ -124,6 +124,9 @@ e2e_test_plan = """
             - Verify the actual Text 1.2 still exists (only submission removed).
             - Verify User 1\'s credits are NOT affected.
 
+    # Preparing for evaluation phase
+    5.20- User 1 submits Text 1.1 to contest3. Get submission_id_c3_t1_1.
+
 ## 6. Evaluation Phase (Contest in Evaluation)
     6.01- User 1 sets contest1 status to \'Evaluation\'.
     6.02- User 1 attempts to submit a new text to contest1 -> Should fail due to contest being in evaluation phase.
@@ -139,8 +142,8 @@ e2e_test_plan = """
     6.10- Admin triggers judge_global (AI judge) evaluation for contest2. Fails. Contest is not in evaluation. Verify no cost is recorded.
     6.11- Admin sets contest2 status to \'Evaluation\'.
     6.12- Admin sets contest3 status to \'Evaluation\'.
-    6.13- Admin assigns User 1 as a human judge for contest2.
-    6.14- User 1 submits votes/evaluation for contest2.
+    6.13- Admin assigns User 1 as a human judge for contest3.
+    6.14- User 1 submits votes/evaluation for contest3.
 
 ## 7. Contest Closure & Results
     7.01- Admin sets contest1, contest2 and contest3 status to \'Closed\'.

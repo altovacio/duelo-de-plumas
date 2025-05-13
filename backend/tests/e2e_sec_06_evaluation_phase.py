@@ -129,15 +129,16 @@ async def test_06_05_user1_votes_in_contest1_fails_not_judge(client: AsyncClient
 
 @pytest.mark.run(after='test_06_05_user1_votes_in_contest1_fails_not_judge')
 async def test_06_06_user2_votes_in_contest1_succeeds(client: AsyncClient): # MODIFIED: async def, AsyncClient
-    """User 2 attempts to vote in contest 1 -> Should succeed."""
+    """User 2 (judge) votes in contest 1, assigning a place and comment to one text."""
     assert "contest1_id" in test_data, "Contest 1 ID not found."
     assert "user2_headers" in test_data, "User 2 headers not found."
     assert "user2_id" in test_data, "User 2 ID not found."
-    assert "submission_c1_t2_2_id" in test_data, "submission_c1_t2_2_id for voting not found."
-    submission_id_to_vote_on = test_data["submission_c1_t2_2_id"]
+    # submission_c1_t2_2_id was the submission of text2_2_id
+    assert "text2_2_id" in test_data, "Text 2.2 ID for voting not found."
+    text_id_to_vote_on = test_data["text2_2_id"]
 
     # Ensure contest is in evaluation
-    contest_check_response = await client.get(f"/contests/{test_data['contest1_id']}", headers=test_data["user2_headers"]) # MODIFIED: await, removed settings.API_V1_STR
+    contest_check_response = await client.get(f"/contests/{test_data['contest1_id']}", headers=test_data["user2_headers"])
     assert contest_check_response.status_code == 200
     contest_details = ContestResponse(**contest_check_response.json())
     assert contest_details.status.lower() == "evaluation", f"Contest1 not in Evaluation. Current: {contest_details.status}"
@@ -147,13 +148,14 @@ async def test_06_06_user2_votes_in_contest1_succeeds(client: AsyncClient): # MO
     assert is_judge, "User 2 is not configured as a judge for contest1 for this test."
 
     vote_payload = {
-        "score": 8, # User 2 gives a good score
-        "comments": "User 2 (judge) finds this submission quite compelling."
+        "text_id": text_id_to_vote_on,
+        "text_place": 1, # User 2 gives 1st place
+        "comment": "User 2 (judge) finds this submission quite compelling and ranks it 1st."
     }
 
     response = await client.post(
-        f"/contests/{test_data['contest1_id']}/submissions/{submission_id_to_vote_on}/votes/",
-        json=vote_payload,
+        f"/contests/{test_data['contest1_id']}/votes/", # CORRECTED API PATH
+        json=vote_payload, # CORRECTED PAYLOAD STRUCTURE
         headers=test_data["user2_headers"]
     )
 
@@ -161,13 +163,15 @@ async def test_06_06_user2_votes_in_contest1_succeeds(client: AsyncClient): # MO
         f"User 2 (judge) voting in contest1 should succeed, but got {response.status_code}: {response.text}"
     
     vote_data = response.json()
-    assert vote_data["score"] == vote_payload["score"]
-    assert vote_data["comments"] == vote_payload["comments"]
+    assert vote_data["text_place"] == vote_payload["text_place"]
+    assert vote_data["comment"] == vote_payload["comment"]
+    # The VoteResponse contains judge_id (which is the user_id of the human judge) and contest_id
     assert str(vote_data["judge_id"]) == str(test_data["user2_id"]), "Vote judge_id does not match User 2 ID."
-    assert vote_data["submission_id"] == submission_id_to_vote_on
-    test_data["user2_vote_c1_s_t2_2_id"] = vote_data["id"] # Store vote ID
+    assert vote_data["text_id"] == text_id_to_vote_on
+    assert vote_data["contest_id"] == test_data["contest1_id"]
+    test_data["user2_vote_on_text2_2_id_in_c1"] = vote_data["id"] # Store vote ID
 
-    print(f"User 2 (judge) successfully voted on submission {submission_id_to_vote_on} in contest1 (ID: {test_data['contest1_id']}). Vote ID: {vote_data['id']}")
+    print(f"User 2 (judge) successfully voted on text {text_id_to_vote_on} in contest1 (ID: {test_data['contest1_id']}). Vote ID: {vote_data['id']}")
 
 @pytest.mark.run(after='test_06_06_user2_votes_in_contest1_succeeds')
 async def test_06_07_user1_triggers_judge_global_for_contest1(client: AsyncClient): # MODIFIED: async def, AsyncClient
@@ -399,119 +403,87 @@ async def test_06_12_admin_sets_contest3_status_to_evaluation(client: AsyncClien
     print(f"Admin successfully set contest3 (ID: {test_data['contest3_id']}) status to: {updated_contest.status}.")
 
 @pytest.mark.run(after='test_06_12_admin_sets_contest3_status_to_evaluation')
-async def test_06_13_admin_assigns_user1_as_judge_for_contest2(client: AsyncClient): # MODIFIED: async def, AsyncClient
-    """Admin assigns User 1 as a human judge for contest2."""
+async def test_06_13_admin_assigns_user1_as_judge_for_contest3(client: AsyncClient):
+    """Admin assigns User 1 as a human judge for contest3."""
     assert "admin_headers" in test_data, "Admin headers not found."
-    assert "contest2_id" in test_data, "Contest 2 ID not found."
+    assert "contest3_id" in test_data, "Contest 3 ID not found."
     assert "user1_id" in test_data, "User 1 ID not found."
 
-    # Fetch current judges for contest2 to see if User 1 is already a judge
-    contest_details_resp = await client.get(f"/contests/{test_data['contest2_id']}", headers=test_data["admin_headers"]) # MODIFIED: await, removed settings.API_V1_STR
+    # Fetch current judges for contest3
+    contest_details_resp = await client.get(f"/contests/{test_data['contest3_id']}", headers=test_data["admin_headers"]) 
     assert contest_details_resp.status_code == 200
     contest_details = ContestResponse(**contest_details_resp.json())
     
     existing_judge_ids = [str(judge.user_id) for judge in contest_details.judges if judge.user_id]
     if str(test_data["user1_id"]) in existing_judge_ids:
-        print(f"User 1 (ID: {test_data['user1_id']}) is already a judge for contest2 (ID: {test_data['contest2_id']}). No action needed.")
-        test_data["user1_is_judge_for_contest2"] = True
-        return # Skip if already a judge
+        print(f"User 1 (ID: {test_data['user1_id']}) is already a judge for contest3 (ID: {test_data['contest3_id']}). No action needed.")
+        test_data["user1_is_judge_for_contest3"] = True # Mark for next test
+        return
 
-    # Payload to add User 1 as a judge
-    # Assuming the endpoint expects a list of judge user IDs to *set* or *add*
-    # If it sets, we need to include existing judges if we want to keep them.
-    # Based on typical REST APIs, PUT /judges would replace, POST /judges would add.
-    # Let's assume PATCH on contest or a dedicated /judges endpoint is used.
-    # The provided test plan implies modifying the contest object directly for judges.
-    # The ContestUpdate schema likely has a 'judges' field List[JudgeCreate]
-    # For simplicity, let's assume we add User 1 by updating the contest with a new judge list.
-    # This requires knowing the schema for JudgeCreate (user_id, type typically)
-
-    # Let's assume ContestUpdate can take a list of user_ids for judges, or JudgeCreate objects
-    # Simpler if the endpoint /admin/contests/{id}/judges exists for POST {user_id: xyz, type: Human}
-    # Given the current structure and previous tests, direct contest update is more likely.
-    # Let's try to update contest judges list via PUT on contest itself.
-    # We need to preserve existing judges if any. But test_data doesn't store them easily.
-    # Let's assume for now it's an ADD operation via a specific endpoint or a smart PATCH.
-    # Fallback: If we must PUT to /contests/{id}, we might replace all judges.
-    # This test is "assigns", implying an additive action or setting User1 as *a* judge.
-
-    # A common pattern for "assigning" a judge is a POST to a sub-resource:
-    # POST /contests/{id}/judges with payload { "user_id": "user1_id", "type": "Human" }
-    # If that endpoint exists: 
-    assign_judge_payload = {"user_id": test_data["user1_id"], "judge_type": "Human"} # Assuming judge_type, or it's implicit
-    # The path is likely /admin/contests/{contest_id}/judges as it's an admin action
+    # Assign User 1 using the POST /contests/{id}/judges endpoint (assuming this is how it works)
+    assign_judge_payload = {"user_id": test_data["user1_id"]}
+    # Note: Assuming the endpoint determines judge type or defaults to Human
     response = await client.post(
-        f"/admin/contests/{test_data['contest2_id']}/judges", 
+        f"/contests/{test_data['contest3_id']}/judges", 
         json=assign_judge_payload, 
-        headers=test_data["admin_headers"]
+        headers=test_data["admin_headers"] # Admin can assign to any contest
     )
-    # Check for 200 (updated existing list) or 201 (created new judge assignment)
     assert response.status_code in [200, 201], \
-        f"Admin failed to assign User 1 as judge for contest2: {response.text}. Payload: {assign_judge_payload}"
+        f"Admin failed to assign User 1 as judge for contest3: {response.text}. Payload: {assign_judge_payload}"
 
-    # Verify User 1 is now listed as a judge for contest2
-    contest_details_after_resp = await client.get(f"/contests/{test_data['contest2_id']}", headers=test_data["admin_headers"]) # MODIFIED: await, removed settings.API_V1_STR
+    # Verify User 1 is now listed as a judge for contest3
+    contest_details_after_resp = await client.get(f"/contests/{test_data['contest3_id']}", headers=test_data["admin_headers"]) 
     assert contest_details_after_resp.status_code == 200
     contest_details_after = ContestResponse(**contest_details_after_resp.json())
     is_now_judge = any(str(judge.user_id) == str(test_data["user1_id"]) for judge in contest_details_after.judges if judge.user_id)
-    assert is_now_judge, f"User 1 (ID: {test_data['user1_id']}) was not successfully assigned as a judge for contest2."
-    test_data["user1_is_judge_for_contest2"] = True
-    print(f"Admin successfully assigned User 1 (ID: {test_data['user1_id']}) as a human judge for contest2 (ID: {test_data['contest2_id']}).")
+    assert is_now_judge, f"User 1 (ID: {test_data['user1_id']}) was not successfully assigned as a judge for contest3."
+    test_data["user1_is_judge_for_contest3"] = True # Mark for next test
+    print(f"Admin successfully assigned User 1 (ID: {test_data['user1_id']}) as a human judge for contest3 (ID: {test_data['contest3_id']}).")
 
-@pytest.mark.run(after='test_06_13_admin_assigns_user1_as_judge_for_contest2')
-async def test_06_14_user1_submits_votes_for_contest2(client: AsyncClient): # MODIFIED: async def, AsyncClient
-    """User 1 (now a judge for contest2) submits votes for all submissions in contest2."""
+@pytest.mark.run(after='test_06_13_admin_assigns_user1_as_judge_for_contest3')
+async def test_06_14_user1_submits_votes_for_contest3(client: AsyncClient):
+    """User 1 (now judge) submits votes for contest3 (specifically for text1_1)."""
     assert "user1_headers" in test_data and "user1_id" in test_data, "User 1 token/ID not found."
-    assert "contest2_id" in test_data, "Contest 2 ID not found."
-    assert test_data.get("user1_is_judge_for_contest2") is True, "User 1 is not marked as a judge for contest2 in test_data."
+    assert "contest3_id" in test_data, "Contest 3 ID not found."
+    assert "text1_1_id" in test_data, "Text 1.1 ID (submitted to contest3) not found."
+    assert test_data.get("user1_is_judge_for_contest3") is True, "Test data doesn't indicate User 1 is judge for Contest 3."
 
-    # Ensure contest2 is in Evaluation
-    contest2_resp = await client.get(f"/contests/{test_data['contest2_id']}", headers=test_data["user1_headers"]) # MODIFIED: await, removed settings.API_V1_STR
-    assert contest2_resp.status_code == 200
-    contest2_details = ContestResponse(**contest2_resp.json())
-    assert contest2_details.status.lower() == "evaluation", f"Contest2 is not in Evaluation phase. Status: {contest2_details.status}"
-
-    # Get submissions for contest2
-    submissions_resp = await client.get(f"/contests/{test_data['contest2_id']}/submissions/", headers=test_data["user1_headers"]) # MODIFIED: await, removed settings.API_V1_STR. User1 is judge, should see masked.
-    assert submissions_resp.status_code == 200, f"Failed to get submissions for contest2: {submissions_resp.text}"
-    submissions_c2 = submissions_resp.json()
-    assert isinstance(submissions_c2, list), "Expected list of submissions for contest2."
-
-    if not submissions_c2:
-        print(f"No submissions found in contest2 (ID: {test_data['contest2_id']}) for User 1 to vote on. Skipping voting.")
-        test_data["contest2_user1_vote_ids"] = []
-        return
-
-    print(f"User 1 (judge) found {len(submissions_c2)} submissions in contest2 to vote on.")
-    test_data["contest2_user1_vote_ids"] = []
-    for i, sub_data in enumerate(submissions_c2):
-        submission = TextSubmissionResponse(**sub_data) # Validate structure
-        submission_id = submission.id
-        assert submission_id is not None, "Submission ID is missing from submission data."
-
-        # User 1 should not vote on their own submissions if any are present and they are a submitter.
-        # However, this test is about User 1 as a JUDGE. The API should prevent voting on own submission if rule exists.
-        # For contest2, user1 was the submitter of text1_1. If text1_1 is still there, User 1 might be voting on own text.
-        # Let's assume the backend handles this if it's a rule.
-
-        vote_payload = {
-            "score": 7 + (i % 3),  # Vary scores a bit (7, 8, 9)
-            "comments": f"User 1 (judge) voting on submission {i+1} for contest2. ID: {submission_id}"
-        }
-        response = await client.post(
-            f"/contests/{test_data['contest2_id']}/submissions/{submission_id}/votes/",
-            json=vote_payload,
-            headers=test_data["user1_headers"]
-        )
-        assert response.status_code in [200, 201], \
-            f"User 1 (judge) voting on submission {submission_id} in contest2 failed ({response.status_code}): {response.text}"
-        
-        vote_data = response.json()
-        assert vote_data["score"] == vote_payload["score"]
-        assert str(vote_data["judge_id"]) == str(test_data["user1_id"])
-        test_data["contest2_user1_vote_ids"].append(vote_data["id"])
-        print(f"User 1 (judge) successfully voted on submission {submission_id} in contest2. Vote ID: {vote_data['id']}.")
+    # Ensure contest is in evaluation
+    contest_check_resp = await client.get(f"/contests/{test_data['contest3_id']}", headers=test_data["user1_headers"]) # Public contest, no password
+    assert contest_check_resp.status_code == 200, f"User 1 failed to get contest 3 details: {contest_check_resp.text}"
+    contest_details = ContestResponse(**contest_check_resp.json())
+    assert contest_details.status.lower() == "evaluation", f"Contest3 not in Evaluation. Current: {contest_details.status}"
     
-    print(f"User 1 successfully submitted {len(test_data['contest2_user1_vote_ids'])} votes for contest2.")
+    # Verify User 1 is listed as a judge for contest3 (redundant check, but good practice)
+    is_judge = any(str(judge.user_id) == str(test_data["user1_id"]) for judge in contest_details.judges if judge.user_id)
+    assert is_judge, "User 1 is not listed as a judge for contest3 for this test, despite previous step."
+
+    text_id_to_vote_on = test_data["text1_1_id"]
+
+    print(f"User 1 (judge) proceeding to vote on text {text_id_to_vote_on} in contest 3.")
+
+    # Vote on the submission using the correct endpoint and payload
+    vote_payload = {
+        "text_id": text_id_to_vote_on,
+        "text_place": 1, # User 1 gives it 1st place
+        "comment": "User 1, as a judge, ranks text 1.1 submission 1st in contest 3."
+    }
+    vote_response = await client.post(
+        f"/contests/{test_data['contest3_id']}/votes/", # Correct endpoint for contest 3
+        json=vote_payload,
+        headers=test_data["user1_headers"] # User 1 votes
+        # No password needed for public contest 3
+    )
+    assert vote_response.status_code in [200, 201], \
+        f"User 1 voting on text {text_id_to_vote_on} in contest 3 failed: {vote_response.text}"
+    
+    vote_data = vote_response.json()
+    assert vote_data["text_place"] == vote_payload["text_place"]
+    assert vote_data["comment"] == vote_payload["comment"]
+    assert str(vote_data["judge_id"]) == str(test_data["user1_id"])
+    assert vote_data["text_id"] == text_id_to_vote_on
+    assert vote_data["contest_id"] == test_data["contest3_id"]
+    test_data[f"user1_vote_on_text{text_id_to_vote_on}_in_c3"] = vote_data["id"]
+    print(f"User 1 successfully submitted vote (ID: {vote_data['id']}) for text {text_id_to_vote_on} in contest 3.")
 
 # --- End of Test Section 6: Evaluation Phase (Contest in Evaluation) ---

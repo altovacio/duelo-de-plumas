@@ -1,11 +1,11 @@
 from typing import List, Optional, Dict, Any
 from fastapi import HTTPException, status
-from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.schemas.contest import (
-    ContestCreate, ContestUpdate, ContestResponse, 
-    ContestDetailResponse, TextSubmission, JudgeAssignment
+    ContestCreate, ContestUpdate,  
+    TextSubmission, JudgeAssignment, ContestResponse, JudgeAssignmentResponse
 )
 from app.db.repositories.contest_repository import ContestRepository
 from app.db.repositories.text_repository import TextRepository
@@ -18,7 +18,7 @@ from app.db.models.contest_judge import ContestJudge
 
 class ContestService:
     @staticmethod
-    async def create_contest(db: AsyncSession, contest: ContestCreate, creator_id: int) -> Contest:
+    async def create_contest(db: AsyncSession, contest: ContestCreate, creator_id: int) -> ContestResponse:
         # Validate that private contests have a password
         if contest.is_private and not contest.password:
             raise HTTPException(
@@ -26,7 +26,15 @@ class ContestService:
                 detail="Private contests must have a password"
             )
             
-        return await ContestRepository.create_contest(db, contest, creator_id)
+        created_contest = await ContestRepository.create_contest(db, contest, creator_id)
+        
+        # Manually construct the response including counts initialized to 0
+        response_data = created_contest.__dict__.copy() # Get ORM attributes
+        response_data['participant_count'] = 0
+        response_data['text_count'] = 0
+        
+        # Use model_validate to create the Pydantic response model instance
+        return ContestResponse.model_validate(response_data)
     
     @staticmethod
     async def get_contests(
@@ -35,14 +43,30 @@ class ContestService:
         limit: int = 100,
         state: Optional[str] = None,
         current_user_id: Optional[int] = None
-    ) -> List[Contest]:
-        return await ContestRepository.get_contests(
+    ) -> List[ContestResponse]:
+        contests_orm = await ContestRepository.get_contests(
             db=db, 
             skip=skip, 
             limit=limit, 
             state=state,
             current_user_id=current_user_id
         )
+        
+        response_list = []
+        for contest_orm in contests_orm:
+            # Fetch details including counts for each contest
+            # This uses the already corrected get_contest_with_counts from the repository
+            contest_data_with_counts = await ContestRepository.get_contest_with_counts(db=db, contest_id=contest_orm.id)
+            if contest_data_with_counts:
+                response_list.append(ContestResponse.model_validate(contest_data_with_counts))
+            else:
+                # This case should ideally not happen if contest_orm.id is valid
+                # Handle defensively: either skip or raise an error
+                # For now, let's log and skip, or one could raise an internal error
+                print(f"Warning: Could not retrieve details for contest id {contest_orm.id} in get_contests list.")
+                # If strictness is required, one might raise HTTPException here
+
+        return response_list
     
     @staticmethod
     async def get_contest(db: AsyncSession, contest_id: int) -> Contest:
@@ -56,13 +80,31 @@ class ContestService:
     
     @staticmethod
     async def get_contest_detail(db: AsyncSession, contest_id: int) -> Dict[str, Any]:
-        result = await ContestRepository.get_contest_with_counts(db=db, contest_id=contest_id)
-        if not result:
+        # Repository method now returns a dictionary with contest data and counts
+        raw_result_dict = await ContestRepository.get_contest_with_counts(db=db, contest_id=contest_id)
+        if not raw_result_dict:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Contest with id {contest_id} not found"
             )
-        return result
+        
+        # Transform judge ORM objects to dictionaries matching JudgeAssignmentResponse
+        transformed_judges_list = []
+        if "judges" in raw_result_dict and raw_result_dict["judges"]:
+            for judge_orm in raw_result_dict["judges"]:
+                transformed_judges_list.append({
+                    "id": judge_orm.id,
+                    "contest_id": judge_orm.contest_id,
+                    "user_id": judge_orm.user_judge_id, # Map from user_judge_id
+                    "agent_id": judge_orm.agent_judge_id, # Map from agent_judge_id
+                    "assignment_date": judge_orm.assignment_date,
+                    "has_voted": judge_orm.has_voted
+                })
+        
+        final_result_dict = raw_result_dict.copy()
+        final_result_dict["judges"] = transformed_judges_list
+        
+        return final_result_dict
     
     @staticmethod
     async def update_contest(
@@ -70,7 +112,7 @@ class ContestService:
         contest_id: int, 
         contest_update: ContestUpdate, 
         current_user_id: int
-    ) -> Contest:
+    ) -> ContestResponse:
         contest = await ContestService.get_contest(db=db, contest_id=contest_id)
         
         # Check if user is the contest creator or an admin
@@ -101,7 +143,27 @@ class ContestService:
             contest_update=contest_update
         )
         
-        return updated_contest
+        if not updated_contest:
+            # This case should ideally not happen if get_contest succeeded earlier
+            # but handle defensively.
+             raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, # Or 500 Internal Server Error
+                detail=f"Contest with id {contest_id} not found after update attempt."
+            )
+        
+        # Fetch the updated contest data including counts and judges
+        updated_contest_data = await ContestRepository.get_contest_with_counts(db=db, contest_id=contest_id)
+        
+        if not updated_contest_data:
+             raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, # Or 500 Internal Server Error
+                detail=f"Could not retrieve contest details for id {contest_id} after update."
+            )
+            
+        # Validate and return as ContestResponse
+        # Note: get_contest_with_counts returns a dict with judges, 
+        # but ContestResponse doesn't expect judges. Pydantic handles extra fields by default.
+        return ContestResponse.model_validate(updated_contest_data)
     
     @staticmethod
     async def delete_contest(db: AsyncSession, contest_id: int, current_user_id: int) -> bool:
@@ -218,16 +280,16 @@ class ContestService:
                 text_obj = await text_repo.get_text(sub_item.text_id)
                 if text_obj and text_obj.owner_id == current_user_id and not is_admin_user:
                     raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
+                        status_code=status.HTTP_403_FORBIDDEN,
                         detail="Contest only allows one submission per author"
                     )
         
         # If judge restrictions enabled, check if user is a judge
         if contest.judge_restrictions:
             judges = await ContestRepository.get_contest_judges(db=db, contest_id=contest_id)
-            if any(judge.judge_id == current_user_id for judge in judges) and not is_admin_user:
+            if any(judge.user_judge_id == current_user_id for judge in judges) and not is_admin_user:
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
+                    status_code=status.HTTP_403_FORBIDDEN,
                     detail="Judges cannot submit texts to this contest"
                 )
         
@@ -317,7 +379,7 @@ class ContestService:
         contest_id: int, 
         assignment: JudgeAssignment,
         current_user_id: int
-    ) -> ContestJudge:
+    ) -> JudgeAssignmentResponse:
         contest = await ContestService.get_contest(db=db, contest_id=contest_id)
         
         user_repo = UserRepository(db)
@@ -377,7 +439,16 @@ class ContestService:
                 detail=f"{judge_type} with id {judge_id_val} is already assigned as a judge to this contest or another error occurred."
             )
             
-        return assigned_judge_entry
+        # Manually construct response data from ORM object
+        response_data = {
+            "id": assigned_judge_entry.id,
+            "contest_id": assigned_judge_entry.contest_id,
+            "user_id": assigned_judge_entry.user_judge_id,  # Map from user_judge_id
+            "agent_id": assigned_judge_entry.agent_judge_id, # Map from agent_judge_id
+            "assignment_date": assigned_judge_entry.assignment_date,
+            "has_voted": assigned_judge_entry.has_voted,
+        }
+        return JudgeAssignmentResponse.model_validate(response_data)
     
     @staticmethod
     async def get_contest_judges(
@@ -397,7 +468,8 @@ class ContestService:
             is_creator = current_user_id and contest.creator_id == current_user_id
         
         judges = await ContestRepository.get_contest_judges(db=db, contest_id=contest_id)
-        is_judge = current_user_id and any(judge.judge_id == current_user_id for judge in judges)
+        # Corrected check for human judge
+        is_judge = current_user_id and any(judge.user_judge_id == current_user_id for judge in judges)
         
         if not (is_admin_user or is_creator or is_judge):
             raise HTTPException(
@@ -411,7 +483,7 @@ class ContestService:
     async def remove_judge_from_contest(
         db: AsyncSession, 
         contest_id: int, 
-        judge_id: int, 
+        judge_id: int, # This is the ContestJudge.id, the ID of the assignment entry
         current_user_id: int
     ) -> bool:
         # Get the contest
@@ -428,38 +500,41 @@ class ContestService:
                 detail="Only contest creator and admins can remove judges"
             )
             
-        # Check if judge exists
-        judge = await ContestRepository.get_contest_judges(db=db, contest_id=contest_id)
-        judge = next((j for j in judge if j.judge_id == judge_id), None)
+        # Find the specific judge assignment entry by its ID (judge_id here is ContestJudge.id)
+        # This requires fetching the specific ContestJudge entry to check its has_voted status.
+        # We can do this by selecting the specific entry by its ID.
+        stmt = select(ContestJudge).where(ContestJudge.id == judge_id, ContestJudge.contest_id == contest_id)
+        result = await db.execute(stmt)
+        judge_assignment_entry = result.scalar_one_or_none()
         
-        if not judge:
+        if not judge_assignment_entry:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Judge with id {judge_id} not assigned to this contest"
+                detail=f"Judge assignment entry with id {judge_id} not found for this contest"
             )
             
         # Check if judge has already voted
-        if judge.has_voted and not is_admin_user:
+        if judge_assignment_entry.has_voted and not is_admin_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Cannot remove a judge who has already voted"
             )
             
-        # Remove the judge
+        # Remove the judge assignment by its ID
         return await ContestRepository.remove_judge_from_contest(
             db=db, 
             contest_id=contest_id, 
-            judge_id=judge_id
+            contest_judge_id=judge_id # Pass the ContestJudge.id
         )
 
     @staticmethod
-    async def get_contests_where_user_is_judge(db: AsyncSession, judge_id: int, skip: int = 0, limit: int = 100) -> List[Contest]:
+    async def get_contests_where_user_is_judge(db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100) -> List[Contest]:
         """Get contests where the specified user is a judge."""
         # Validate user exists (optional, but good practice)
         user_repo = UserRepository(db)
-        judge_user = await user_repo.get_by_id(judge_id)
+        judge_user = await user_repo.get_by_id(user_id)
         if not judge_user:
             # Or return empty list if judge not existing isn't an error for this context
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"User with id {judge_id} not found.")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"User with id {user_id} not found.")
 
-        return await ContestRepository.get_contests_for_judge(db, judge_id, skip, limit) 
+        return await ContestRepository.get_contests_for_judge(db, user_judge_id=user_id, skip=skip, limit=limit) 

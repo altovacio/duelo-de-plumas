@@ -1,6 +1,7 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import ValidationError
 
 from app.db.database import get_db
 from app.api.routes.auth import get_current_user, get_optional_current_user
@@ -69,16 +70,18 @@ async def get_contest(
         password=password
     )
     
-    result = await ContestService.get_contest_detail(db=db, contest_id=contest_id)
+    # Service now returns a dictionary with all required fields and counts
+    result_dict = await ContestService.get_contest_detail(db=db, contest_id=contest_id)
 
-    # Create response
-    contest_db_model = result["contest"]
-    response_data = contest_db_model.__dict__.copy()
-    response_data.update({
-        "participant_count": result["participant_count"],
-        "text_count": result["text_count"]
-    })
-    return ContestDetailResponse(**response_data)
+    # Validate the dictionary directly using Pydantic
+    try:
+        response = ContestDetailResponse(**result_dict)
+    except ValidationError as e:
+        print(f"ERROR: Pydantic validation failed for contest {contest_id} dict: {e}") 
+        print(f"Data passed: {result_dict}") # Log the data that failed validation
+        raise HTTPException(status_code=500, detail="Internal server error validating response data")
+
+    return response
 
 
 @router.put("/{contest_id}", response_model=ContestResponse)
@@ -122,7 +125,7 @@ async def delete_contest(
 
 
 # Text submission endpoints
-@router.post("/{contest_id}/submissions", response_model=TextSubmissionResponse)
+@router.post("/{contest_id}/submissions/", response_model=TextSubmissionResponse)
 async def submit_text_to_contest(
     contest_id: int,
     submission: TextSubmission,
@@ -143,7 +146,9 @@ async def submit_text_to_contest(
         password=password
     )
     
+    # Return the response including the submission ID
     return TextSubmissionResponse(
+        submission_id=contest_text.id,
         contest_id=contest_text.contest_id,
         text_id=contest_text.text_id,
         submission_date=contest_text.submission_date
@@ -224,15 +229,8 @@ async def assign_judge_to_contest(
         current_user_id=current_user.id
     )
     
-    # The ContestJudge object is returned by the service
-    return JudgeAssignmentResponse(
-        assignment_id=contest_judge_entry.id,
-        contest_id=contest_judge_entry.contest_id,
-        user_id=contest_judge_entry.user_judge_id,
-        agent_id=contest_judge_entry.agent_judge_id,
-        assignment_date=contest_judge_entry.assignment_date,
-        has_voted=contest_judge_entry.has_voted
-    )
+    # The service now returns a JudgeAssignmentResponse directly
+    return contest_judge_entry
 
 
 @router.get("/{contest_id}/judges", response_model=List[JudgeAssignmentResponse])

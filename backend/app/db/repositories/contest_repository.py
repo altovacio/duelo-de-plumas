@@ -1,6 +1,6 @@
 from typing import List, Optional
-from sqlalchemy.orm import Session
-from sqlalchemy import func, literal_column, case
+from sqlalchemy.orm import selectinload
+from sqlalchemy import func
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from app.db.models.contest import Contest
 from app.db.models.contest_text import ContestText
 from app.db.models.contest_judge import ContestJudge
+from app.db.models.text import Text
 from app.schemas.contest import ContestCreate, ContestUpdate
 
 
@@ -89,31 +90,51 @@ class ContestRepository:
     
     @staticmethod
     async def get_contest_with_counts(db: AsyncSession, contest_id: int) -> Optional[dict]:
-        """Get contest with participant count and text count"""
+        """Get contest with participant count, text count, and judges."""
+        # Subquery for text count
+        text_count_subq = select(
+            func.count(func.distinct(ContestText.text_id)).label("text_count")
+        ).where(
+            ContestText.contest_id == contest_id
+        ).scalar_subquery()
+        
+        # Subquery for participant count
+        participant_count_subq = select(
+            func.count(func.distinct(Text.owner_id)).label("participant_count")
+        ).join(
+            ContestText, ContestText.text_id == Text.id
+        ).where(
+            ContestText.contest_id == contest_id
+        ).scalar_subquery()
+
+        # Main query: Select Contest ORM, counts, and load judges
         stmt = select(
-            Contest,
-            func.count(func.distinct(ContestText.text_id)).label("text_count"),
-            func.count(func.distinct(ContestJudge.id)).label("participant_count")
-        ).outerjoin(
-            ContestText, ContestText.contest_id == Contest.id
-        ).outerjoin(
-            ContestJudge, ContestJudge.contest_id == Contest.id
-        ).filter(
-            Contest.id == contest_id
-        ).group_by(
-            Contest.id
-        )
+            Contest, # Select the Contest ORM entity
+            text_count_subq.label("text_count"),
+            participant_count_subq.label("participant_count")
+        ).options(
+            selectinload(Contest.contest_judges) # Changed to Contest.contest_judges
+        ).filter(Contest.id == contest_id)
+        
         result = await db.execute(stmt)
         record = result.first()
 
         if not record:
             return None
             
-        return {
-            "contest": record[0],
-            "text_count": record.text_count,
-            "participant_count": record.participant_count
-        }
+        contest_obj = record.Contest # Access the Contest ORM instance with judges loaded
+        
+        # Convert the Contest ORM instance to a dictionary
+        contest_data = {column.key: getattr(contest_obj, column.key) for column in Contest.__table__.columns}
+        
+        # Add the counts
+        contest_data["text_count"] = record.text_count
+        contest_data["participant_count"] = record.participant_count
+        
+        # Add the loaded judges (will be ORM objects, Pydantic handles conversion)
+        contest_data["judges"] = contest_obj.contest_judges # Changed to contest_obj.contest_judges
+        
+        return contest_data
     
     # Methods for contest text submissions
     @staticmethod
@@ -214,32 +235,27 @@ class ContestRepository:
         return result.scalars().all()
     
     @staticmethod
-    async def remove_judge_from_contest(db: AsyncSession, contest_id: int, judge_id: int, judge_type: str = 'user') -> bool:
-        # This method needs significant update to handle user_id or agent_id removal
-        # For now, it will break if called for agents.
-        # TODO: Refactor remove_judge_from_contest
+    async def remove_judge_from_contest(db: AsyncSession, contest_id: int, contest_judge_id: int) -> bool:
+        """Remove a specific judge assignment entry by its ID."""
         stmt = select(ContestJudge).filter(
-            ContestJudge.contest_id == contest_id,
-            ContestJudge.user_judge_id == judge_id # Assumes judge_id is user_id
+            ContestJudge.id == contest_judge_id, # Filter by the specific assignment ID
+            ContestJudge.contest_id == contest_id # Ensure it belongs to the correct contest
         )
         result = await db.execute(stmt)
         db_contest_judge = result.scalar_one_or_none()
         
         if not db_contest_judge:
-            return False
+            return False # Assignment not found or doesn't belong to this contest
             
         await db.delete(db_contest_judge)
         await db.commit()
         return True
     
     @staticmethod
-    async def get_contests_for_judge(db: AsyncSession, judge_id: int, judge_type: str = 'user', skip: int = 0, limit: int = 100) -> List[Contest]:
-        """Get all contests where the given user_id or agent_id is a judge."""
-        # This method needs update to handle judge_type
-        # TODO: Refactor get_contests_for_judge
+    async def get_contests_for_judge(db: AsyncSession, user_judge_id: int, skip: int = 0, limit: int = 100) -> List[Contest]:
+        """Get all contests where the given user_id is a judge."""
         stmt = select(Contest).join(ContestJudge, Contest.id == ContestJudge.contest_id).filter(
-            ContestJudge.user_judge_id == judge_id # Assumes judge_id is user_id
+            ContestJudge.user_judge_id == user_judge_id # Filter by user judge ID
         ).order_by(Contest.id.desc()).offset(skip).limit(limit)
-        
         result = await db.execute(stmt)
         return result.scalars().all() 

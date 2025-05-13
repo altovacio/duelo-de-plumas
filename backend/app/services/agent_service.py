@@ -29,6 +29,7 @@ from app.db.models.user import User as UserModel
 from app.db.models.text import Text as TextModel
 from app.db.models.vote import Vote as VoteModel
 from app.utils.ai_models import estimate_credits
+from app.core.config import settings
 
 
 class AgentService:
@@ -230,10 +231,29 @@ class AgentService:
         if not text_details_for_ai:
              raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"No valid text details found for judging in contest #{contest.id}.")
 
-        estimated_input_tokens = len(agent.prompt) + len(contest.description) + sum(len(t["content"].split()) for t in text_details_for_ai)
-        estimated_total_tokens = estimated_input_tokens * 2 * len(text_details_for_ai) 
+        # --- MODIFIED: Enhanced Pre-check Credit Estimation for Judging ---
+        # Estimate input tokens using the model-aware estimator
+        prompt_tokens_est = AIService.estimate_token_count(agent.prompt, model_id=request.model) 
+        contest_desc_tokens_est = AIService.estimate_token_count(contest.description, model_id=request.model)
+        texts_tokens_est = 0
+        text_content_for_estimation = ""
+        for text_detail in text_details_for_ai:
+            # Combine title and content for estimation
+            text_content_for_estimation += text_detail.get('title', '') + "\n\n" + text_detail.get('content', '') + "\n\n---\n\n" 
+        
+        # Estimate tokens for all text content together, plus buffer
+        texts_tokens_est = AIService.estimate_token_count(text_content_for_estimation, model_id=request.model) + (len(text_details_for_ai) * 10) # Small buffer per text 
 
-        estimated_cost = AIService.estimate_cost(request.model, estimated_total_tokens)
+        # Sum of prompt, contest desc, and all text contents. Add buffer for overall structure/instructions.
+        estimated_input_tokens = prompt_tokens_est + contest_desc_tokens_est + texts_tokens_est + 200 
+
+        # Estimate output tokens: Slightly refined heuristic.
+        # Assume ~100 tokens per evaluation (score + brief rationale) + ~200 for final ranking/summary
+        estimated_output_tokens = (len(text_details_for_ai) * 100) + 200
+
+        estimated_cost = estimate_credits(request.model, estimated_input_tokens, estimated_output_tokens)
+        # --- End of Modified Estimation ---
+
         if not await CreditService.has_sufficient_credits(db, current_user_id, estimated_cost):
             raise HTTPException(
                 status_code=status.status.HTTP_402_PAYMENT_REQUIRED,
@@ -315,82 +335,119 @@ class AgentService:
                 detail="You don't have permission to use this private agent"
             )
         
-        # Estimate tokens loosely (improve later if needed)
-        # Simple split by space and assume average token length
-        # Add a buffer (e.g., multiply description length by 3)
-        estimated_base_tokens = len(agent.prompt.split()) + (len(request.title.split()) if request.title else 0) * 2 # Added check for None title
-        estimated_desc_tokens = (len(request.description.split()) * 3) if request.description else 0 # Changed request.topic to request.description and added check for None
-        estimated_total_tokens = estimated_base_tokens + estimated_desc_tokens
+        # --- Credit Pre-check for Writer ---
+        prompt_str = agent.prompt
+        if request.title: prompt_str += "\nTitle: " + request.title
+        if request.description: prompt_str += "\nDescription: " + request.description
+        if request.contest_description: prompt_str += "\nContest: " + request.contest_description
+        
+        estimated_input_tokens = AIService.estimate_token_count(prompt_str, model_id=request.model)
+        # Estimate output tokens (use default max_tokens, halved as previously requested)
+        estimated_output_tokens = settings.DEFAULT_WRITER_MAX_TOKENS // 2
 
-        # Estimate cost based on estimated tokens (refine with actual model costs later)
-        # Placeholder: Assume 1 credit per 1000 tokens for estimation
-        estimated_cost = AIService.estimate_cost(request.model, estimated_total_tokens)
+        estimated_cost = estimate_credits(request.model, estimated_input_tokens, estimated_output_tokens)
+
         if not await CreditService.has_sufficient_credits(db, current_user_id, estimated_cost):
             raise HTTPException(
                 status_code=status.HTTP_402_PAYMENT_REQUIRED,
                 detail=f"Insufficient credits. Required approx: {estimated_cost}"
             )
-        
-        generated_title = "Untitled AI Text"
-        generated_content = ""
-        actual_tokens_used = 0
-        actual_cost_per_k_tokens = 0.0
-        actual_credits_used = 0
-        exec_status = "failed"
-        error_msg_for_exec = None
+
+        # Initialize variables for execution tracking
+        generated_content_text: Optional[str] = None
+        actual_prompt_tokens: int = 0
+        actual_completion_tokens: int = 0
+        actual_credits_used: int = 0
+        exec_status: str = "failed"
+        error_msg_for_exec: Optional[str] = None
+        result_id_for_exec: Optional[int] = None
+        created_text_object: Optional[TextModel] = None
+
+        # Fetch user object to get username for author field
+        user = await user_repo.get_by_id(current_user_id)
+        if not user:
+            # This should ideally not happen if the request was authenticated
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Executing user not found")
 
         try:
-            generated_content, prompt_tokens, completion_tokens = await AIService.generate_text(
+            generated_content_text, actual_prompt_tokens, actual_completion_tokens = await AIService.generate_text(
                 model=request.model,
                 personality_prompt=agent.prompt,
                 user_guidance_title=request.title,
                 user_guidance_description=request.description,
-                contest_description=request.contest_description
+                contest_description=request.contest_description,
             )
-            actual_credits_used = estimate_credits(request.model, prompt_tokens, completion_tokens)
+            
+            actual_credits_used = estimate_credits(request.model, actual_prompt_tokens, actual_completion_tokens)
             exec_status = "completed"
+
+            if generated_content_text is not None:
+                # Construct author string
+                author_str = f"{user.username} (via AI Agent: {agent.name} | Model: {request.model})"
+                
+                text_create_data = TextCreate(
+                    title=request.title or f"Untitled",
+                    content=generated_content_text,
+                    author=author_str, # Use the constructed author string
+                    # Removed author_id as TextCreate expects 'author'
+                    # author_id=current_user_id, 
+                    # is_ai_generated=True, # is_ai_generated is not in TextCreate schema
+                    # ai_agent_id=agent.id, # ai_agent_id is not in TextCreate schema
+                    # ai_model_name=request.model # ai_model_name is not in TextCreate schema
+                )
+                # Use TextService to create the text
+                text_service = TextService(db=db)
+                created_text_object = await text_service.create_text(text_data=text_create_data, current_user_id=current_user_id)
+                result_id_for_exec = created_text_object.id
 
         except HTTPException as e:
             error_msg_for_exec = e.detail
-            raise e
+            # We will let this re-raise to be caught by FastAPI error handlers if needed,
+            # but the execution record will still be created in finally.
+            # However, for more specific error messages in exec record, we set it here.
+            exec_status = "failed" # Ensure status is failed
+            # Re-raise to allow FastAPI to handle it if it's an expected HTTP error.
+            # If not re-raised, the agent execution record would be the only place error is seen.
+            # This was the previous behavior, so let's stick to it.
+            raise e 
         except Exception as e:
-            error_msg_for_exec = f"Error executing writer agent: {str(e)}"
+            error_msg_for_exec = f"An unexpected error occurred during writer agent execution: {str(e)}"
+            exec_status = "failed" # Ensure status is failed
+            # Raise a generic 500 for unexpected errors, error_msg_for_exec will be in the log.
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=error_msg_for_exec)
         finally:
+            # Deduct credits if any were used, regardless of subsequent errors (e.g., text saving)
+            # but only if the AI call itself was made and tokens were consumed.
             if actual_credits_used > 0:
-                actual_total_tokens = prompt_tokens + completion_tokens
-                await CreditService.deduct_credits(db, current_user_id, actual_credits_used, f"AI Writer Agent execution: {agent.name} - Topic: {request.description[:50]}", request.model, actual_total_tokens)
+                actual_total_tokens = actual_prompt_tokens + actual_completion_tokens
+                description_msg = f"AI Writer Agent: {agent.name}"
+                if request.description:
+                    description_msg += f" - Topic: {request.description[:50]}"
+                elif request.title:
+                     description_msg += f" - Title: {request.title[:50]}"
 
-        if exec_status == "completed":
-            text_create_data = TextCreate(
-                title=request.title or "No title.", 
-                content=generated_content,
-                author=f"AI Agent: {agent.name} (Model: {request.model})"
+                await CreditService.deduct_credits(
+                    db, 
+                    current_user_id, 
+                    actual_credits_used, 
+                    description_msg,
+                    request.model, 
+                    actual_total_tokens
+                )
+
+            # Create the execution record in all cases (success or failure during AI call/text saving)
+            execution_record = await AgentRepository.create_agent_execution(
+                db=db, agent_id=agent.id, owner_id=current_user_id,
+                execution_type="generate_text", model=request.model, status=exec_status,
+                result_id=result_id_for_exec, # This will be None if text creation failed or AI call failed
+                error_message=error_msg_for_exec,
+                credits_used=actual_credits_used # This reflects cost of AI call if successful
             )
-            text_service = TextService(db)
-            created_text = await text_service.create_text(text_create_data, current_user_id)
-            result_id_for_exec = created_text.id
-        else:
-            result_id_for_exec = None
 
-        # Create the execution record
-        execution_record = await AgentRepository.create_agent_execution(
-            db=db, agent_id=agent.id, owner_id=current_user_id,
-            execution_type="generate_text", model=request.model, status=exec_status,
-            result_id=result_id_for_exec, error_message=error_msg_for_exec,
-            credits_used=actual_credits_used
-        )
-        
-        if exec_status == "completed" and created_text:
-            # MODIFIED: Return the execution record, not the text object directly
-            return AgentExecutionResponse.model_validate(execution_record)
-        else:
-            # If failed before text creation or text creation failed, 
-            # still return the execution record which logs the failure.
-            if execution_record:
-                return AgentExecutionResponse.model_validate(execution_record)
-            # Fallback if somehow execution_record is None (should not happen)
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=error_msg_for_exec or "AI text generation failed and no execution record was created.")
+        # If the process reached here without re-raising an exception from try/except block,
+        # it means either success or an error handled within finally (which is just credit deduction).
+        # The execution_record is guaranteed to exist.
+        return AgentExecutionResponse.model_validate(execution_record)
     
     @staticmethod
     async def get_agent_executions(

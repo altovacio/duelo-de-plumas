@@ -1,6 +1,6 @@
 # Core FastAPI
 fastapi>=0.95.1
-uvicorn>=0.22.0
+uvicorn[standard]>=0.22.0
 
 # Pydantic (used by FastAPI and for settings)
 pydantic>=1.10.7
@@ -52,4 +52,4 @@ pytest-asyncio>=0.21.0 # Added for async test support
 black>=23.3.0
 isort>=5.12.0
 flake8>=6.0.0
-mypy>=1.3.0 
+mypy>=1.3.0

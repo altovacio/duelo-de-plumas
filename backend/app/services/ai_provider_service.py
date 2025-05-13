@@ -13,17 +13,43 @@ from typing import Dict, List, Optional, Tuple, Any, Union
 import aiohttp
 import logging
 
+# Try importing tiktoken, handle if not available
+try:
+    import tiktoken
+    tiktoken_available = True
+except ImportError:
+    tiktoken = None
+    tiktoken_available = False
+    logger.warning("tiktoken library not found. Falling back to character-based token estimation.")
+
 from app.utils.ai_models import ModelProvider
 
 # Set up logging
 logger = logging.getLogger(__name__)
 
 # Approximation function for token counting
-def estimate_token_count(text: str) -> int:
+def estimate_token_count(text: str, model_id: str = "gpt-4") -> int:
     """
     Estimate the number of tokens in a text.
-    This is a simple approximation - 1 token ≈ 4 characters
+    Uses tiktoken for compatible models if available, otherwise approximates.
     """
+    if tiktoken_available:
+        try:
+            # Attempt to get encoding for the specified model or a default
+            encoding = tiktoken.encoding_for_model(model_id)
+            return len(encoding.encode(text))
+        except KeyError:
+            try:
+                 # Fallback for models not directly mapped in tiktoken, e.g., use cl100k_base
+                encoding = tiktoken.get_encoding("cl100k_base")
+                return len(encoding.encode(text))
+            except Exception as e:
+                logger.warning(f"tiktoken encoding failed for model '{model_id}' and fallback 'cl100k_base': {e}. Using character approximation.")
+        except Exception as e:
+            # Catch other potential tiktoken errors
+            logger.warning(f"tiktoken failed for model '{model_id}': {e}. Using character approximation.")
+            
+    # Fallback approximation: 1 token ≈ 4 characters
     return max(1, len(text) // 4)
 
 

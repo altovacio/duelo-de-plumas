@@ -47,22 +47,13 @@ class AIService:
             )
             
     @classmethod
-    def estimate_token_count(cls, text: str) -> int:
+    def estimate_token_count(cls, text: str, model_id: str) -> int:
         """
         Estimate the number of tokens in a text.
-        This is a simple approximation.
+        This now passes the model_id to the underlying provider-specific estimator.
         """
-        return estimate_token_count(text)
+        return estimate_token_count(text, model_id=model_id)
         
-    @classmethod
-    def estimate_cost(cls, model: str, total_tokens: int) -> float:
-        """
-        Estimate the cost in credits for a given model and token counts.
-        Returns the cost in credits (1 credit = $0.01).
-        """
-        cls.validate_model(model)
-        return estimate_credits(model, total_tokens)
-    
     @staticmethod
     def _get_provider(model_id: str) -> AIProviderInterface:
         """Retrieves and instantiates the appropriate AI provider class for the given model_id."""
@@ -139,7 +130,7 @@ class AIService:
         temperature: Optional[float] = None, 
         max_tokens: Optional[int] = None,    
         strategy_name: str = "simple_chat_completion"
-    ) -> Tuple[List[Dict[str, Any]], int, float]:
+    ) -> Tuple[List[Dict[str, Any]], int, int]:
         
         provider = cls._get_provider(model)
 
@@ -169,15 +160,16 @@ class AIService:
             )
 
             total_tokens = prompt_tokens + completion_tokens
-            model_info = get_model_by_id(model)
-            avg_cost_per_1k = 0.0
-            if model_info and total_tokens > 0:
-                avg_cost_per_1k = (
-                    model_info.input_cost_usd_per_1k_tokens * prompt_tokens +
-                    model_info.output_cost_usd_per_1k_tokens * completion_tokens
-                ) / total_tokens * 1000
+            # model_info = get_model_by_id(model) # No longer needed here
+            # avg_cost_per_1k = 0.0 # Removed
+            # if model_info and total_tokens > 0: # Removed
+            #     avg_cost_per_1k = ( # Removed
+            #         model_info.input_cost_usd_per_1k_tokens * prompt_tokens + # Removed
+            #         model_info.output_cost_usd_per_1k_tokens * completion_tokens # Removed
+            #     ) / total_tokens * 1000 # Removed
             
-            return parsed_votes, total_tokens, avg_cost_per_1k
+            # Return prompt and completion tokens separately for accurate cost calculation later
+            return parsed_votes, prompt_tokens, completion_tokens # Changed return value
         except Exception as e:
             logger.error(f"Error in AIService.judge_contest with strategy {strategy_name}: {str(e)}")
             if isinstance(e, HTTPException):
@@ -203,7 +195,7 @@ class AIService:
         text_tokens = 0
         for text in texts:
             # Title plus content plus some overhead
-            text_tokens += estimate_token_count(text.get('title', '')) + estimate_token_count(text.get('content', '')) + 50
+            text_tokens += estimate_token_count(text.get('title', ''), model_id=model) + estimate_token_count(text.get('content', ''), model_id=model) + 50
         
         # Estimate for individual evaluations
         eval_tokens = text_tokens * 2  # Roughly double the text size for evaluations

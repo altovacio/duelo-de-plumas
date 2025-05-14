@@ -323,42 +323,66 @@ class ContestService:
             password=password
         )
         
-        # In open contests, only creator and admin can see submissions
+        # For open contests, only the creator and admins can see submissions details
+        # (This method returns ContestText objects, details masking for actual content/author should happen in router/schema if needed)
         if contest.state == "open":
             is_admin_user = False
-            is_creator = False
             if current_user_id:
                 user_repo = UserRepository(db)
                 is_admin_user = await user_repo.is_admin(current_user_id)
-                is_creator = current_user_id and contest.creator_id == current_user_id
+            
+            is_creator = current_user_id and contest.creator_id == current_user_id
             
             if not (is_admin_user or is_creator):
+                # Non-creator/non-admin cannot view submissions list in 'open' state
+                # Or, return an empty list if preferred over raising an error for list endpoint
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Only contest creator and admins can see submissions in open contests"
+                    detail="Submissions are not visible to participants while the contest is open."
                 )
         
+        # For 'evaluation' or 'closed' states, all who can access contest can see submissions
+        # (masking of author/owner handled by specific response schemas if needed)
         return await ContestRepository.get_contest_texts(db=db, contest_id=contest_id)
     
     @staticmethod
-    async def remove_text_from_contest(
+    async def remove_submission(
         db: AsyncSession, 
         contest_id: int, 
-        text_id: int, 
+        submission_id: int, 
         current_user_id: int
     ) -> bool:
-        # Get the contest
-        contest = await ContestService.get_contest(db=db, contest_id=contest_id)
-        text_repo = TextRepository(db)
-        text = await text_repo.get_text(text_id)
+        """Removes a text submission from a contest using the submission ID."""
+        # Get the specific submission (ContestText record)
+        submission_record = await ContestRepository.get_submission_by_id(db, submission_id)
         
-        if not text:
+        if not submission_record:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Text with id {text_id} not found"
+                detail=f"Submission with id {submission_id} not found"
             )
         
-        # Check permissions
+        # Verify the submission belongs to the specified contest
+        if submission_record.contest_id != contest_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, # Or 404 if we want to hide its existence on other contests
+                detail=f"Submission {submission_id} does not belong to contest {contest_id}"
+            )
+
+        # Get the contest for creator check
+        contest = await ContestService.get_contest(db=db, contest_id=contest_id) # Already checks if contest exists
+
+        # Get the actual text for owner check
+        text_repo = TextRepository(db)
+        text = await text_repo.get_text(submission_record.text_id) # Use text_id from submission_record
+        
+        if not text: # Should not happen if submission_record.text_id is valid
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Text associated with submission {submission_id} (Text ID: {submission_record.text_id}) not found"
+            )
+        
+        # Check permissions: current user must be text owner, contest creator, or an admin
         user_repo = UserRepository(db)
         is_admin_user = await user_repo.is_admin(current_user_id)
         is_text_owner = text.owner_id == current_user_id
@@ -367,10 +391,18 @@ class ContestService:
         if not (is_text_owner or is_contest_creator or is_admin_user):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don't have permission to remove this text from the contest"
+                detail="You don't have permission to remove this submission from the contest"
             )
             
-        return await ContestRepository.remove_text_from_contest(db, contest_id, text_id)
+        # Delete the submission using its ID
+        deleted = await ContestRepository.delete_submission(db, submission_id)
+        if not deleted:
+             # This might happen if it was deleted in a race condition
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Failed to delete submission {submission_id}, it might have been already removed."
+            )
+        return True
     
     # Judge assignment methods
     @staticmethod

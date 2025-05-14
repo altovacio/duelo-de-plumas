@@ -178,6 +178,7 @@ async def get_contest_submissions(
     
     return [
         TextSubmissionResponse(
+            submission_id=ct.id,
             contest_id=ct.contest_id,
             text_id=ct.text_id,
             submission_date=ct.submission_date
@@ -185,25 +186,25 @@ async def get_contest_submissions(
     ]
 
 
-@router.delete("/{contest_id}/submissions/{text_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def remove_text_from_contest(
+@router.delete("/{contest_id}/submissions/{submission_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_submission_from_contest(
     contest_id: int,
-    text_id: int,
+    submission_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_current_user)
 ):
     """
-    Remove a text from a contest
+    Remove a text submission from a contest using the submission ID.
     
     Can be done by:
-    - The text owner
+    - The text owner (owner of the text submitted)
     - The contest creator
     - An admin
     """
-    await ContestService.remove_text_from_contest(
+    await ContestService.remove_submission(
         db=db,
         contest_id=contest_id,
-        text_id=text_id,
+        submission_id=submission_id,
         current_user_id=current_user.id
     )
     return None

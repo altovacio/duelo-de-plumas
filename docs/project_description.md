@@ -53,7 +53,7 @@ Hay tres tipos de usuarios: Administrador, Usuario y Visitante
     * Autor
     * Título
     * Contenido
-* El dueño es quien tiene la capacidad administrativa (borrar, editar, meter a concursos)
+* El dueño es quien tiene la capacidad administrativa (borrar, editar, meter a y retirar de concursos)
 * El autor es quien lo escribió. Notemos que el autor no necesariamente es el dueño
 * Los textos pueden ser sometidos a concursos. De ser así, recibirán un lugar y un comentario por parte de los jueces. Un texto puede tener asociados múltiples lugares y múltiples comentarios.
 

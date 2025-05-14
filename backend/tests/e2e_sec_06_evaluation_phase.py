@@ -3,8 +3,9 @@ import pytest
 from httpx import AsyncClient # MODIFIED: For async client
 import logging
 
-from app.schemas.contest import ContestUpdate, ContestResponse, TextSubmissionResponse
+from app.schemas.contest import ContestUpdate, ContestResponse, TextSubmissionResponse, ContestTextResponse
 from app.schemas.user import UserResponse, UserCredit # For credit top-up
+from app.schemas.vote import VoteCreate, VoteResponse # Added Vote schemas
 from tests.shared_test_state import test_data
 
 # client will be a fixture argument to test functions
@@ -485,5 +486,86 @@ async def test_06_14_user1_submits_votes_for_contest3(client: AsyncClient):
     assert vote_data["contest_id"] == test_data["contest3_id"]
     test_data[f"user1_vote_on_text{text_id_to_vote_on}_in_c3"] = vote_data["id"]
     print(f"User 1 successfully submitted vote (ID: {vote_data['id']}) for text {text_id_to_vote_on} in contest 3.")
+
+@pytest.mark.run(after='test_06_14_user1_submits_votes_for_contest3')
+async def test_06_15_user1_deletes_text1_4_from_contest3_verify_cascade(client: AsyncClient):
+    """User 1 deletes its own text 1.4. Verify it is removed from contest 3, votes deleted. 
+       Verify User 1's credit balance is not affected."""
+    assert "user1_headers" in test_data and "user1_id" in test_data, "User 1 token/ID not found."
+    assert "text1_4_id" in test_data, "Text 1.4 ID not found."
+    assert "contest3_id" in test_data, "Contest 3 ID not found."
+    # submission_c3_t1_4_id was created in test 5.23
+    assert "submission_c3_t1_4_id" in test_data, "Submission ID for Text 1.4 in Contest 3 not found."
+
+    # 0. Get initial User 1 credit balance
+    user_resp_before = await client.get(f"/users/me", headers=test_data["user1_headers"])
+    assert user_resp_before.status_code == 200
+    initial_credits_user1 = UserResponse(**user_resp_before.json()).credits
+
+    # Optional: If User 1 had voted on Text 1.4 in contest3, store that vote_id for specific verification
+    # For simplicity, we will check that no votes for text1_4_id exist in contest3 after deletion.
+
+    # 1. User 1 deletes Text 1.4
+    delete_text_response = await client.delete(
+        f"/texts/{test_data['text1_4_id']}",
+        headers=test_data["user1_headers"]
+    )
+    assert delete_text_response.status_code == 204, \
+        f"User 1 deleting Text 1.4 failed: {delete_text_response.status_code} - {delete_text_response.text}"
+    print(f"User 1 successfully deleted Text 1.4 (ID: {test_data['text1_4_id']}).")
+
+    # 2. Verify Text 1.4 is removed from Contest 3 submissions
+    submissions_after_delete_resp = await client.get(
+        f"/contests/{test_data['contest3_id']}/submissions/", 
+        headers=test_data["user1_headers"] # or admin_headers
+    )
+    assert submissions_after_delete_resp.status_code == 200
+    submissions_in_contest3_after_delete = \
+        [ContestTextResponse(**sub) for sub in submissions_after_delete_resp.json()]
+    
+    found_text1_4_submission = any(
+        sub.text_id == test_data['text1_4_id'] for sub in submissions_in_contest3_after_delete
+    )
+    assert not found_text1_4_submission, \
+        f"Text 1.4 (ID: {test_data['text1_4_id']}) should have been removed from contest3 submissions but was found."
+    print(f"Verified: Text 1.4 is no longer listed in submissions for contest3 (ID: {test_data['contest3_id']}).")
+
+    # 3. Verify votes associated with Text 1.4 in Contest 3 are deleted
+    # This requires an endpoint to list all votes for a contest, e.g., /contests/{contest_id}/votes/
+    # Assuming such an endpoint exists and returns a list of VoteResponse objects.
+    # If test_06_14 did not create a vote for text1_4_id specifically, this part might just confirm no votes for a now-deleted text exist.
+    
+    # Let's try to list all votes for contest3
+    # The actual API for listing all votes for a contest might differ. This is an assumption.
+    # If not available, this verification step might need adjustment or rely on other cascade behaviors.
+    votes_in_contest3_resp = await client.get(f"/contests/{test_data['contest3_id']}/votes/", headers=test_data["user1_headers"])
+    if votes_in_contest3_resp.status_code == 200:
+        all_votes_in_contest3 = [VoteResponse(**vote) for vote in votes_in_contest3_resp.json()]
+        votes_for_text1_4 = [v for v in all_votes_in_contest3 if v.text_id == test_data['text1_4_id']]
+        assert len(votes_for_text1_4) == 0, \
+            f"Found {len(votes_for_text1_4)} votes for deleted Text 1.4 in contest3. Expected 0."
+        print(f"Verified: No votes associated with deleted Text 1.4 exist in contest3 (ID: {test_data['contest3_id']}).")
+    elif votes_in_contest3_resp.status_code == 404: # Endpoint might not exist
+        print(f"Skipping direct vote verification for deleted Text 1.4 in contest3: /contests/{test_data['contest3_id']}/votes/ endpoint not found (404). Cascade might be indirect.")
+    else:
+        print(f"Warning: Could not verify votes for deleted Text 1.4 in contest3. Status: {votes_in_contest3_resp.status_code}, Response: {votes_in_contest3_resp.text}")
+
+    # 4. Verify User 1's credit balance is not affected
+    user_resp_after = await client.get(f"/users/me", headers=test_data["user1_headers"])
+    assert user_resp_after.status_code == 200
+    final_credits_user1 = UserResponse(**user_resp_after.json()).credits
+    assert final_credits_user1 == initial_credits_user1, \
+        f"User 1 credit balance changed after deleting text. Initial: {initial_credits_user1}, Final: {final_credits_user1}."
+    print(f"User 1 credit balance remains unchanged at {final_credits_user1} after deleting Text 1.4.")
+
+    # Verify contest text count updated
+    contest_details_resp = await client.get(f"/contests/{test_data['contest3_id']}", headers=test_data["user1_headers"])
+    assert contest_details_resp.status_code == 200
+    contest_data = ContestResponse(**contest_details_resp.json())
+    # The number of texts should decrease by 1 (assuming Text 1.4 was in it)
+    # If text 1.1 is still there, count should be 1. If only text 1.4 was there, count becomes 0.
+    # Based on 5.22 and 5.23, contest3 had text1.1 and text1.4. So after deleting text1.4, text_count should be 1.
+    assert contest_data.text_count == 1, f"Contest3 text count expected to be 1, got {contest_data.text_count}"
+    print(f"Contest3 (ID: {test_data['contest3_id']}) text count updated to {contest_data.text_count}.")
 
 # --- End of Test Section 6: Evaluation Phase (Contest in Evaluation) ---

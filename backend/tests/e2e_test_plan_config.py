@@ -74,6 +74,8 @@ e2e_test_plan = """
     4.15- Admin uses writer1 to create a text (Text 3.3).
             - Verify transaction is recorded against admin\'s account.
             - Verify User 1\'s credit balance is not affected.
+    4.16- User 1 creates Text 1.4 using writer1, submits it to contest1. (preparing for removal tests)
+            - Verify User 1\'s credit balance decreases.
 
 ## 5. Text Submission Phase (Contest Open)
     # Testing multiple submissions per user allowed (Contest 1 - no owner_restrictions)
@@ -107,28 +109,31 @@ e2e_test_plan = """
             - Verify only accepted submissions are present.
 
     # Testing submission management
-    5.14- User 1 deletes their own AI-text submission (submission_id_c1_t1_2) from contest1.
+    5.14- User 1 removes their own AI-text submission (submission_id_c1_t1_2) from contest1.
             - Verify success and updated contest counts.
-            - Verify User 1\'s credits are NOT affected (AI generation cost is sunk and not refunded).
-    5.15- User 2 deletes their own manual submission (submission_id_c1_t2_1) from contest1.
+            - Verify User 1's credits are NOT affected (AI generation cost is sunk and not refunded).
+    5.15- User 2 removes their own manual submission (submission_id_c1_t2_1) from contest1.
             - Verify success and updated contest counts.
-    5.16- User 1 deletes their own manual submission (submission_id_c2_t1_1) from contest2.
+    5.16- User 1 removes their own manual submission (submission_id_c2_t1_1) from contest2.
             - Verify success and updated contest counts.
             - Verify updated submission list no longer contains the text.
-    5.17- User 1 (creator of contest1) deletes User 2\'s submission (submission_id_c1_t2_2) from contest1.
+    5.17- User 1 (creator of contest1) removes User 2's submission (submission_id_c1_t2_2) from contest1.
             - Verify success and updated contest counts.
     5.18- User 1 re-submits AI-generated Text 1.2 to contest1. Get new submission_id_c1_t1_2_v2.
             - Verify User 1 credits are NOT charged again for re-submission of existing AI text.
-    5.19- Admin deletes User 1\'s re-submitted AI text submission (submission_id_c1_t1_2_v2) from contest1.
+    5.19- Admin removes User 1's re-submitted AI text submission (submission_id_c1_t1_2_v2) from contest1.
             - Verify success.
             - Verify the actual Text 1.2 still exists (only submission removed).
-            - Verify User 1\'s credits are NOT affected.
+            - Verify User 1's credits are NOT affected.
 
     # Preparing for evaluation phase
     5.20- User 1 submits Text 1.1 to contest3. Get submission_id_c3_t1_1.
+    5.21- User 1 tries to submit Test 1.1 again to contest3 -> Fails because the text is already submitted.
+    5.22- User 1 removes Text 1.1 from contest3, then submits it again. Succeds.
+    5.23- User 1 submits Text 1.4 to contest3. 
 
 ## 6. Evaluation Phase (Contest in Evaluation)
-    6.01- User 1 sets contest1 status to \'Evaluation\'.
+    6.01- User 1 sets contest1 status to 'Evaluation'.
     6.02- User 1 attempts to submit a new text to contest1 -> Should fail due to contest being in evaluation phase.
     6.03- Visitor attempts to view submissions for contest1 -> Should succeed, user and author names masked.
     6.04- User 2 (human judge) views submissions for contest1 -> Should succeed, user and author names masked.
@@ -140,19 +145,20 @@ e2e_test_plan = """
     6.09- Admin triggers judge_1 (AI judge) evaluation for contest1. Succeeds.
             - Verify User 1\'s credit balance is not decreased. Verify transaction cost is recorded.
     6.10- Admin triggers judge_global (AI judge) evaluation for contest2. Fails. Contest is not in evaluation. Verify no cost is recorded.
-    6.11- Admin sets contest2 status to \'Evaluation\'.
-    6.12- Admin sets contest3 status to \'Evaluation\'.
+    6.11- Admin sets contest2 status to 'Evaluation'.
+    6.12- Admin sets contest3 status to 'Evaluation'.
     6.13- Admin assigns User 1 as a human judge for contest3.
     6.14- User 1 submits votes/evaluation for contest3.
+    6.15- User 1 deletes its own text 1.4. Verify it is removed from contest 3, votes deleted. Verify User 1\'s credit balance is not affected.
 
 ## 7. Contest Closure & Results
-    7.01- Admin sets contest1, contest2 and contest3 status to \'Closed\'.
-    7.02- Visitor views contest1 details -> Should see results, user and author names revealed.
+    7.01- Admin sets contest1, contest2 and contest3 status to 'Closed'.
+    7.02- Visitor views contest1 details -> Should see results, user and author names revealed, ranking and judge comments/justifications visible.
     7.03- User 1 changes contest 1 to private.
     7.04- Visitor attempts to view contest1 details with no password -> Fails
-    7.05- Visitor attempts to view contest1 details with correct password -> Succeeds. User and author names revealed.
+    7.05- Visitor attempts to view contest1 details with correct password -> Succeeds. User and author names revealed, ranking and judge comments/justifications visible.
     7.06- User 1 returns contest1 to public.
-    7.07- Visitor attempts to view contest1 details with no password -> Succeeds. User and author names revealed.
+    7.07- Visitor attempts to view contest1 details with no password -> Succeeds. User and author names revealed, ranking and judge comments/justifications visible.
     7.08- User 2 deletes their own Text 2.1 from contest1 -> Should succeed.
     7.09- User 1 attempts to delete Text 2.2 from contest1 -> Should succeed.
             - Verify Cost records are not affected.

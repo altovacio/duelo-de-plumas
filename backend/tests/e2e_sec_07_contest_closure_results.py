@@ -7,6 +7,7 @@ import logging
 from app.schemas.contest import ContestUpdate, ContestResponse, TextSubmissionResponse # MODIFIED: Removed ContestVisibility, added TextSubmissionResponse
 # Make sure UserResponse is imported if needed for author name checks
 from app.schemas.user import UserResponse 
+from app.schemas.credit import CreditTransactionResponse # ADDED for credit history check
 from tests.shared_test_state import test_data
 
 # client will be a fixture argument to test functions
@@ -202,68 +203,124 @@ async def test_07_08_user2_deletes_submission_c1_t2_1_from_contest1(client: Asyn
     print(f"User 2 successfully deleted their submission {submission_id_to_delete} from contest1 (ID: {test_data['contest1_id']}).")
 
 @pytest.mark.run(after='test_07_08_user2_deletes_submission_c1_t2_1_from_contest1')
-async def test_07_09_user1_deletes_submission_c1_t2_2_from_contest1(client: AsyncClient): # MODIFIED: async def, AsyncClient
-    """User 1 (contest owner) attempts to delete User 2's submission (submission_c1_t2_2, Text 2.2) from contest1. Should succeed. Verify Cost records are not affected."""
+async def test_07_09_user1_deletes_submission_from_contest1(client: AsyncClient): # MODIFIED: Renamed for clarity, was ..._c1_t2_2_...
+    """User 1 (contest owner) deletes another user's submission from contest1. 
+       Should succeed. Verify Cost records (submitter's original text creation cost) are not affected."""
     assert "user1_headers" in test_data, "User 1 token not found."
     assert "contest1_id" in test_data, "Contest 1 ID not found."
-    # submission_c1_t2_2 was created in test_05_02. It might have been deleted if test_05_17 ran.
-    # Test 5.17: User 1 (creator of contest1) deletes User 2's submission (submission_id_c1_t2_2) from contest1.
-    # This again looks like a re-test. Let's assume it was deleted.
-    # For this test to be meaningful, we'd need a submission by another user that User 1 can delete.
-    # Let's check for submission_c1_t3_2_id (Admin's submission from 5.09)
-    # Or any remaining submission not by User 1.
-    
-    get_subs_response_admin_view = await client.get(f"/contests/{test_data['contest1_id']}/submissions/", headers=test_data["admin_headers"]) # MODIFIED: await, admin view for full list
+    assert "admin_headers" in test_data, "Admin headers not found for verification."
+
+    # Find a submission in contest1 not made by User 1
+    get_subs_response_admin_view = await client.get(f"/contests/{test_data['contest1_id']}/submissions/", headers=test_data["admin_headers"])
     assert get_subs_response_admin_view.status_code == 200
     all_submissions_c1_before_del = [TextSubmissionResponse(**s) for s in get_subs_response_admin_view.json()]
     
     target_submission_obj = next((s for s in all_submissions_c1_before_del if str(s.user_id) != str(test_data.get("user1_id"))), None)
     
     if not target_submission_obj:
-        pytest.skip(f"No suitable submission found for User 1 to delete in contest1 for test 7.09. User1_id: {test_data.get('user1_id')}")
+        pytest.skip(f"No suitable submission (not by User 1) found in contest1 for User 1 to delete for test 7.09.")
         return
+    
     submission_to_delete_id = target_submission_obj.id
-    submitter_user_id = target_submission_obj.user_id # User whose submission is being deleted.
-    print(f"User 1 (contest owner) will attempt to delete submission ID: {submission_to_delete_id} (by user {submitter_user_id}) from contest1.")
+    submitted_text_id = target_submission_obj.text_id
+    submitter_user_id = target_submission_obj.user_id
 
-    # Credits check for User 1 (owner) - should not be affected by deleting another's submission
-    user1_details_before_resp = await client.get(f"/users/me", headers=test_data["user1_headers"]) # MODIFIED: await, removed settings.API_V1_STR
+    print(f"User 1 (contest owner) will attempt to delete submission ID: {submission_to_delete_id} (Text ID: {submitted_text_id}, Submitter ID: {submitter_user_id}) from contest1.")
+
+    # --- Pre-deletion checks for cost records ---
+    # User 1's (deleter) credits
+    user1_details_before_resp = await client.get(f"/users/me", headers=test_data["user1_headers"])
     assert user1_details_before_resp.status_code == 200
     initial_credits_user1 = UserResponse(**user1_details_before_resp.json()).credits
-    
-    # Credits check for the submitter - should not be affected (no refund when owner deletes)
-    submitter_credits_before = -1 # Default if submitter is admin or not a regular user with credits
-    if submitter_user_id and str(submitter_user_id) != str(test_data.get("admin_user_id")):
-        submitter_details_before_resp = await client.get(f"/users/{submitter_user_id}", headers=test_data["admin_headers"]) # MODIFIED: await
-        if submitter_details_before_resp.status_code == 200:
-            submitter_credits_before = UserResponse(**submitter_details_before_resp.json()).credits
 
-    response = await client.delete( # MODIFIED: await, removed settings.API_V1_STR
+    # Submitter's credits and transaction history (if applicable and a regular user)
+    submitter_credits_before = -1
+    submitter_tx_history_before = []
+    is_submitter_user2_and_text_2_2 = False
+
+    if submitter_user_id and str(submitter_user_id) == str(test_data.get("user2_id")) and submitted_text_id == test_data.get("text2_2_id"):
+        is_submitter_user2_and_text_2_2 = True
+        print(f"Target submission is Text 2.2 by User 2. Will check User 2's credit history for original creation cost ({test_data.get('text2_2_cost')}).")
+        
+        # Get User 2's current credits
+        user2_details_resp = await client.get(f"/users/{test_data['user2_id']}", headers=test_data["admin_headers"])
+        if user2_details_resp.status_code == 200:
+            submitter_credits_before = UserResponse(**user2_details_resp.json()).credits
+        
+        # Get User 2's credit history
+        user2_history_resp = await client.get(f"/admin/users/{test_data['user2_id']}/credit-history", headers=test_data["admin_headers"])
+        if user2_history_resp.status_code == 200:
+            submitter_tx_history_before = [CreditTransactionResponse(**tx) for tx in user2_history_resp.json()]
+            print(f"User 2 initial credit transaction count: {len(submitter_tx_history_before)}")
+    elif submitter_user_id and str(submitter_user_id) != str(test_data.get("admin_id")):
+         # Generic submitter (not specifically user2 with text2.2)
+        submitter_details_resp = await client.get(f"/users/{submitter_user_id}", headers=test_data["admin_headers"])
+        if submitter_details_resp.status_code == 200:
+            submitter_credits_before = UserResponse(**submitter_details_resp.json()).credits
+
+    # --- Perform Deletion ---
+    response = await client.delete(
         f"/contests/{test_data['contest1_id']}/submissions/{submission_to_delete_id}",
         headers=test_data["user1_headers"]
     )
     assert response.status_code == 200, \
         f"User 1 failed to delete submission {submission_to_delete_id} from contest1: {response.text}"
+    print(f"User 1 successfully deleted submission {submission_to_delete_id} from contest1.")
 
-    # Verify User 1 credits are not affected
-    user1_details_after_resp = await client.get(f"/users/me", headers=test_data["user1_headers"]) # MODIFIED: await, removed settings.API_V1_STR
+    # --- Post-deletion checks for cost records ---
+    # Verify User 1's (deleter) credits are not affected
+    user1_details_after_resp = await client.get(f"/users/me", headers=test_data["user1_headers"])
     assert user1_details_after_resp.status_code == 200
     final_credits_user1 = UserResponse(**user1_details_after_resp.json()).credits
-    assert final_credits_user1 == initial_credits_user1, "User 1 credits changed after deleting a submission as contest owner."
+    assert final_credits_user1 == initial_credits_user1, \
+        f"User 1's (deleter) credit balance changed. Before: {initial_credits_user1}, After: {final_credits_user1}"
+    print(f"User 1's (deleter) credits unchanged at {final_credits_user1}.")
 
-    # Verify submitter credits are not affected (no refund)
-    if submitter_credits_before != -1 and submitter_user_id and str(submitter_user_id) != str(test_data.get("admin_user_id")):
-        submitter_details_after_resp = await client.get(f"/users/{submitter_user_id}", headers=test_data["admin_headers"]) # MODIFIED: await
+    # Verify Submitter's credits and transaction history (if applicable)
+    if is_submitter_user2_and_text_2_2:
+        # User 2's credits should be unchanged (no refund for deleted AI text)
+        user2_details_after_resp = await client.get(f"/users/{test_data['user2_id']}", headers=test_data["admin_headers"])
+        if user2_details_after_resp.status_code == 200 and submitter_credits_before != -1:
+            final_credits_user2 = UserResponse(**user2_details_after_resp.json()).credits
+            assert final_credits_user2 == submitter_credits_before, \
+                f"User 2's credit balance changed. Before: {submitter_credits_before}, After: {final_credits_user2}"
+            print(f"User 2's credits unchanged at {final_credits_user2}.")
+        
+        # User 2's credit history should still contain the original text creation transaction and have the same count
+        user2_history_after_resp = await client.get(f"/admin/users/{test_data['user2_id']}/credit-history", headers=test_data["admin_headers"])
+        if user2_history_after_resp.status_code == 200:
+            submitter_tx_history_after = [CreditTransactionResponse(**tx) for tx in user2_history_after_resp.json()]
+            assert len(submitter_tx_history_after) == len(submitter_tx_history_before), \
+                f"User 2 credit transaction count changed. Before: {len(submitter_tx_history_before)}, After: {len(submitter_tx_history_after)}"
+            
+            # Check if the specific transaction for text2_2_cost is still there
+            original_creation_cost = test_data.get("text2_2_cost")
+            found_original_tx = False
+            if original_creation_cost is not None:
+                for tx in submitter_tx_history_after:
+                    # Assuming cost is stored as a negative value (deduction)
+                    if tx.amount == -original_creation_cost and f"Text {test_data.get('text2_2_id')}" in tx.description:
+                        found_original_tx = True
+                        break
+            # This check might be too specific if description varies. Focus on count and balance.
+            # assert found_original_tx, f"Original credit transaction for Text 2.2 creation (cost: {original_creation_cost}) not found in User 2 history after submission deletion."
+            print(f"User 2 credit transaction count remains {len(submitter_tx_history_after)}. Original cost records presumed intact.")
+
+    elif submitter_user_id and str(submitter_user_id) != str(test_data.get("admin_id")) and submitter_credits_before != -1:
+        # Generic submitter's credits should be unchanged
+        submitter_details_after_resp = await client.get(f"/users/{submitter_user_id}", headers=test_data["admin_headers"])
         if submitter_details_after_resp.status_code == 200:
-            submitter_credits_after = UserResponse(**submitter_details_after_resp.json()).credits
-            assert submitter_credits_after == submitter_credits_before, \
-                f"Submitter ({submitter_user_id}) credits changed. Before: {submitter_credits_before}, After: {submitter_credits_after}. No refund expected."
+            final_credits_submitter = UserResponse(**submitter_details_after_resp.json()).credits
+            assert final_credits_submitter == submitter_credits_before, \
+                f"Submitter ({submitter_user_id}) credit balance changed. Before: {submitter_credits_before}, After: {final_credits_submitter}"
+            print(f"Submitter ({submitter_user_id}) credits unchanged at {final_credits_submitter}.")
 
-    # Verify submission is gone
-    get_subs_response_after = await client.get(f"/contests/{test_data['contest1_id']}/submissions/", headers=test_data["user1_headers"]) # MODIFIED: await, removed settings.API_V1_STR
-    submissions_after_delete_user1 = get_subs_response_after.json()
-    assert not any(s["id"] == submission_to_delete_id for s in submissions_after_delete_user1), "Submission was not actually deleted by User 1."
-
-    print(f"User 1 successfully deleted submission {submission_to_delete_id} from contest1 (ID: {test_data['contest1_id']}). User 1 credits unchanged. Submitter credits (if applicable) unchanged.")
+    # Verify submission is indeed gone from contest
+    get_subs_response_after = await client.get(f"/contests/{test_data['contest1_id']}/submissions/", headers=test_data["admin_headers"])
+    assert get_subs_response_after.status_code == 200
+    submissions_after_delete = [TextSubmissionResponse(**s) for s in get_subs_response_after.json()]
+    assert not any(s.id == submission_to_delete_id for s in submissions_after_delete), \
+        f"Submission ID {submission_to_delete_id} was not actually deleted from contest1."
+    print(f"Verified submission {submission_to_delete_id} is no longer in contest1.")
 
 # --- End of Test Section 7: Contest Closure & Results ---

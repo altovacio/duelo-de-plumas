@@ -167,10 +167,26 @@ class ContestRepository:
         return result.scalars().all()
     
     @staticmethod
+    async def get_submission_by_id(db: AsyncSession, submission_id: int) -> Optional[ContestText]:
+        """Gets a specific ContestText entry by its primary key."""
+        stmt = select(ContestText).filter(ContestText.id == submission_id)
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
+    
+    @staticmethod
     async def remove_text_from_contest(db: AsyncSession, contest_id: int, text_id: int) -> bool:
+        # This method deletes by (contest_id, text_id) pair.
+        # It might still be used if there's a use case to remove a specific text from a contest
+        # regardless of how many times it was submitted (if multiple submissions of same text were allowed and distinct).
+        # However, current E2E tests pass submission_id (ContestText.id) to this, which is wrong for its current logic.
+        # For now, let's assume the primary way to delete a submission is by its unique submission_id (ContestText.id)
         stmt = select(ContestText).filter(
             ContestText.contest_id == contest_id,
-            ContestText.text_id == text_id
+            ContestText.text_id == text_id  # This identifies ONE submission of a text to a contest.
+                                          # If a text could be submitted multiple times creating multiple ContestText entries
+                                          # for the same (text_id, contest_id), this would only delete one.
+                                          # However, submit_text_to_contest checks for existing and returns None if already submitted.
+                                          # So, there's typically only one ContestText per (text_id, contest_id).
         )
         result = await db.execute(stmt)
         db_contest_text = result.scalar_one_or_none()
@@ -179,6 +195,18 @@ class ContestRepository:
             return False
             
         await db.delete(db_contest_text)
+        await db.commit()
+        return True
+    
+    @staticmethod
+    async def delete_submission(db: AsyncSession, submission_id: int) -> bool:
+        """Deletes a specific ContestText entry by its primary key (submission_id)."""
+        db_submission = await ContestRepository.get_submission_by_id(db, submission_id)
+        
+        if not db_submission:
+            return False
+            
+        await db.delete(db_submission)
         await db.commit()
         return True
     

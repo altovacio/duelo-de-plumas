@@ -2,6 +2,7 @@ from typing import Optional, List
 from datetime import datetime
 from pydantic import BaseModel, model_validator
 
+from app.schemas.evaluation import EvaluationCommentResponse
 
 
 class ContestBase(BaseModel):
@@ -64,6 +65,7 @@ class ContestResponse(ContestBase):
     author_restrictions: bool
     participant_count: int
     text_count: int
+    has_password: bool  # Indicates if the contest is password protected
     
     class Config:
         from_attributes = True
@@ -72,6 +74,7 @@ class ContestResponse(ContestBase):
 # Now JudgeAssignmentResponse is defined before use here
 class ContestDetailResponse(ContestResponse):
     judges: List[JudgeAssignmentResponse] = []
+    # has_password inherited from ContestResponse
     
     class Config:
         from_attributes = True
@@ -101,6 +104,7 @@ class ContestTextResponse(BaseModel):
     author: Optional[str] = None
     owner_id: Optional[int] = None
     ranking: Optional[int] = None  # 1 for first place, 2 for second, 3 for third, etc.
+    evaluations: Optional[List[EvaluationCommentResponse]] = None
     
     class Config:
         from_attributes = True 

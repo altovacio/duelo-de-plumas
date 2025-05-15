@@ -156,7 +156,7 @@ async def submit_text_to_contest(
     )
 
 
-@router.get("/{contest_id}/submissions", response_model=List[ContestTextResponse])
+@router.get("/{contest_id}/submissions/", response_model=List[ContestTextResponse])
 async def get_contest_submissions(
     contest_id: int,
     password: Optional[str] = None,

@@ -255,6 +255,13 @@ class ContestRepository:
             return None # Indicate failure due to, likely, a race condition on unique constraint
 
     @staticmethod
+    async def get_contest_judge_by_id(db: AsyncSession, contest_judge_id: int) -> Optional[ContestJudge]:
+        """Gets a specific ContestJudge entry by its primary key."""
+        stmt = select(ContestJudge).filter(ContestJudge.id == contest_judge_id)
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    @staticmethod
     async def get_contest_judges(db: AsyncSession, contest_id: int) -> List[ContestJudge]:
         stmt = select(ContestJudge).filter(
             ContestJudge.contest_id == contest_id

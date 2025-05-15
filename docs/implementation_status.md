@@ -166,7 +166,6 @@ duelo-de-plumas/
 - Common fixtures and helpers are in `backend/tests/conftest.py`.
 - The main test plan docstring is now in `backend/tests/e2e_test_plan_config.py`.
 - All import errors within individual test files (`e2e_sec_*.py`) have been resolved.
-- Current failure point: Tests proceed past section 4. Next section's status TBD.
 - Deviation Note: Pre-execution credit estimation (`AIService.estimate_cost`) uses a simplified total token count rather than separate input/output estimates required by the core `estimate_credits` function. This might lead to inaccuracies in the pre-check but does not affect the final credit deduction, which uses the correct logic.
 
 | Section | Description | Status | Deviations from Plan |

@@ -278,7 +278,7 @@ async def test_05_10_user1_views_submissions_contest1_succeeds(client: AsyncClie
     assert "contest1_id" in test_data, "Contest 1 ID not found."
 
     response = await client.get( # MODIFIED: await, removed settings.API_V1_STR
-        f"/contests/{test_data['contest1_id']}/submissions",
+        f"/contests/{test_data['contest1_id']}/submissions/",
         headers=test_data["user1_headers"]
     )
     assert response.status_code == 200, f"User 1 (owner) viewing submissions for contest1 failed: {response.text}"
@@ -298,7 +298,7 @@ async def test_05_11_user2_views_submissions_contest1_fails(client: AsyncClient)
     assert "contest1_id" in test_data, "Contest 1 ID not found."
 
     response = await client.get( # MODIFIED: await, removed settings.API_V1_STR
-        f"/contests/{test_data['contest1_id']}/submissions",
+        f"/contests/{test_data['contest1_id']}/submissions/",
         headers=test_data["user2_headers"]
     )
     assert response.status_code == 403, f"User 2 (participant) viewing submissions for contest1 should fail (403), got {response.status_code}: {response.text}"
@@ -308,7 +308,7 @@ async def test_05_11_user2_views_submissions_contest1_fails(client: AsyncClient)
 async def test_05_12_visitor_views_submissions_contest1_fails(client: AsyncClient): # MODIFIED: async def, AsyncClient
     """A visitor (no token) should not be able to view submissions."""
     assert "contest1_id" in test_data, "Contest 1 ID not found."
-    response = await client.get(f"/contests/{test_data['contest1_id']}/submissions") # MODIFIED: await, removed settings.API_V1_STR
+    response = await client.get(f"/contests/{test_data['contest1_id']}/submissions/") # MODIFIED: await, removed settings.API_V1_STR
     assert response.status_code == 401, f"Visitor viewing submissions for contest1 should fail (401), got {response.status_code}: {response.text}" # Assuming 401 for unauthenticated
     print("Visitor attempt to view submissions for contest1 failed as expected.")
 
@@ -319,7 +319,7 @@ async def test_05_13_admin_views_submissions_contest1_succeeds(client: AsyncClie
     assert "contest1_id" in test_data, "Contest 1 ID not found."
 
     response = await client.get( # MODIFIED: await, removed settings.API_V1_STR
-        f"/contests/{test_data['contest1_id']}/submissions",
+        f"/contests/{test_data['contest1_id']}/submissions/",
         headers=test_data["admin_headers"]
     )
     assert response.status_code == 200, f"Admin viewing submissions for contest1 failed: {response.text}"
@@ -506,7 +506,6 @@ async def test_05_17_user1_removes_user2_submission_c1_t2_2_succeeds(client: Asy
     assert contest1_texts_after == contest1_texts_before - 1, \
         f"Contest1 text count should decrease by 1. Before: {contest1_texts_before}, After: {contest1_texts_after}"
     print(f"Contest1 text count updated to {contest1_texts_after}. User2 credits unchanged ({user2_credits_after}).")
-    if "submission_c1_t2_2_id" in test_data: del test_data["submission_c1_t2_2_id"]
 
 @pytest.mark.run(after='test_05_17_user1_removes_user2_submission_c1_t2_2_succeeds')
 async def test_05_18_user1_resubmits_ai_text1_2_to_contest1(client: AsyncClient):

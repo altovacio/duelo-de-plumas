@@ -14,6 +14,9 @@ from app.db.repositories.agent_repository import AgentRepository
 from app.db.models.contest import Contest
 from app.db.models.contest_text import ContestText
 from app.db.models.contest_judge import ContestJudge
+from app.db.models.vote import Vote
+from app.db.repositories.vote_repository import VoteRepository
+from app.schemas.evaluation import EvaluationCommentResponse
 
 
 class ContestService:
@@ -32,6 +35,8 @@ class ContestService:
         response_data = created_contest.__dict__.copy() # Get ORM attributes
         response_data['participant_count'] = 0
         response_data['text_count'] = 0
+        # Reflect whether a password is set
+        response_data['has_password'] = bool(response_data.get('password'))
         
         # Use model_validate to create the Pydantic response model instance
         return ContestResponse.model_validate(response_data)
@@ -58,6 +63,8 @@ class ContestService:
             # This uses the already corrected get_contest_with_counts from the repository
             contest_data_with_counts = await ContestRepository.get_contest_with_counts(db=db, contest_id=contest_orm.id)
             if contest_data_with_counts:
+                # Reflect whether a password is set on each contest
+                contest_data_with_counts['has_password'] = bool(contest_data_with_counts.get('password'))
                 response_list.append(ContestResponse.model_validate(contest_data_with_counts))
             else:
                 # This case should ideally not happen if contest_orm.id is valid
@@ -104,6 +111,8 @@ class ContestService:
         final_result_dict = raw_result_dict.copy()
         final_result_dict["judges"] = transformed_judges_list
         
+        # Reflect whether a password is set
+        final_result_dict['has_password'] = bool(final_result_dict.get('password'))
         return final_result_dict
     
     @staticmethod
@@ -126,6 +135,9 @@ class ContestService:
         
         # Prepare a mutable copy of contest_update data for potential modification
         update_data_dict = contest_update.model_dump(exclude_unset=True)
+        # If setting to public, explicitly clear the password so it is removed in the DB
+        if update_data_dict.get('is_private') is False:
+            update_data_dict['password'] = None
 
         # Validate status transition and ensure status is lowercase before saving
         if "status" in update_data_dict and update_data_dict["status"] != contest.status:
@@ -139,10 +151,6 @@ class ContestService:
         final_contest_update = ContestUpdate(**update_data_dict)
             
         # Validate that private contests have a password
-        # This logic needs to use the potentially updated 'is_private' and 'password' from final_contest_update
-        # or the existing values from 'contest' if not present in final_contest_update.
-        
-        # Check current state of is_private
         is_private_after_update = final_contest_update.is_private if final_contest_update.is_private is not None else contest.is_private
         password_after_update = final_contest_update.password if final_contest_update.password is not None else contest.password
 
@@ -158,6 +166,16 @@ class ContestService:
             contest_update=final_contest_update # Pass the ContestUpdate with lowercase status
         )
         
+        # Check if the contest is now closed and trigger result computation
+        if updated_contest_orm and updated_contest_orm.status.lower() == "closed":
+            await ContestService._compute_and_store_contest_results(db, contest_id)
+            # Fetch the updated contest data again AFTER results computation to ensure response reflects ranks
+            # This is important because the contest_orm might be stale regarding submission ranks
+            updated_contest_data = await ContestRepository.get_contest_with_counts(db=db, contest_id=contest_id)
+        else:
+            # If not newly closed or update failed, get data as before
+             updated_contest_data = await ContestRepository.get_contest_with_counts(db=db, contest_id=contest_id)
+
         if not updated_contest_orm:
             # This case should ideally not happen if get_contest succeeded earlier
             # but handle defensively.
@@ -166,15 +184,8 @@ class ContestService:
                 detail=f"Contest with id {contest_id} not found after update attempt."
             )
         
-        # Fetch the updated contest data including counts and judges
-        updated_contest_data = await ContestRepository.get_contest_with_counts(db=db, contest_id=contest_id)
-        
-        if not updated_contest_data:
-             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, # Or 500 Internal Server Error
-                detail=f"Could not retrieve contest details for id {contest_id} after update."
-            )
-            
+        # Reflect whether a password is set
+        updated_contest_data['has_password'] = bool(updated_contest_data.get('password'))
         # Validate and return as ContestResponse
         # Note: get_contest_with_counts returns a dict with judges, 
         # but ContestResponse doesn't expect judges. Pydantic handles extra fields by default.
@@ -599,9 +610,8 @@ class ContestService:
         
         For open contests, only creator and admins can see submissions
         For evaluation contests, submissions are visible but author/owner are masked
-        For closed contests, all details are visible
+        For closed contests, all details are visible, including evaluations.
         """
-        # Check access and get contest - this handles password for private contests
         contest = await ContestService.check_contest_access(
             db=db,
             contest_id=contest_id,
@@ -609,7 +619,6 @@ class ContestService:
             password=password
         )
         
-        # For open contests, only creator and admins can see submissions
         if contest.status.lower() == "open":
             if current_user_id is None:
                 raise HTTPException(
@@ -625,38 +634,162 @@ class ContestService:
                     detail="Submissions are not visible to participants while the contest is open."
                 )
         
-        # Get contest texts directly from repository
         contest_texts = await ContestRepository.get_contest_texts(db=db, contest_id=contest_id)
-        
-        # Prepare responses with proper masking
         text_repo = TextRepository(db)
-        responses = []
-        
+        # Fetch all votes for the contest once if it's closed to optimize DB calls
+        all_contest_votes: List[Vote] = []
+        if contest.status.lower() == "closed":
+            all_contest_votes = await VoteRepository.get_votes_by_contest(db=db, contest_id=contest_id)
+
+        results = []
         for ct in contest_texts:
             text = await text_repo.get_text(ct.text_id)
             if not text:
                 continue
-                
-            # Determine masking based on contest status
-            if contest.status.lower() == "open":
-                author = text.author
-                owner = text.owner_id
-            elif contest.status.lower() == "evaluation":
-                author = "[Hidden]"
-                owner = None
-            else:  # closed
-                author = text.author
-                owner = text.owner_id
-                
-            responses.append(
-                ContestTextResponse(
-                    text_id=text.id,
-                    title=text.title,
-                    content=text.content,
-                    author=author,
-                    owner_id=owner,
-                    ranking=ct.ranking
-                )
-            )
+
+            author_name = text.author
+            owner_id_val = text.owner_id
+            submission_evaluations: List[EvaluationCommentResponse] = [] # Ensure type
+
+            contest_state = contest.status.lower()
+            # Mask or reveal owner/author based on contest state
+            if contest_state == "evaluation":
+                author_name = "[Hidden]"
+                owner_id_val = None
+            # For "open" state, author and owner are revealed only to creator/admin, handled by initial check.
+            # For "closed" state, author and owner are revealed to all with access.
             
-        return responses 
+            if contest_state == "closed":
+                text_specific_votes = [v for v in all_contest_votes if v.text_id == ct.text_id]
+                for vote_obj in text_specific_votes:
+                    judge_identifier_str = f"Judge (ID: {vote_obj.contest_judge_id})" # Default/fallback
+                    if vote_obj.contest_judge_id:
+                        contest_judge_entry = await ContestRepository.get_contest_judge_by_id(db, vote_obj.contest_judge_id)
+                        if contest_judge_entry:
+                            if contest_judge_entry.user_judge_id:
+                                user_repo = UserRepository(db)
+                                user_judge = await user_repo.get_by_id(contest_judge_entry.user_judge_id)
+                                if user_judge:
+                                    judge_identifier_str = user_judge.username
+                                else:
+                                    judge_identifier_str = "Unknown User Judge"
+                            elif contest_judge_entry.agent_judge_id:
+                                agent_judge = await AgentRepository.get_agent_by_id(db, contest_judge_entry.agent_judge_id)
+                                if agent_judge:
+                                    judge_identifier_str = agent_judge.name
+                                else:
+                                    judge_identifier_str = "Unknown Agent Judge"
+                        else:
+                            judge_identifier_str = "ContestJudge entry not found"
+                    
+                    submission_evaluations.append(
+                        EvaluationCommentResponse(
+                            comment=vote_obj.comment,
+                            judge_identifier=judge_identifier_str
+                        )
+                    )
+            
+            # Construct the response dictionary for the current submission
+            submission_data_dict = {
+                "submission_id": ct.id,
+                "contest_id": ct.contest_id,
+                "text_id": text.id,
+                "submission_date": ct.submission_date,
+                "title": text.title,
+                "content": text.content,
+                "author": author_name,
+                "owner_id": owner_id_val,
+                "ranking": ct.ranking,
+                # Only include evaluations if the contest is closed and evaluations were processed
+                "evaluations": submission_evaluations if contest_state == "closed" and submission_evaluations else None
+            }
+            results.append(ContestTextResponse.model_validate(submission_data_dict))
+            
+        return results
+
+    async def _compute_and_store_contest_results(db: AsyncSession, contest_id: int) -> None:
+        """Computes scores and rankings for submissions in a contest and stores them."""
+        contest_texts = await ContestRepository.get_contest_texts(db, contest_id)
+        if not contest_texts:
+            return # No submissions to rank
+
+        votes = await VoteRepository.get_votes_by_contest(db, contest_id)
+
+        # Handle case with no votes: set points to 0 and ranking to None
+        if not votes:
+            for ct_obj in contest_texts:
+                ct_obj.total_points = 0
+                ct_obj.ranking = None
+            try:
+                await db.commit()
+                for ct_obj in contest_texts:
+                    await db.refresh(ct_obj)
+            except Exception as e:
+                await db.rollback()
+                print(f"Error storing no-vote results for contest {contest_id}: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to store results for contest with no votes: {e}"
+                )
+            return # End processing if no votes
+
+        submission_data: Dict[int, Dict[str, Any]] = {
+            # Use ct.id (ContestText.id) as key if votes refer to it as submission_id
+            # Or use ct.text_id if votes refer to the original Text.id
+            # Based on Vote model (Vote.text_id), we assume votes are against the original Text.id
+            ct.text_id: {'points': 0, 'contest_text_obj': ct}
+            for ct in contest_texts
+        }
+
+        for vote in votes:
+            # Ensure vote.text_id corresponds to a key in submission_data
+            if vote.text_id in submission_data: 
+                points_to_add = 0
+                if vote.text_place == 1:
+                    points_to_add = 3
+                elif vote.text_place == 2:
+                    points_to_add = 2
+                elif vote.text_place == 3:
+                    points_to_add = 1
+                
+                submission_data[vote.text_id]['points'] += points_to_add
+
+        # Sort submissions by points (descending), then by submission_date (ascending) as a tie-breaker for rank stability
+        sorted_submissions_info = sorted(
+            submission_data.values(), 
+            key=lambda x: (x['points'], -x['contest_text_obj'].submission_date.timestamp()), 
+            reverse=True
+        )
+
+        current_rank = 0
+        last_score = -1 # Initialize with a score that won't be matched by 0 points
+        num_at_rank = 0
+
+        for i, sub_info in enumerate(sorted_submissions_info):
+            contest_text_obj: ContestText = sub_info['contest_text_obj']
+            current_score = sub_info['points']
+
+            contest_text_obj.total_points = current_score
+
+            if current_score != last_score:
+                current_rank = i + 1 # Standard ranking (1, 2, 2, 4)
+                last_score = current_score
+            
+            contest_text_obj.ranking = current_rank
+            
+            # No need to db.add() if contest_text_obj is already managed by the session and modified
+            # The commit will handle persisting changes.
+
+        try:
+            await db.commit()
+            for sub_info in sorted_submissions_info:
+                await db.refresh(sub_info['contest_text_obj'])
+        except Exception as e:
+            await db.rollback()
+            # Log error or raise a specific exception for result computation failure
+            # This is a critical step, so failure should be noticeable.
+            print(f"Error computing/storing contest results for contest {contest_id}: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to compute and store contest results: {e}"
+            ) 

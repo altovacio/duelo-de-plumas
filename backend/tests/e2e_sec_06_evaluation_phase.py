@@ -68,7 +68,7 @@ async def test_06_03_visitor_views_contest1_submissions_masked(client: AsyncClie
     current_status = ContestDetailResponse(**contest_check_response.json()).status # FIX: Use ContestDetailResponse
     assert current_status.lower() == "evaluation", f"Contest1 not in Evaluation. Current: {current_status}"
 
-    response = await client.get(f"/contests/{test_data['contest1_id']}/submissions") # MODIFIED: await, removed settings.API_V1_STR, REMOVED TRAILING SLASH
+    response = await client.get(f"/contests/{test_data['contest1_id']}/submissions/") 
     assert response.status_code == 200, f"Visitor failed to get submissions: {response.text}"
     
     submissions = response.json()
@@ -98,7 +98,7 @@ async def test_06_04_user2_judge_views_contest1_submissions_masked(client: Async
     is_judge = any(str(judge.user_id) == str(test_data["user2_id"]) for judge in contest_details.judges if judge.user_id)
     assert is_judge, "User 2 is not listed as a judge for contest1."
 
-    response = await client.get(f"/contests/{test_data['contest1_id']}/submissions", headers=test_data["user2_headers"]) # MODIFIED: await, removed settings.API_V1_STR, REMOVED TRAILING SLASH
+    response = await client.get(f"/contests/{test_data['contest1_id']}/submissions/", headers=test_data["user2_headers"]) 
     assert response.status_code == 200, f"User 2 (judge) failed to get submissions: {response.text}"
     
     submissions = response.json()
@@ -556,7 +556,7 @@ async def test_06_15_user1_deletes_text1_4_from_contest3_verify_cascade(client: 
 
     # 2. Verify Text 1.4 is removed from Contest 3 submissions
     submissions_after_delete_resp = await client.get(
-        f"/contests/{test_data['contest3_id']}/submissions",  # FIX: Remove trailing slash
+        f"/contests/{test_data['contest3_id']}/submissions/",  
         headers=test_data["user1_headers"] # or admin_headers
     )
     assert submissions_after_delete_resp.status_code == 200

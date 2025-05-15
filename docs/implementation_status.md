@@ -273,3 +273,7 @@ duelo-de-plumas/
 | 8.05 | User 2 checks their credit balance | ✅ |  |
 | 9. Cleanup Routine | Deleting entities and checking permissions/cascade effects | ✅ (Reviewed and refactored duplicates) |
 | 10. Final State Verification & Cost Monitoring (Post-Cleanup) | Final system state checks |  |
+
+## Deviations/Updates:
+
+*   **Recent Update (Please specify date):** Updated `CreditTransaction` and `AgentExecution` models to use `ON DELETE SET NULL` for foreign keys to the `users` table (`user_id` and `owner_id` respectively). The columns were also made nullable. This ensures that credit and AI execution cost history is preserved when a user is deleted, as per project requirements. Regenerated Alembic migrations to reflect these schema changes.

@@ -1,8 +1,8 @@
-"""initial_db_setup_autogen
+"""update_ondelete_user_fks_docker
 
-Revision ID: 567ebf97ae4a
+Revision ID: 851d54183b97
 Revises: 
-Create Date: 2025-05-14 05:33:31.476829
+Create Date: 2025-05-15 17:09:04.363324
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '567ebf97ae4a'
+revision = '851d54183b97'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -67,7 +67,7 @@ def upgrade() -> None:
     op.create_index(op.f('ix_contests_id'), 'contests', ['id'], unique=False)
     op.create_table('credit_transactions',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=True),
     sa.Column('amount', sa.Integer(), nullable=False),
     sa.Column('transaction_type', sa.String(), nullable=False),
     sa.Column('description', sa.String(), nullable=False),
@@ -75,7 +75,7 @@ def upgrade() -> None:
     sa.Column('tokens_used', sa.Integer(), nullable=True),
     sa.Column('model_cost_rate', sa.Float(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_credit_transactions_id'), 'credit_transactions', ['id'], unique=False)
@@ -94,7 +94,7 @@ def upgrade() -> None:
     op.create_table('agent_executions',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('agent_id', sa.Integer(), nullable=True),
-    sa.Column('owner_id', sa.Integer(), nullable=False),
+    sa.Column('owner_id', sa.Integer(), nullable=True),
     sa.Column('execution_type', sa.String(), nullable=False),
     sa.Column('model', sa.String(), nullable=False),
     sa.Column('status', sa.String(), nullable=False),
@@ -103,7 +103,7 @@ def upgrade() -> None:
     sa.Column('credits_used', sa.Integer(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['agent_id'], ['agents.id'], ondelete='SET NULL'),
-    sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_agent_executions_id'), 'agent_executions', ['id'], unique=False)
@@ -129,6 +129,7 @@ def upgrade() -> None:
     sa.Column('text_id', sa.Integer(), nullable=False),
     sa.Column('submission_date', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('ranking', sa.Integer(), nullable=True),
+    sa.Column('total_points', sa.Integer(), nullable=True),
     sa.ForeignKeyConstraint(['contest_id'], ['contests.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['text_id'], ['texts.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')

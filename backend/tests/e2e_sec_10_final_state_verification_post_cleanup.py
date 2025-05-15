@@ -5,6 +5,9 @@ from typing import List # Keep if listing endpoints are used for verification
 import logging
 
 from app.schemas.credit import CreditUsageSummary # MODIFIED: Was AIServiceCostSummaryResponse
+from app.schemas.user import UserResponse # ADDED for listing users
+from app.schemas.contest import ContestResponse # ADDED for listing contests
+from app.schemas.agent import AgentResponse # ADDED for listing agents
 from tests.shared_test_state import test_data
 
 # client will be a fixture argument to test functions
@@ -13,44 +16,53 @@ from tests.shared_test_state import test_data
 
 @pytest.mark.run(after='test_09_11_admin_deletes_user2') # After section 9
 async def test_10_01_verify_all_test_entities_are_deleted(client: AsyncClient): # MODIFIED: async def, AsyncClient
-    """Verify all users, contests, AI agents, submissions, votes created in the test are deleted."""
-    assert "admin_headers" in test_data, "Admin token not found for verification. Some entities might require auth to check."
-    # Note: Admin user itself might be deleted if part of cleanup. 
-    # If admin is deleted, a new admin/superuser session would be needed to verify some of these.
-    # For now, assume admin_headers is still valid for fetching global lists if needed, or it's the last admin.
-    # If admin was deleted in 9.11, these checks need to be reconsidered or use a superuser.
-    # Based on current test 9.11, User1 and User2 are deleted. Admin user remains.
+    """Verify all users, contests, AI agents created in the test are deleted by listing them."""
+    assert "admin_headers" in test_data, "Admin token not found for verification."
+    admin_headers = test_data["admin_headers"]
 
-    # Verify Users are deleted (User1, User2)
-    # user1_id and user2_id were deleted from test_data in section 9.
-    # We can try to get them by IDs that *were* stored if we had them outside test_data, or rely on section 9 having done its job.
-    # As test_data keys are deleted, we cannot directly use test_data["user1_id"].
-    # This test is more of a conceptual check that cleanup was effective.
-    # A more robust check would be to list all users and ensure none of the test users are present.
-    print("Verifying deletion of User 1 and User 2 (done in Section 9). Expect 404s if attempted to fetch by ID.")
+    # Verify Users: Expect only the admin user to remain
+    # This assumes test users user1 & user2 were created and deleted, and admin was the only other user.
+    # If there are other seeded users, this assertion needs adjustment.
+    user_list_response = await client.get("/users", headers=admin_headers)
+    assert user_list_response.status_code == 200, f"Failed to list users: {user_list_response.text}"
+    users = [UserResponse(**user) for user in user_list_response.json()]
+    # It's safer to check that known test user IDs are NOT present, but they are removed from test_data.
+    # We assume the admin user performing these checks is still present.
+    # And that user1_id and user2_id, if they could be retrieved, would not be in the list.
+    # A simple check might be on count if we know the exact number of test users vs persistent users.
+    # For now, let's assume the goal is to have *very few* users, ideally 1 (the admin).
+    # This is a weak assertion without knowing initial state.
+    # A better approach might be to ensure the specific IDs of user1/user2 (if stored before deletion from test_data) are not in `users_after_cleanup_ids`.
+    # However, tests 9.10 and 9.11 already confirm 404 on GET for specific user IDs.
+    # So, we can assert that the number of users is now less than it was before user1 & user2 were created if that was tracked.
+    # Or, if we know the admin user's details, assert that only that user (or users not part of the test) exists.
+    # Given user1_id and user2_id are gone from test_data, we can print the number of remaining users.
+    print(f"Number of users remaining: {len(users)}. Test users user1 and user2 should be deleted.")
+    # If admin_user_id was stored:
+    if "admin_user_id" in test_data:
+        admin_is_present = any(u.id == test_data["admin_user_id"] for u in users)
+        assert admin_is_present, "Admin user is no longer present in the user list."
+        # assert len(users) == 1, f"Expected only admin user to remain, but found {len(users)} users." # This is too strict without knowing setup.
+    print(f"Admin confirmed {len(users)} users exist post-cleanup.")
 
-    # Verify Contests are deleted (contest1, contest2, contest3)
-    # contest_ids were deleted from test_data. Attempting to fetch them should result in 404.
-    print("Verifying deletion of contest1, contest2, contest3 (done in Section 9). Expect 404s if attempted to fetch by ID.")
 
-    # Verify AI Agents are deleted (writer1, judge1, writer_global, judge_global)
-    # agent_ids were deleted from test_data.
-    print("Verifying deletion of AI agents (writer1, judge1, writer_global, judge_global) (done in Section 9). Expect 404s.")
+    # Verify Contests: Expect zero contests if all were test-created
+    # The GET /contests endpoint is public and doesn't strictly need admin_headers but using it is fine.
+    contest_list_response = await client.get("/contests/", headers=admin_headers)
+    assert contest_list_response.status_code == 200, f"Failed to list contests: {contest_list_response.text}"
+    contests = [ContestResponse(**contest) for contest in contest_list_response.json()]
+    assert len(contests) == 0, f"Expected 0 contests after cleanup, but found {len(contests)}: {[c.id for c in contests]}"
+    print(f"Admin confirmed {len(contests)} contests exist post-cleanup (expected 0).")
 
-    # Verify Submissions & Votes: These are harder to check individually without their parent contests.
-    # Their deletion is largely dependent on cascade deletes from contest/user deletion.
-    # We trust the ORM's cascade settings or specific service logic handled this in Section 9.
-    print("Submissions and Votes are assumed deleted via cascade from Contest/User deletions in Section 9.")
+    # Verify AI Agents: Expect zero agents if all were test-created
+    # GET /agents with no filters, as admin, should return all agents.
+    agent_list_response = await client.get("/agents", headers=admin_headers)
+    assert agent_list_response.status_code == 200, f"Failed to list agents: {agent_list_response.text}"
+    agents = [AgentResponse(**agent) for agent in agent_list_response.json()]
+    assert len(agents) == 0, f"Expected 0 AI agents after cleanup, but found {len(agents)}: {[a.id for a in agents]}"
+    print(f"Admin confirmed {len(agents)} AI agents exist post-cleanup (expected 0).")
 
-    # Example: Check if any contests remain (should be 0 if all were test-created and deleted)
-    # This requires admin privileges for listing all contests if such an endpoint exists.
-    # response_contests = await client.get("/admin/contests/all", headers=test_data["admin_headers"]) # Fictional endpoint, MODIFIED: await
-    # if response_contests.status_code == 200:
-    #    assert len(response_contests.json()) == 0, "Some contests still exist after cleanup."
-
-    # Similar checks for all users, all agents etc. would be more thorough.
-    # For now, this test serves as a marker that cleanup should have occurred.
-    print("Section 10.01: Conceptual verification that all test entities should be deleted based on Section 9 actions.")
+    print("Section 10.01: Verification of entity deletion complete.")
 
 @pytest.mark.run(after='test_10_01_verify_all_test_entities_are_deleted')
 async def test_10_02_admin_checks_ai_costs_summary_post_cleanup(client: AsyncClient): # MODIFIED: async def, AsyncClient
@@ -59,22 +71,18 @@ async def test_10_02_admin_checks_ai_costs_summary_post_cleanup(client: AsyncCli
     # Assumes admin_user was not deleted, or a new admin session is used.
 
     # Fetch current AI costs summary
-    response = await client.get("/admin/ai-costs-summary", headers=test_data["admin_headers"]) # MODIFIED: await, removed settings.API_V1_STR
+    response = await client.get("/admin/credits/usage", headers=test_data["admin_headers"]) # MODIFIED: await, removed settings.API_V1_STR, changed path
     assert response.status_code == 200, f"Admin failed to get AI costs summary post-cleanup: {response.text}"
     
     costs_summary_after = CreditUsageSummary(**response.json()) # MODIFIED
     print(f"Admin successfully retrieved AI costs summary post-cleanup. Total cost: {costs_summary_after.total_credits_used}") # MODIFIED
 
-    # Compare with a pre-cleanup stored value if available, or check for stability/consistency.
-    # For instance, if test_data["ai_costs_summary_pre_cleanup"] was stored in section 8.
-    # For now, we just ensure it can be fetched and has a valid structure.
-    # The critical check is that costs are not *negatively* affected (e.g. refunded) by deletions.
-    # If cost records are persistent and tied to historical usage, the total should not decrease due to cleanup.
-    # If specific costs were tracked from Section 8 (e.g. test_data['initial_ai_total_cost']):
-    #   stored_pre_cleanup_cost = test_data.get('ai_total_cost_pre_cleanup', 0) # Fetch stored value or default
-    #   assert costs_summary_after.total_credits_used >= stored_pre_cleanup_cost, \
-    #       f"AI total cost should not decrease after cleanup. Post-cleanup: {costs_summary_after.total_credits_used}, Pre-cleanup: {stored_pre_cleanup_cost}" # MODIFIED
+    assert 'ai_total_cost_pre_cleanup' in test_data, "Pre-cleanup AI total cost was not stored in test_data."
+    stored_pre_cleanup_cost = test_data['ai_total_cost_pre_cleanup']
+    
+    assert costs_summary_after.total_credits_used == stored_pre_cleanup_cost, \
+        f"AI total cost should remain the same after cleanup. Post-cleanup: {costs_summary_after.total_credits_used}, Pre-cleanup: {stored_pre_cleanup_cost}"
 
-    print(f"AI costs summary post-cleanup total: {costs_summary_after.total_credits_used}. This should ideally match or be greater than pre-cleanup if costs are only additive.") # MODIFIED
+    print(f"AI costs summary post-cleanup total: {costs_summary_after.total_credits_used}. Verified against pre-cleanup cost: {stored_pre_cleanup_cost}.") # MODIFIED
 
 # --- End of Test Section 10 --- 

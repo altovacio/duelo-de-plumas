@@ -11,7 +11,7 @@ class CreditTransaction(Base):
     __tablename__ = "credit_transactions"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     amount = Column(Integer, nullable=False)  # Positive for additions, negative for deductions
     transaction_type = Column(String, nullable=False)  # "addition", "deduction"
     description = Column(String, nullable=False)

@@ -48,7 +48,7 @@ async def test_09_02_user1_deletes_contest1_succeeds(client: AsyncClient): # MOD
         f"/contests/{contest1_id}",
         headers=test_data["user1_headers"]
     )
-    assert response.status_code == 200, f"User 1 failed to delete contest1: {response.text}"
+    assert response.status_code == 204, f"User 1 failed to delete contest1: {response.text}"
     print(f"User 1 successfully deleted contest1 (ID: {contest1_id}).")
 
     # Verify contest is gone
@@ -100,7 +100,7 @@ async def test_09_04_user1_deletes_writer1_ai_writer(client: AsyncClient): # MOD
     # For now, we will just delete the agent.
 
     response = await client.delete(f"/agents/{writer1_id}", headers=test_data["user1_headers"])
-    assert response.status_code == 200, f"User 1 failed to delete writer1: {response.text}"
+    assert response.status_code == 204, f"User 1 failed to delete writer1: {response.text}"
     print(f"User 1 successfully deleted writer1 (ID: {writer1_id}). Associated submissions are expected to remain (if any)." )
     # Verify agent is gone
     get_response = await client.get(f"/agents/{writer1_id}", headers=test_data["user1_headers"])
@@ -126,7 +126,7 @@ async def test_09_05_user1_deletes_judge1_ai_judge(client: AsyncClient): # MODIF
     initial_credits_user1 = UserResponse(**user1_details_before_resp.json()).credits
 
     response = await client.delete(f"/agents/{judge1_id}", headers=test_data["user1_headers"])
-    assert response.status_code == 200, f"User 1 failed to delete judge1: {response.text}"
+    assert response.status_code == 204, f"User 1 failed to delete judge1: {response.text}"
     print(f"User 1 successfully deleted judge1 (ID: {judge1_id}). Associated votes (if any on other contests) should remain.")
 
     user1_details_after_resp = await client.get(f"/users/me", headers=test_data["user1_headers"])
@@ -152,7 +152,7 @@ async def test_09_06_admin_deletes_contest2_and_contest3(client: AsyncClient): #
     for contest_key in contests_to_delete:
         contest_id = test_data[contest_key]
         response = await client.delete(f"/contests/{contest_id}", headers=test_data["admin_headers"])
-        assert response.status_code == 200, f"Admin failed to delete {contest_key}: {response.text}"
+        assert response.status_code == 204, f"Admin failed to delete {contest_key}: {response.text}"
         print(f"Admin successfully deleted {contest_key} (ID: {contest_id}).")
         # Verify contest is gone
         get_response = await client.get(f"/contests/{contest_id}", headers=test_data["admin_headers"])
@@ -181,7 +181,7 @@ async def test_09_08_admin_deletes_global_ai_writer(client: AsyncClient): # MODI
     writer_global_id = test_data['writer_global_id']
 
     response = await client.delete(f"/agents/{writer_global_id}", headers=test_data["admin_headers"])
-    assert response.status_code == 200, f"Admin failed to delete writer_global: {response.text}"
+    assert response.status_code == 204, f"Admin failed to delete writer_global: {response.text}"
     print(f"Admin successfully deleted writer_global (ID: {writer_global_id}).")
     get_response = await client.get(f"/agents/{writer_global_id}", headers=test_data["admin_headers"])
     assert get_response.status_code == 404
@@ -195,7 +195,7 @@ async def test_09_09_admin_deletes_global_ai_judge(client: AsyncClient): # MODIF
     judge_global_id = test_data['judge_global_id']
 
     response = await client.delete(f"/agents/{judge_global_id}", headers=test_data["admin_headers"])
-    assert response.status_code == 200, f"Admin failed to delete judge_global: {response.text}"
+    assert response.status_code == 204, f"Admin failed to delete judge_global: {response.text}"
     print(f"Admin successfully deleted judge_global (ID: {judge_global_id}).")
     get_response = await client.get(f"/agents/{judge_global_id}", headers=test_data["admin_headers"])
     assert get_response.status_code == 404
@@ -214,8 +214,8 @@ async def test_09_10_admin_deletes_user1(client: AsyncClient): # MODIFIED: async
     # Some contests/submissions might already be deleted. We rely on backend cascade logic.
     # A thorough check would involve querying all remaining submissions and ensuring none are from user1_id or user1's (now deleted) agents.
 
-    response = await client.delete(f"/admin/users/{user1_id}", headers=test_data["admin_headers"])
-    assert response.status_code == 200, f"Admin failed to delete User 1: {response.text}"
+    response = await client.delete(f"/users/{user1_id}", headers=test_data["admin_headers"])
+    assert response.status_code == 204, f"Admin failed to delete User 1: {response.text}"
     print(f"Admin successfully deleted User 1 (ID: {user1_id}). Associated submissions are expected to be deleted.")
     
     get_response = await client.get(f"/users/{user1_id}", headers=test_data["admin_headers"])
@@ -230,8 +230,8 @@ async def test_09_11_admin_deletes_user2(client: AsyncClient): # MODIFIED: async
     assert "user2_id" in test_data, "User 2 ID not found."
     user2_id = test_data['user2_id']
 
-    response = await client.delete(f"/admin/users/{user2_id}", headers=test_data["admin_headers"])
-    assert response.status_code == 200, f"Admin failed to delete User 2: {response.text}"
+    response = await client.delete(f"/users/{user2_id}", headers=test_data["admin_headers"])
+    assert response.status_code == 204, f"Admin failed to delete User 2: {response.text}"
     print(f"Admin successfully deleted User 2 (ID: {user2_id}). Associated submissions are expected to be deleted.")
 
     get_response = await client.get(f"/users/{user2_id}", headers=test_data["admin_headers"])

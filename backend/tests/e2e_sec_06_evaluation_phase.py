@@ -3,10 +3,11 @@ import pytest
 from httpx import AsyncClient # MODIFIED: For async client
 import logging
 
-from app.schemas.contest import ContestUpdate, ContestResponse, TextSubmissionResponse, ContestTextResponse
+from app.schemas.contest import ContestUpdate, ContestResponse, TextSubmissionResponse, ContestTextResponse, ContestDetailResponse
 from app.schemas.user import UserResponse, UserCredit # For credit top-up
 from app.schemas.vote import VoteCreate, VoteResponse # Added Vote schemas
 from tests.shared_test_state import test_data
+from app.core.config import settings # ADDED import for settings
 
 # client will be a fixture argument to test functions
 
@@ -42,13 +43,13 @@ async def test_06_02_user1_submit_to_evaluation_contest1_fails(client: AsyncClie
     # Confirm contest1 is in Evaluation status first
     contest_check_response = await client.get(f"/contests/{test_data['contest1_id']}", headers=test_data["user1_headers"]) # MODIFIED: await, removed settings.API_V1_STR
     assert contest_check_response.status_code == 200
-    current_status = ContestResponse(**contest_check_response.json()).status
+    current_status = ContestDetailResponse(**contest_check_response.json()).status # FIX: Use ContestDetailResponse
     assert current_status.lower() == "evaluation", \
         f"Contest1 is not in 'Evaluation' state for this test. Current: {current_status}"
 
     submission_payload = {"text_id": test_data["text1_3_id"]}
     response = await client.post(
-        f"/contests/{test_data['contest1_id']}/submissions/",
+        f"/contests/{test_data['contest1_id']}/submissions/", # REVERT FIX: Add back trailing slash for POST
         json=submission_payload,
         headers=test_data["user1_headers"]
     )
@@ -64,19 +65,19 @@ async def test_06_03_visitor_views_contest1_submissions_masked(client: AsyncClie
 
     contest_check_response = await client.get(f"/contests/{test_data['contest1_id']}") # MODIFIED: await, removed settings.API_V1_STR
     assert contest_check_response.status_code == 200
-    current_status = ContestResponse(**contest_check_response.json()).status
+    current_status = ContestDetailResponse(**contest_check_response.json()).status # FIX: Use ContestDetailResponse
     assert current_status.lower() == "evaluation", f"Contest1 not in Evaluation. Current: {current_status}"
 
-    response = await client.get(f"/contests/{test_data['contest1_id']}/submissions/") # MODIFIED: await, removed settings.API_V1_STR
+    response = await client.get(f"/contests/{test_data['contest1_id']}/submissions") # MODIFIED: await, removed settings.API_V1_STR, REMOVED TRAILING SLASH
     assert response.status_code == 200, f"Visitor failed to get submissions: {response.text}"
     
     submissions = response.json()
     assert isinstance(submissions, list) and len(submissions) > 0, "Expected submissions list."
 
     for sub_data in submissions:
-        submission = TextSubmissionResponse(**sub_data)
-        assert submission.user_id is None or isinstance(submission.user_id, str) # Masked field check
+        submission = ContestTextResponse(**sub_data)
         assert submission.author is None or "masked" in submission.author.lower() or submission.author == "[Hidden]" # Masked field check
+        assert submission.owner_id is None # Masked field check
         assert submission.text_id is not None
         text_resp = await client.get(f"/texts/{submission.text_id}") # MODIFIED: await, removed settings.API_V1_STR
         assert text_resp.status_code == 200
@@ -92,20 +93,20 @@ async def test_06_04_user2_judge_views_contest1_submissions_masked(client: Async
 
     contest_check_response = await client.get(f"/contests/{test_data['contest1_id']}", headers=test_data["user2_headers"]) # MODIFIED: await, removed settings.API_V1_STR
     assert contest_check_response.status_code == 200
-    contest_details = ContestResponse(**contest_check_response.json())
+    contest_details = ContestDetailResponse(**contest_check_response.json())
     assert contest_details.status.lower() == "evaluation", f"Contest1 not in Evaluation. Current: {contest_details.status}"
     is_judge = any(str(judge.user_id) == str(test_data["user2_id"]) for judge in contest_details.judges if judge.user_id)
     assert is_judge, "User 2 is not listed as a judge for contest1."
 
-    response = await client.get(f"/contests/{test_data['contest1_id']}/submissions/", headers=test_data["user2_headers"]) # MODIFIED: await, removed settings.API_V1_STR
+    response = await client.get(f"/contests/{test_data['contest1_id']}/submissions", headers=test_data["user2_headers"]) # MODIFIED: await, removed settings.API_V1_STR, REMOVED TRAILING SLASH
     assert response.status_code == 200, f"User 2 (judge) failed to get submissions: {response.text}"
     
     submissions = response.json()
     assert isinstance(submissions, list) and len(submissions) > 0, "Expected submissions list for judge."
 
     for sub_data in submissions:
-        submission = TextSubmissionResponse(**sub_data)
-        assert submission.user_id is None or isinstance(submission.user_id, str) # Masked field check
+        submission = ContestTextResponse(**sub_data)
+        assert submission.owner_id is None # Masked field check
         assert submission.author is None or "masked" in submission.author.lower() or submission.author == "[Hidden]" # Masked field check
         assert submission.text_id is not None
 
@@ -116,17 +117,23 @@ async def test_06_05_user1_votes_in_contest1_fails_not_judge(client: AsyncClient
     """User 1 attempts to vote in contest 1 -> Should fail (is not a judge)."""
     assert "contest1_id" in test_data, "Contest 1 ID not found."
     assert "user1_headers" in test_data, "User 1 headers not found."
-    assert "submission_c1_t2_2_id" in test_data, "submission_c1_t2_2_id not found." # This submission was by user2
-    submission_id_to_vote_on = test_data["submission_c1_t2_2_id"]
+    # User1 will attempt to vote on their own text (text1_3) in contest1
+    # This text should still be in contest1 as its submission (submission_c1_t1_3_id) was not deleted in sec 5.
+    assert "text1_3_id" in test_data, "Text 1.3 ID not found in test_data."
+    text_id_to_vote_on = test_data["text1_3_id"]
 
-    vote_payload = {"score": 5, "comments": "User 1 trying to vote anyway."}
+    vote_payload = {
+        "text_id": text_id_to_vote_on,
+        "text_place": 1, # Attempting to give 1st place
+        "comment": "User 1 (not a judge) trying to vote on their own text in contest1."
+    }
     response = await client.post(
-        f"/contests/{test_data['contest1_id']}/submissions/{submission_id_to_vote_on}/votes/",
+        f"/contests/{test_data['contest1_id']}/votes", # REVERTED: REMOVE TRAILING SLASH
         json=vote_payload,
         headers=test_data["user1_headers"]
     )
-    assert response.status_code == 403, f"User 1 voting (not judge) failed: {response.text} (expected 403)"
-    print(f"User 1 attempt to vote in contest1 (ID: {test_data['contest1_id']}) failed as expected (403 - not a judge).")
+    assert response.status_code == 403, f"User 1 voting (not judge) should fail with 403, but got {response.status_code}: {response.text}"
+    print(f"User 1 attempt to vote in contest1 (ID: {test_data['contest1_id']}) on text {text_id_to_vote_on} failed as expected (403 - not a judge).")
 
 @pytest.mark.run(after='test_06_05_user1_votes_in_contest1_fails_not_judge')
 async def test_06_06_user2_votes_in_contest1_succeeds(client: AsyncClient): # MODIFIED: async def, AsyncClient
@@ -134,14 +141,14 @@ async def test_06_06_user2_votes_in_contest1_succeeds(client: AsyncClient): # MO
     assert "contest1_id" in test_data, "Contest 1 ID not found."
     assert "user2_headers" in test_data, "User 2 headers not found."
     assert "user2_id" in test_data, "User 2 ID not found."
-    # submission_c1_t2_2_id was the submission of text2_2_id
-    assert "text2_2_id" in test_data, "Text 2.2 ID for voting not found."
-    text_id_to_vote_on = test_data["text2_2_id"]
+
+    assert "text2_3_id" in test_data, "Text 2.3 ID for voting not found."
+    text_id_to_vote_on = test_data["text2_3_id"]
 
     # Ensure contest is in evaluation
     contest_check_response = await client.get(f"/contests/{test_data['contest1_id']}", headers=test_data["user2_headers"])
     assert contest_check_response.status_code == 200
-    contest_details = ContestResponse(**contest_check_response.json())
+    contest_details = ContestDetailResponse(**contest_check_response.json())
     assert contest_details.status.lower() == "evaluation", f"Contest1 not in Evaluation. Current: {contest_details.status}"
     
     # Verify User 2 is indeed a judge for contest1
@@ -155,8 +162,8 @@ async def test_06_06_user2_votes_in_contest1_succeeds(client: AsyncClient): # MO
     }
 
     response = await client.post(
-        f"/contests/{test_data['contest1_id']}/votes/", # CORRECTED API PATH
-        json=vote_payload, # CORRECTED PAYLOAD STRUCTURE
+        f"/contests/{test_data['contest1_id']}/votes", 
+        json=vote_payload,
         headers=test_data["user2_headers"]
     )
 
@@ -166,11 +173,10 @@ async def test_06_06_user2_votes_in_contest1_succeeds(client: AsyncClient): # MO
     vote_data = response.json()
     assert vote_data["text_place"] == vote_payload["text_place"]
     assert vote_data["comment"] == vote_payload["comment"]
-    # The VoteResponse contains judge_id (which is the user_id of the human judge) and contest_id
     assert str(vote_data["judge_id"]) == str(test_data["user2_id"]), "Vote judge_id does not match User 2 ID."
     assert vote_data["text_id"] == text_id_to_vote_on
     assert vote_data["contest_id"] == test_data["contest1_id"]
-    test_data["user2_vote_on_text2_2_id_in_c1"] = vote_data["id"] # Store vote ID
+    test_data["user2_vote_on_text2_3_id_in_c1"] = vote_data["id"] # MODIFIED: Updated test_data key
 
     print(f"User 2 (judge) successfully voted on text {text_id_to_vote_on} in contest1 (ID: {test_data['contest1_id']}). Vote ID: {vote_data['id']}")
 
@@ -183,66 +189,44 @@ async def test_06_07_user1_triggers_judge_global_for_contest1(client: AsyncClien
     assert "judge_global_id" in test_data, "judge_global_id (AI Judge) not found."
 
     # Ensure contest is in evaluation
-    contest_check_response = await client.get(f"/contests/{test_data['contest1_id']}", headers=test_data["user1_headers"]) # MODIFIED: await, removed settings.API_V1_STR
+    contest_check_response = await client.get(f"/contests/{test_data['contest1_id']}", headers=test_data["user1_headers"])
     assert contest_check_response.status_code == 200
-    assert ContestResponse(**contest_check_response.json()).status.lower() == "evaluation", "Contest1 is not in Evaluation phase."
+    assert ContestDetailResponse(**contest_check_response.json()).status.lower() == "evaluation", "Contest1 is not in Evaluation phase."
 
-    # Check User 1's credits, add if necessary (e.g., 1000 credits for AI judging)
-    user1_details_before_resp = await client.get(f"/users/me", headers=test_data["user1_headers"]) # MODIFIED: await, removed settings.API_V1_STR
+    # Get User 1's initial credits
+    user1_details_before_resp = await client.get(f"/users/me", headers=test_data["user1_headers"])
     assert user1_details_before_resp.status_code == 200
     user1_details_before = UserResponse(**user1_details_before_resp.json())
     initial_credits_user1 = user1_details_before.credits
     
-    # Estimate based on previous test, but actual cost determined by API. Add buffer.
-    # This required_credits_for_judge is just a pre-check, the API will determine actual cost.
-    # If this is too low, the trigger might fail if not enough credits.
-    # The previous test used 'test_data["contest1_judge_global_eval_cost_user1"]'
-    # but that's for USER 1. Here, it's the trigger cost.
-    # The API /trigger-ai-judge returns credits_used. We'll assume a large enough buffer.
-    required_credits_for_judge = test_data.get("ai_judge_trigger_cost_estimate", 100) # Default if not set elsewhere
-    
-    if initial_credits_user1 < required_credits_for_judge:
-        print(f"User 1 has {initial_credits_user1} credits, less than {required_credits_for_judge} estimated for AI judging. Admin adding credits.")
-        credits_to_add = required_credits_for_judge - initial_credits_user1 + 50 # Add a bit more buffer
-        
-        new_total_for_user1 = initial_credits_user1 + credits_to_add
-        credit_payload = UserCredit(credits=new_total_for_user1) # Schema expects new total
-        resp_add = await client.post(f"/admin/users/{test_data['user1_id']}/credits", json=credit_payload.model_dump(), headers=test_data["admin_headers"]) # MODIFIED: await, removed settings.API_V1_STR
-        assert resp_add.status_code == 200, f"Admin failed to add credits to User 1: {resp_add.text}"
-        
-        user1_after_topup_resp = await client.get(f"/users/me", headers=test_data["user1_headers"]) # MODIFIED: await
-        assert user1_after_topup_resp.status_code == 200
-        initial_credits_user1 = UserResponse(**user1_after_topup_resp.json()).credits # Update initial_credits_user1 after top-up
-        print(f"User 1 credits topped up to {initial_credits_user1}.")
-        
-    assert initial_credits_user1 >= required_credits_for_judge, f"User 1 still does not have enough credits ({initial_credits_user1}) after top-up attempt for required {required_credits_for_judge}."
+    # The test assumes User 1 has enough credits. 
+    # If not, the trigger-ai-judge endpoint should handle it (e.g., by returning an error).
+    # The E2E test setup should ensure users have a reasonable starting credit balance for tests.
+    # Removing the admin top-up logic that was here.
 
     trigger_payload = {
         "agent_id": test_data["judge_global_id"],
-        "model": "claude-3-opus-20240229" # Using a consistent model for tests
+        "contest_id": test_data["contest1_id"],
+        "model": settings.DEFAULT_TEST_MODEL_ID # MODIFIED: Use default test model from settings
     }
     response = await client.post(
-        f"/contests/{test_data['contest1_id']}/trigger-ai-judge",
+        f"/agents/execute/judge",
         json=trigger_payload,
         headers=test_data["user1_headers"]
     )
     assert response.status_code == 200, f"User 1 failed to trigger judge_global for contest1: {response.text}"
     
-    trigger_response_data = response.json()
-    assert "message" in trigger_response_data
-    assert "credits_used" in trigger_response_data, "Response missing 'credits_used' field."
-    credits_used = trigger_response_data["credits_used"]
-    # credits_used can be 0 if AI judge has already processed all submissions for this contest.
-    # assert credits_used >= 0, "Credits used for AI judging should be non-negative."
-    # For this test, we expect it to run and cost something if new submissions are there.
-    # If the AI judge was already run and no new submissions, cost could be 0.
-    # Let's ensure it's not negative.
-    assert credits_used >= 0, f"Credits used was negative: {credits_used}"
+    trigger_response_data_list = response.json()
+    assert isinstance(trigger_response_data_list, list), "Expected a list of execution responses"
+    if not trigger_response_data_list: # If no texts to evaluate, it might return an empty list and 0 credits.
+        credits_used = 0
+    else:
+        credits_used = sum(item.get("credits_used", 0) for item in trigger_response_data_list)
 
     test_data["contest1_judge_global_eval_cost_user1"] = credits_used # Store or update the cost
 
     # Verify User 1's credits decreased
-    user1_details_after_resp = await client.get(f"/users/me", headers=test_data["user1_headers"]) # MODIFIED: await, removed settings.API_V1_STR
+    user1_details_after_resp = await client.get(f"/users/me", headers=test_data["user1_headers"])
     assert user1_details_after_resp.status_code == 200
     final_credits_user1 = UserResponse(**user1_details_after_resp.json()).credits
     
@@ -253,28 +237,83 @@ async def test_06_07_user1_triggers_judge_global_for_contest1(client: AsyncClien
     print(f"User 1 successfully triggered judge_global for contest1. Cost: {credits_used}. Credits before: {initial_credits_user1}, after: {final_credits_user1}.")
 
 @pytest.mark.run(after='test_06_07_user1_triggers_judge_global_for_contest1')
-async def test_06_08_admin_triggers_human_judge_evaluation_for_contest1(client: AsyncClient): # MODIFIED: async def, AsyncClient
-    """Admin triggers human judge evaluation for contest1. Succeeds."""
+async def test_06_07a_admin_assigns_self_as_human_judge_for_contest1(client: AsyncClient):
+    """Admin assigns themselves as a human judge for contest1."""
     assert "admin_headers" in test_data, "Admin headers not found."
+    assert "admin_user_id" in test_data, "Admin user ID not found."
     assert "contest1_id" in test_data, "Contest 1 ID not found."
 
-    # Ensure contest is in evaluation
-    contest_check_response = await client.get(f"/contests/{test_data['contest1_id']}", headers=test_data["admin_headers"]) # MODIFIED: await, removed settings.API_V1_STR
+    # Fetch contest details to check if admin is already a judge
+    contest_check_response = await client.get(f"/contests/{test_data['contest1_id']}", headers=test_data["admin_headers"])
     assert contest_check_response.status_code == 200
-    assert ContestResponse(**contest_check_response.json()).status.lower() == "evaluation", "Contest1 is not in Evaluation phase."
+    contest_details = ContestDetailResponse(**contest_check_response.json())
+    assert contest_details.status.lower() == "evaluation", "Contest1 is not in Evaluation phase for admin judge assignment."
 
+    admin_is_judge = any(
+        str(judge.user_id) == str(test_data["admin_user_id"]) and judge.judge_type == "human"
+        for judge in contest_details.judges if judge.user_id
+    )
+
+    if not admin_is_judge:
+        assign_judge_payload = {
+            "user_id": test_data["admin_user_id"],
+            "judge_type": "human"
+        }
+        assign_response = await client.post(
+            f"/contests/{test_data['contest1_id']}/judges",
+            json=assign_judge_payload,
+            headers=test_data["admin_headers"] # Admin uses their own headers to assign
+        )
+        assert assign_response.status_code in [200, 201], \
+            f"Admin failed to assign self as human judge for contest1: {assign_response.text}"
+        print(f"Admin (ID: {test_data['admin_user_id']}) successfully assigned self as human judge for contest1 (ID: {test_data['contest1_id']}).")
+        test_data["admin_is_judge_for_contest1"] = True
+    else:
+        print(f"Admin (ID: {test_data['admin_user_id']}) was already a human judge for contest1 (ID: {test_data['contest1_id']}).")
+        test_data["admin_is_judge_for_contest1"] = True
+
+@pytest.mark.run(after='test_06_07a_admin_assigns_self_as_human_judge_for_contest1') # Depends on the new test
+async def test_06_08_admin_votes_as_human_judge_in_contest1(client: AsyncClient): # MODIFIED: Test name and description
+    """Admin, acting as a human judge, submits a vote for contest1. Succeeds."""
+    assert "admin_headers" in test_data, "Admin headers not found."
+    assert "admin_user_id" in test_data, "Admin user ID not found."
+    assert "contest1_id" in test_data, "Contest 1 ID not found."
+    assert test_data.get("admin_is_judge_for_contest1"), "Admin was not successfully assigned as a judge for contest1 in the preceding step."
+    # Assuming text1_1 was submitted to contest1 by user1. Admin will vote on it.
+    # This text_id should be one of the texts available in contest1.
+    # From test 5.01 (User 2 submits Text 2.1 to contest1) or 5.05 (User 2 submits Text 2.3 to contest1)
+    # Let's use text2_3_id as text1_1_id might not be in contest1 or might be used by another judge.
+    assert "text2_3_id" in test_data, "Text 2.3 ID (for admin voting in contest1) not found in test_data."
+    text_to_vote_on_id = test_data["text2_3_id"]
+
+    # Ensure contest is still in evaluation (quick check)
+    contest_check_response = await client.get(f"/contests/{test_data['contest1_id']}", headers=test_data["admin_headers"])
+    assert contest_check_response.status_code == 200
+    assert ContestDetailResponse(**contest_check_response.json()).status.lower() == "evaluation", "Contest1 is not in Evaluation phase for admin voting."
+
+    # Admin submits a vote
+    vote_payload = {
+        "text_id": text_to_vote_on_id,
+        "text_place": 2, # Admin gives 2nd place to avoid conflict if user2 gave 1st to same text
+        "comment": "Admin (as human judge) voting in contest1. This text is noteworthy."
+    }
     response = await client.post(
-        f"/admin/contests/{test_data['contest1_id']}/trigger-human-judges",
+        f"/contests/{test_data['contest1_id']}/votes",
+        json=vote_payload,
         headers=test_data["admin_headers"]
     )
-    assert response.status_code == 200, f"Admin failed to trigger human judges for contest1: {response.text}"
+    assert response.status_code in [200, 201], \
+        f"Admin (as human judge) failed to submit vote for contest1: {response.text}"
     
-    response_data = response.json()
-    assert "message" in response_data
-    assert "Human judges triggered" in response_data["message"] or "notifications sent" in response_data["message"].lower() # Check for success message
-    print(f"Admin successfully triggered human judges for contest1 (ID: {test_data['contest1_id']}). Response: {response_data['message']}")
+    vote_response_data = VoteResponse(**response.json())
+    assert vote_response_data.text_id == text_to_vote_on_id
+    assert str(vote_response_data.judge_id) == str(test_data["admin_user_id"]) # Ensure judge_id is string for comparison if necessary
+    assert vote_response_data.text_place == vote_payload["text_place"]
+    assert vote_response_data.comment == vote_payload["comment"]
+    
+    print(f"Admin (as human judge) successfully submitted a vote for text {text_to_vote_on_id} in contest1 (ID: {test_data['contest1_id']}). Vote ID: {vote_response_data.id}")
 
-@pytest.mark.run(after='test_06_08_admin_triggers_human_judge_evaluation_for_contest1')
+@pytest.mark.run(after='test_06_08_admin_votes_as_human_judge_in_contest1') # Ensure this points to the updated test name
 async def test_06_09_admin_triggers_judge1_ai_evaluation_for_contest1(client: AsyncClient): # MODIFIED: async def, AsyncClient
     """Admin triggers judge1_ai evaluation for contest1. Succeeds (admin pays, no credit check needed for admin)."""
     assert "contest1_id" in test_data, "Contest 1 ID not found."
@@ -284,7 +323,7 @@ async def test_06_09_admin_triggers_judge1_ai_evaluation_for_contest1(client: As
     # Ensure contest is in evaluation
     contest_check_response = await client.get(f"/contests/{test_data['contest1_id']}", headers=test_data["admin_headers"]) # MODIFIED: await, removed settings.API_V1_STR
     assert contest_check_response.status_code == 200
-    assert ContestResponse(**contest_check_response.json()).status.lower() == "evaluation", "Contest1 is not in Evaluation phase."
+    assert ContestDetailResponse(**contest_check_response.json()).status.lower() == "evaluation", "Contest1 is not in Evaluation phase."
 
     # Admin's credits are not typically deducted for system operations like this,
     # or the cost is handled differently (e.g., system budget).
@@ -293,25 +332,25 @@ async def test_06_09_admin_triggers_judge1_ai_evaluation_for_contest1(client: As
     assert admin_details_before_resp.status_code == 200
     initial_credits_admin = UserResponse(**admin_details_before_resp.json()).credits
 
+    # Admin triggers AI judge via the unified endpoint
     trigger_payload = {
         "agent_id": test_data["judge1_ai_id"],
-        "model": "gpt-4-turbo" 
+        "model": "gpt-4-turbo",
+        "contest_id": test_data["contest1_id"]
     }
     response = await client.post(
-        f"/contests/{test_data['contest1_id']}/trigger-ai-judge", # This endpoint is user-facing, but admin can use it.
+        "/agents/execute/judge",
         json=trigger_payload,
-        headers=test_data["admin_headers"] # Admin is making the call
+        headers=test_data["admin_headers"]
     )
     assert response.status_code == 200, f"Admin failed to trigger judge1_ai for contest1: {response.text}"
-    
-    trigger_response_data = response.json()
-    assert "message" in trigger_response_data
-    # credits_used might be 0 if no new texts for this specific judge to evaluate or already evaluated
-    assert "credits_used" in trigger_response_data, "Response missing 'credits_used' field."
-    credits_used_by_admin_for_judge1 = trigger_response_data["credits_used"]
-    assert credits_used_by_admin_for_judge1 >= 0, f"Credits used for judge1_ai was negative: {credits_used_by_admin_for_judge1}"
+    trigger_response_data_list = response.json()
+    assert isinstance(trigger_response_data_list, list), "Expected a list of execution responses"
+    if not trigger_response_data_list:
+        credits_used_by_admin_for_judge1 = 0
+    else:
+        credits_used_by_admin_for_judge1 = sum(item.get("credits_used", 0) for item in trigger_response_data_list)
     test_data["contest1_judge1_ai_eval_cost_admin"] = credits_used_by_admin_for_judge1
-
 
     # Verify Admin's credits. For admin, credits might not be deducted from their personal balance.
     # This depends on application logic (e.g. admin actions are free, or use a system budget)
@@ -342,17 +381,19 @@ async def test_06_10_admin_triggers_judge_global_for_contest2_fails_not_evaluati
     assert "judge_global_id" in test_data, "judge_global_id (AI Judge) not found."
 
     # Ensure contest2 is NOT in evaluation (e.g., still 'Open' or 'Upcoming')
-    contest_check_response = await client.get(f"/contests/{test_data['contest2_id']}", headers=test_data["admin_headers"]) # MODIFIED: await, removed settings.API_V1_STR
+    contest_check_response = await client.get(f"/contests/{test_data['contest2_id']}", headers=test_data["admin_headers"])
     assert contest_check_response.status_code == 200
-    current_status_c2 = ContestResponse(**contest_check_response.json()).status
+    current_status_c2 = ContestDetailResponse(**contest_check_response.json()).status # FIX: Use ContestDetailResponse
     assert current_status_c2.lower() != "evaluation", f"Contest2 is unexpectedly in Evaluation phase: {current_status_c2}"
 
+    # Use the existing AI judge execution endpoint instead of a custom contest path
     trigger_payload = {
         "agent_id": test_data["judge_global_id"],
         "model": "claude-3-haiku-20240307"
     }
+    trigger_payload["contest_id"] = test_data["contest2_id"]
     response = await client.post(
-        f"/contests/{test_data['contest2_id']}/trigger-ai-judge",
+        "/agents/execute/judge",
         json=trigger_payload,
         headers=test_data["admin_headers"]
     )
@@ -413,7 +454,7 @@ async def test_06_13_admin_assigns_user1_as_judge_for_contest3(client: AsyncClie
     # Fetch current judges for contest3
     contest_details_resp = await client.get(f"/contests/{test_data['contest3_id']}", headers=test_data["admin_headers"]) 
     assert contest_details_resp.status_code == 200
-    contest_details = ContestResponse(**contest_details_resp.json())
+    contest_details = ContestDetailResponse(**contest_details_resp.json())
     
     existing_judge_ids = [str(judge.user_id) for judge in contest_details.judges if judge.user_id]
     if str(test_data["user1_id"]) in existing_judge_ids:
@@ -435,7 +476,7 @@ async def test_06_13_admin_assigns_user1_as_judge_for_contest3(client: AsyncClie
     # Verify User 1 is now listed as a judge for contest3
     contest_details_after_resp = await client.get(f"/contests/{test_data['contest3_id']}", headers=test_data["admin_headers"]) 
     assert contest_details_after_resp.status_code == 200
-    contest_details_after = ContestResponse(**contest_details_after_resp.json())
+    contest_details_after = ContestDetailResponse(**contest_details_after_resp.json())
     is_now_judge = any(str(judge.user_id) == str(test_data["user1_id"]) for judge in contest_details_after.judges if judge.user_id)
     assert is_now_judge, f"User 1 (ID: {test_data['user1_id']}) was not successfully assigned as a judge for contest3."
     test_data["user1_is_judge_for_contest3"] = True # Mark for next test
@@ -452,7 +493,7 @@ async def test_06_14_user1_submits_votes_for_contest3(client: AsyncClient):
     # Ensure contest is in evaluation
     contest_check_resp = await client.get(f"/contests/{test_data['contest3_id']}", headers=test_data["user1_headers"]) # Public contest, no password
     assert contest_check_resp.status_code == 200, f"User 1 failed to get contest 3 details: {contest_check_resp.text}"
-    contest_details = ContestResponse(**contest_check_resp.json())
+    contest_details = ContestDetailResponse(**contest_check_resp.json())
     assert contest_details.status.lower() == "evaluation", f"Contest3 not in Evaluation. Current: {contest_details.status}"
     
     # Verify User 1 is listed as a judge for contest3 (redundant check, but good practice)
@@ -470,10 +511,9 @@ async def test_06_14_user1_submits_votes_for_contest3(client: AsyncClient):
         "comment": "User 1, as a judge, ranks text 1.1 submission 1st in contest 3."
     }
     vote_response = await client.post(
-        f"/contests/{test_data['contest3_id']}/votes/", # Correct endpoint for contest 3
+        f"/contests/{test_data['contest3_id']}/votes",
         json=vote_payload,
-        headers=test_data["user1_headers"] # User 1 votes
-        # No password needed for public contest 3
+        headers=test_data["user1_headers"]
     )
     assert vote_response.status_code in [200, 201], \
         f"User 1 voting on text {text_id_to_vote_on} in contest 3 failed: {vote_response.text}"
@@ -516,7 +556,7 @@ async def test_06_15_user1_deletes_text1_4_from_contest3_verify_cascade(client: 
 
     # 2. Verify Text 1.4 is removed from Contest 3 submissions
     submissions_after_delete_resp = await client.get(
-        f"/contests/{test_data['contest3_id']}/submissions/", 
+        f"/contests/{test_data['contest3_id']}/submissions",  # FIX: Remove trailing slash
         headers=test_data["user1_headers"] # or admin_headers
     )
     assert submissions_after_delete_resp.status_code == 200
@@ -561,7 +601,7 @@ async def test_06_15_user1_deletes_text1_4_from_contest3_verify_cascade(client: 
     # Verify contest text count updated
     contest_details_resp = await client.get(f"/contests/{test_data['contest3_id']}", headers=test_data["user1_headers"])
     assert contest_details_resp.status_code == 200
-    contest_data = ContestResponse(**contest_details_resp.json())
+    contest_data = ContestDetailResponse(**contest_details_resp.json())
     # The number of texts should decrease by 1 (assuming Text 1.4 was in it)
     # If text 1.1 is still there, count should be 1. If only text 1.4 was there, count becomes 0.
     # Based on 5.22 and 5.23, contest3 had text1.1 and text1.4. So after deleting text1.4, text_count should be 1.

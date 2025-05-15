@@ -40,6 +40,7 @@ Hay tres tipos de usuarios: Administrador, Usuario y Visitante
 #### Administrador
 * Hay un admin que tiene control y acceso a todas las funcionalidades. Es un super usuario. No tiene ninguna restricción.
 * El administrador puede ver y gestionar todas las transacciones de créditos de todos los usuarios, incluyendo filtrar por tipo de transacción, fecha, modelo utilizado, etc.
+* Para realizar alguna acción donde no esté registrado, como por ejemplo el fungir como juez humano en un concurso, tiene que asignarse primero como juez al concurso en cuestión. El admin puede asignarse a sí mismo como juez a cualquier concurso.
 
 ### Eliminacion de un usuario
 * Cuando un usuario se elimina, se borran todos los concursos, textos, escritores y jueces IA que haya creado. Sin embargo, el registro de los costos y de sus créditos queda guardado.

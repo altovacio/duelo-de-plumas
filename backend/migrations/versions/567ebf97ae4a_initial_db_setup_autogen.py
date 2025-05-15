@@ -1,8 +1,8 @@
-"""Initial migration from current models
+"""initial_db_setup_autogen
 
-Revision ID: f3b4172eacce
+Revision ID: 567ebf97ae4a
 Revises: 
-Create Date: 2025-05-12 12:36:34.201552
+Create Date: 2025-05-14 05:33:31.476829
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'f3b4172eacce'
+revision = '567ebf97ae4a'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -54,7 +54,7 @@ def upgrade() -> None:
     sa.Column('is_private', sa.Boolean(), nullable=True),
     sa.Column('password', sa.String(), nullable=True),
     sa.Column('min_votes_required', sa.Integer(), nullable=True),
-    sa.Column('state', sa.String(), nullable=True),
+    sa.Column('status', sa.String(), nullable=True),
     sa.Column('judge_restrictions', sa.Boolean(), nullable=True),
     sa.Column('author_restrictions', sa.Boolean(), nullable=True),
     sa.Column('creator_id', sa.Integer(), nullable=False),

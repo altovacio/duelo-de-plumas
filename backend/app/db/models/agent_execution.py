@@ -23,5 +23,5 @@ class AgentExecution(Base):
     
     # Relationships
     owner = relationship("User")
-    agent = relationship("Agent")
+    agent = relationship("Agent", lazy="joined")
     votes = relationship("Vote", back_populates="agent_execution") 

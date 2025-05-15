@@ -14,7 +14,7 @@ class Contest(Base):
     is_private = Column(Boolean, default=False)
     password = Column(String, nullable=True)  # Only required if is_private is True
     min_votes_required = Column(Integer, nullable=True)
-    state = Column(String, default="open")  # "open", "evaluation", "closed"
+    status = Column(String, default="open")  # "open", "evaluation", "closed"
     judge_restrictions = Column(Boolean, default=False)  # Whether judges can participate as authors
     author_restrictions = Column(Boolean, default=False)  # Whether authors can submit multiple texts
     

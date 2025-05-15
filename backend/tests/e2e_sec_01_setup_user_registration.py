@@ -24,6 +24,14 @@ async def test_01_01_admin_login(client: AsyncClient): # Changed to async def, c
     assert token_data.token_type == "bearer"
     test_data["admin_token"] = token_data.access_token
     test_data["admin_headers"] = {"Authorization": f"Bearer {token_data.access_token}"}
+    # Retrieve admin user details to get admin_user_id
+    admin_me_resp = await client.get(
+        "/users/me",
+        headers=test_data["admin_headers"]
+    )
+    assert admin_me_resp.status_code == 200, f"Failed to fetch admin user details: {admin_me_resp.text}"
+    admin_me_data = UserResponse(**admin_me_resp.json())
+    test_data["admin_user_id"] = admin_me_data.id
     print("Admin login successful.")
 
 @pytest.mark.run(after='test_01_01_admin_login')

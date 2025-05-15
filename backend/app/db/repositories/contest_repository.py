@@ -36,14 +36,14 @@ class ContestRepository:
         db: AsyncSession,
         skip: int = 0,
         limit: int = 100,
-        state: Optional[str] = None,
+        status: Optional[str] = None,
         current_user_id: Optional[int] = None
     ) -> List[Contest]:
         query = select(Contest)
         
-        # Only filter by state if provided
-        if state:
-            query = query.where(Contest.state == state)
+        # Only filter by status if provided
+        if status:
+            query = query.where(Contest.status == status)
             
         # Remove filtering based on is_private or creator_id for the list view
         # All contests are listed; details are protected by GET /{id}

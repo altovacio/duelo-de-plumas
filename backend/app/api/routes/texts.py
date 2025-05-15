@@ -2,7 +2,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, Path, Query, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.routes.auth import get_current_user
+from app.api.routes.auth import get_current_user, get_optional_current_user
 from app.db.database import get_db
 from app.schemas.text import TextCreate, TextResponse, TextUpdate
 from app.db.models.user import User as UserModel
@@ -60,14 +60,15 @@ async def get_my_texts(
 @router.get("/{text_id}", response_model=TextResponse)
 async def get_text(
     text_id: int = Path(..., gt=0),
-    current_user: UserModel = Depends(get_current_user),
+    current_user: Optional[UserModel] = Depends(get_optional_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Get a specific text by ID.
+    During evaluation or closed phase, anyone can view the text content.
     """
     service = TextService(db)
-    return await service.get_text(text_id, current_user.id)
+    return await service.get_text(text_id, current_user.id if current_user else None)
 
 
 @router.put("/{text_id}", response_model=TextResponse)

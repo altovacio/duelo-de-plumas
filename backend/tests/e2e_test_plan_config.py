@@ -141,7 +141,8 @@ e2e_test_plan = """
     6.06- User 2 attempts to vote in contest 1 -> Should succeed.
     6.07- User 1 triggers judge_global evaluation for contest1. Succeeds.
             - Verify User 1\'s credit balance decreased.
-    6.08- Admin triggers human judge evaluation for contest1. Succeeds.
+    6.07a- Admin assigns themselves as a human judge for contest1. Succeeds.
+    6.08- Admin, acting as a human judge, submits a vote for contest1. Succeeds.
     6.09- Admin triggers judge_1 (AI judge) evaluation for contest1. Succeeds.
             - Verify User 1\'s credit balance is not decreased. Verify transaction cost is recorded.
     6.10- Admin triggers judge_global (AI judge) evaluation for contest2. Fails. Contest is not in evaluation. Verify no cost is recorded.

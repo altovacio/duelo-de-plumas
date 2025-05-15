@@ -13,7 +13,7 @@ The following is a comparison between the planned structure (from project_struct
 | **Database Setup** | ✅ | SQLAlchemy with migrations configured |
 | **User Management** | ✅ | User model, routes, repository and service implemented. Added `GET /users/me` endpoint. |
 | **Text Management** | ✅ | Text model, routes, repository and service implemented |
-| **Contest Management** | ✅ | Contest model, routes, repository and service implemented |
+| **Contest Management** | ✅ | Contest model, routes, repository and service implemented. Renamed internal 'state' field to 'status' for consistency with tests and common usage. |
 | **Voting System** | ✅ | Vote model, routes, repository and service implemented with enhanced multi-vote capabilities |
 | **AI Agent System** | ✅ | Agent models, routes, repository and service implemented. API endpoint for agents corrected to `/agents` (from `/agents/agents`). Repository and service methods progressively being updated to full async/await. `execute_writer` endpoint now correctly returns `AgentExecutionResponse`. |
 | **Credit System** | ✅ | Credit transaction tracking, admin management implemented. Actual cost calculation centralized in `utils.ai_models.estimate_credits`. |
@@ -241,7 +241,7 @@ duelo-de-plumas/
 | 5.17 | User 1 (creator) deletes User 2's submission from contest1 | ✅ |  |
 | 5.18 | User 1 re-submits AI-generated Text 1.2 to contest1 | ✅ |  |
 | 5.19 | Admin deletes User 1's re-submitted AI text submission from contest1 | ✅ |  |
-| 6. Evaluation Phase | Contest in Evaluation | ✅ |  |
+| 6. Evaluation Phase | Contest in Evaluation | ✅ | Fixed AttributeError related to contest status/state. Ensured 'status' is used consistently. |
 | 6.01 | User 1 sets contest1 status to 'Evaluation' | ✅ |  |
 | 6.02 | User 1 attempts to submit a new text to contest1 (fails) | ✅ |  |
 | 6.03 | Visitor views submissions for contest1 (masked) | ✅ |  |

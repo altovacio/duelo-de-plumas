@@ -148,7 +148,7 @@ async def test_03_05_user1_edits_contest1_succeeds(client: AsyncClient): # Chang
     assert response.status_code == 200, f"User 1 editing contest1 failed: {response.text}"
     updated_contest = ContestResponse(**response.json())
     assert updated_contest.description == new_description
-    print(f"User 1 successfully edited contest1 description. New state: {updated_contest.state}.")
+    print(f"User 1 successfully edited contest1 description. New status: {updated_contest.status}.")
 
 @pytest.mark.run(after='test_03_05_user1_edits_contest1_succeeds')
 async def test_03_06_admin_edits_contest3_succeeds(client: AsyncClient): # Changed
@@ -165,7 +165,7 @@ async def test_03_06_admin_edits_contest3_succeeds(client: AsyncClient): # Chang
     assert response.status_code == 200, f"Admin editing contest3 failed: {response.text}"
     updated_contest = ContestResponse(**response.json())
     assert updated_contest.description == new_description_admin
-    print(f"Admin successfully edited contest3 description. New state: {updated_contest.state}.")
+    print(f"Admin successfully edited contest3 description. New status: {updated_contest.status}.")
 
 @pytest.mark.run(after='test_03_06_admin_edits_contest3_succeeds')
 async def test_03_07_user2_assign_judge1_to_contest3_fails(client: AsyncClient): # Changed

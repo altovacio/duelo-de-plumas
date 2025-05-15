@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from app.schemas.contest import (
     ContestCreate, ContestUpdate,  
-    TextSubmission, JudgeAssignment, ContestResponse, JudgeAssignmentResponse
+    TextSubmission, JudgeAssignment, ContestResponse, JudgeAssignmentResponse, ContestTextResponse
 )
 from app.db.repositories.contest_repository import ContestRepository
 from app.db.repositories.text_repository import TextRepository
@@ -41,14 +41,14 @@ class ContestService:
         db: AsyncSession, 
         skip: int = 0, 
         limit: int = 100,
-        state: Optional[str] = None,
+        status: Optional[str] = None,
         current_user_id: Optional[int] = None
     ) -> List[ContestResponse]:
         contests_orm = await ContestRepository.get_contests(
             db=db, 
             skip=skip, 
             limit=limit, 
-            state=state,
+            status=status,
             current_user_id=current_user_id
         )
         
@@ -124,26 +124,41 @@ class ContestService:
                 detail="You don't have permission to update this contest"
             )
         
-        # Validate state transition
-        if contest_update.state and contest_update.state != contest.state:
-            ContestService._validate_state_transition(contest.state, contest_update.state)
+        # Prepare a mutable copy of contest_update data for potential modification
+        update_data_dict = contest_update.model_dump(exclude_unset=True)
+
+        # Validate status transition and ensure status is lowercase before saving
+        if "status" in update_data_dict and update_data_dict["status"] != contest.status:
+            original_new_status = update_data_dict["status"]
+            lowercase_new_status = original_new_status.lower()
+            ContestService._validate_status_transition(contest.status, lowercase_new_status) # Validate with lowercase
+            update_data_dict["status"] = lowercase_new_status # Store lowercase status
+
+        # Create a new ContestUpdate instance with potentially modified (lowercased) status
+        # This ensures that the repository receives the standardized status.
+        final_contest_update = ContestUpdate(**update_data_dict)
             
         # Validate that private contests have a password
-        if contest_update.is_private and contest_update.is_private is True and not (
-            contest_update.password or (contest.is_private and contest.password)
-        ):
+        # This logic needs to use the potentially updated 'is_private' and 'password' from final_contest_update
+        # or the existing values from 'contest' if not present in final_contest_update.
+        
+        # Check current state of is_private
+        is_private_after_update = final_contest_update.is_private if final_contest_update.is_private is not None else contest.is_private
+        password_after_update = final_contest_update.password if final_contest_update.password is not None else contest.password
+
+        if is_private_after_update and not password_after_update:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Private contests must have a password"
             )
             
-        updated_contest = await ContestRepository.update_contest(
+        updated_contest_orm = await ContestRepository.update_contest(
             db=db, 
             contest_id=contest_id, 
-            contest_update=contest_update
+            contest_update=final_contest_update # Pass the ContestUpdate with lowercase status
         )
         
-        if not updated_contest:
+        if not updated_contest_orm:
             # This case should ideally not happen if get_contest succeeded earlier
             # but handle defensively.
              raise HTTPException(
@@ -181,18 +196,19 @@ class ContestService:
         return await ContestRepository.delete_contest(db=db, contest_id=contest_id)
     
     @staticmethod
-    def _validate_state_transition(current_state: str, new_state: str) -> None:
-        """Validate that the state transition is allowed"""
+    def _validate_status_transition(current_status: str, new_status: str) -> None:
+        """Validate that the status transition is allowed"""
         valid_transitions = {
             "open": ["evaluation"],
             "evaluation": ["closed"],
             "closed": []  # No transitions allowed from closed state
         }
         
-        if new_state not in valid_transitions.get(current_state, []):
+        processed_new_status = new_status.lower() # Convert to lowercase
+        if processed_new_status not in valid_transitions.get(current_status, []):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid state transition from {current_state} to {new_state}"
+                detail=f"Invalid status transition from {current_status} to {new_status}"
             )
     
     @staticmethod
@@ -248,7 +264,7 @@ class ContestService:
         )
         
         # Check if contest is open
-        if contest.state != "open":
+        if contest.status != "open":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Contest is not open for submissions"
@@ -315,7 +331,7 @@ class ContestService:
         current_user_id: Optional[int] = None,
         password: Optional[str] = None
     ) -> List[ContestText]:
-        # Check contest access
+        # Check contest access - this handles password for private contests
         contest = await ContestService.check_contest_access(
             db=db, 
             contest_id=contest_id, 
@@ -324,25 +340,25 @@ class ContestService:
         )
         
         # For open contests, only the creator and admins can see submissions details
-        # (This method returns ContestText objects, details masking for actual content/author should happen in router/schema if needed)
-        if contest.state == "open":
-            is_admin_user = False
-            if current_user_id:
-                user_repo = UserRepository(db)
-                is_admin_user = await user_repo.is_admin(current_user_id)
-            
-            is_creator = current_user_id and contest.creator_id == current_user_id
-            
+        if contest.status == "open":
+            # Require authentication for open contests
+            if current_user_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Not authenticated"
+                )
+            # Allow only contest creator or admin
+            user_repo = UserRepository(db)
+            is_admin_user = await user_repo.is_admin(current_user_id)
+            is_creator = contest.creator_id == current_user_id
             if not (is_admin_user or is_creator):
-                # Non-creator/non-admin cannot view submissions list in 'open' state
-                # Or, return an empty list if preferred over raising an error for list endpoint
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Submissions are not visible to participants while the contest is open."
                 )
         
-        # For 'evaluation' or 'closed' states, all who can access contest can see submissions
-        # (masking of author/owner handled by specific response schemas if needed)
+        # For evaluation or closed contests, anyone with access can see submissions
+        # No additional authentication needed beyond check_contest_access
         return await ContestRepository.get_contest_texts(db=db, contest_id=contest_id)
     
     @staticmethod
@@ -569,4 +585,78 @@ class ContestService:
             # Or return empty list if judge not existing isn't an error for this context
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"User with id {user_id} not found.")
 
-        return await ContestRepository.get_contests_for_judge(db, user_judge_id=user_id, skip=skip, limit=limit) 
+        return await ContestRepository.get_contests_for_judge(db, user_judge_id=user_id, skip=skip, limit=limit)
+
+    @staticmethod
+    async def get_contest_submissions(
+        db: AsyncSession,
+        contest_id: int,
+        current_user_id: Optional[int] = None,
+        password: Optional[str] = None
+    ) -> List[ContestTextResponse]:
+        """
+        Get all text submissions for a contest with proper masking based on contest status.
+        
+        For open contests, only creator and admins can see submissions
+        For evaluation contests, submissions are visible but author/owner are masked
+        For closed contests, all details are visible
+        """
+        # Check access and get contest - this handles password for private contests
+        contest = await ContestService.check_contest_access(
+            db=db,
+            contest_id=contest_id,
+            current_user_id=current_user_id,
+            password=password
+        )
+        
+        # For open contests, only creator and admins can see submissions
+        if contest.status.lower() == "open":
+            if current_user_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Not authenticated"
+                )
+            user_repo = UserRepository(db)
+            is_admin_user = await user_repo.is_admin(current_user_id)
+            is_creator = contest.creator_id == current_user_id
+            if not (is_admin_user or is_creator):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Submissions are not visible to participants while the contest is open."
+                )
+        
+        # Get contest texts directly from repository
+        contest_texts = await ContestRepository.get_contest_texts(db=db, contest_id=contest_id)
+        
+        # Prepare responses with proper masking
+        text_repo = TextRepository(db)
+        responses = []
+        
+        for ct in contest_texts:
+            text = await text_repo.get_text(ct.text_id)
+            if not text:
+                continue
+                
+            # Determine masking based on contest status
+            if contest.status.lower() == "open":
+                author = text.author
+                owner = text.owner_id
+            elif contest.status.lower() == "evaluation":
+                author = "[Hidden]"
+                owner = None
+            else:  # closed
+                author = text.author
+                owner = text.owner_id
+                
+            responses.append(
+                ContestTextResponse(
+                    text_id=text.id,
+                    title=text.title,
+                    content=text.content,
+                    author=author,
+                    owner_id=owner,
+                    ranking=ct.ranking
+                )
+            )
+            
+        return responses 

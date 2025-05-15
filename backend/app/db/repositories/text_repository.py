@@ -3,6 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from app.db.models import Text, User
+from app.db.models.contest_text import ContestText
+from app.db.models.contest import Contest
 from app.schemas.text import TextCreate, TextUpdate
 
 
@@ -57,4 +59,22 @@ class TextRepository:
         
         await self.db.delete(db_text)
         await self.db.commit()
-        return True 
+        return True
+    
+    async def get_contest_text(self, text_id: int) -> Optional[ContestText]:
+        # Get the most recent contest text entry for this text
+        stmt = select(ContestText).filter(
+            ContestText.text_id == text_id
+        ).order_by(ContestText.submission_date.desc())
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+    
+    async def get_contest(self, contest_id: int) -> Optional[Contest]:
+        stmt = select(Contest).filter(Contest.id == contest_id)
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+    
+    async def get_contest_texts(self, text_id: int) -> List[ContestText]:
+        stmt = select(ContestText).filter(ContestText.text_id == text_id)
+        result = await self.db.execute(stmt)
+        return result.scalars().all() 

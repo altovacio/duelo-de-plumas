@@ -7,7 +7,8 @@ from app.db.database import get_db
 from app.api.routes.auth import get_current_user, get_optional_current_user
 from app.schemas.contest import (
     ContestCreate, ContestResponse, ContestUpdate, ContestDetailResponse,
-    TextSubmission, TextSubmissionResponse, JudgeAssignment, JudgeAssignmentResponse
+    TextSubmission, TextSubmissionResponse, JudgeAssignment, JudgeAssignmentResponse,
+    ContestTextResponse
 )
 from app.db.models.user import User as UserModel
 from app.services.contest_service import ContestService
@@ -31,7 +32,7 @@ async def create_contest(
 async def get_contests(
     skip: int = 0,
     limit: int = 100,
-    state: Optional[str] = None,
+    status: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     current_user: Optional[UserModel] = Depends(get_optional_current_user)
 ):
@@ -45,7 +46,7 @@ async def get_contests(
         db=db,
         skip=skip,
         limit=limit,
-        state=state,
+        status=status,
         current_user_id=user_id
     )
 
@@ -155,35 +156,27 @@ async def submit_text_to_contest(
     )
 
 
-@router.get("/{contest_id}/submissions", response_model=List[TextSubmissionResponse])
+@router.get("/{contest_id}/submissions", response_model=List[ContestTextResponse])
 async def get_contest_submissions(
     contest_id: int,
     password: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[UserModel] = Depends(get_current_user)
+    current_user: Optional[UserModel] = Depends(get_optional_current_user)
 ):
     """
     Get all text submissions for a contest
     
     For private contests, provide the password unless you're the creator or admin
     For open contests, only the creator and admins can see submissions
+    For evaluation/closed contests, anyone with access can see submissions with full details
     """
     user_id = current_user.id if current_user else None
-    contest_texts = await ContestService.get_contest_texts(
+    return await ContestService.get_contest_submissions(
         db=db,
         contest_id=contest_id,
         current_user_id=user_id,
         password=password
     )
-    
-    return [
-        TextSubmissionResponse(
-            submission_id=ct.id,
-            contest_id=ct.contest_id,
-            text_id=ct.text_id,
-            submission_date=ct.submission_date
-        ) for ct in contest_texts
-    ]
 
 
 @router.delete("/{contest_id}/submissions/{submission_id}", status_code=status.HTTP_204_NO_CONTENT)

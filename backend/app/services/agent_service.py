@@ -195,24 +195,32 @@ class AgentService:
                 detail="Contest not found"
             )
             
-        if contest.state != "evaluation":
+        if contest.status != "evaluation":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="AI judging can only be performed when the contest is in evaluation state"
             )
             
-        judge_assignment_stmt = select(ContestJudge).filter(
+        # Check if the AI agent (request.agent_id) is assigned as a judge to this contest
+        ai_judge_assignment_stmt = select(ContestJudge).filter(
             ContestJudge.contest_id == request.contest_id,
-            ContestJudge.judge_id == current_user_id
+            ContestJudge.agent_judge_id == request.agent_id  # Verify the AI agent itself is assigned
         )
-        judge_assignment_result = await db.execute(judge_assignment_stmt)
-        judge_assignment = judge_assignment_result.scalar_one_or_none()
-        
-        if not judge_assignment and not is_admin:
+        ai_judge_assignment_result = await db.execute(ai_judge_assignment_stmt)
+        ai_judge_is_assigned = ai_judge_assignment_result.scalar_one_or_none()
+
+        # The rule: "Un juez, ya sea humano o IA, solo puede participar en un concurso si está registrado como juez por el creador del concurso"
+        # This implies the AI agent itself must be registered.
+        if not ai_judge_is_assigned:
+            # Optional: Admin override? The project description implies the agent *must* be registered.
+            # if not is_admin: # If we want admin to bypass this specific check
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="You are not an assigned judge for this contest or lack permissions to trigger AI judging."
+                detail=f"AI Agent with id {request.agent_id} is not assigned as a judge to this contest"
             )
+            
+        # The previous check for the user being a human judge is removed as it's not the primary condition.
+        # The user's ability to execute this comes from owning the agent (or it being public) and having credits.
             
         texts_in_contest_models = await ContestRepository.get_contest_texts(db, contest.id)
         if not texts_in_contest_models:
@@ -264,15 +272,37 @@ class AgentService:
         total_credits_for_run = 0
 
         try:
-            parsed_votes_from_ai, actual_tokens_used, actual_cost_per_k_tokens = await AIService.judge_contest(
-                model_name=request.model,
-                system_prompt=agent.prompt,
+            # Call AIService.judge_contest with corrected keyword arguments
+            parsed_votes_from_ai, actual_prompt_tokens, actual_completion_tokens = await AIService.judge_contest(
+                model=request.model,                 # MODIFIED: was model_name
+                personality_prompt=agent.prompt,     # MODIFIED: was system_prompt
                 contest_description=contest.description,
                 texts=text_details_for_ai
+                # Temperature and max_tokens will use defaults in AIService if not passed
             )
             
-            actual_credits_used = round((actual_tokens_used / 1000) * actual_cost_per_k_tokens)
+
+            # Use estimate_credits for cost calculation based on prompt and completion tokens
+            actual_credits_used = estimate_credits(request.model, actual_prompt_tokens, actual_completion_tokens)
             total_credits_for_run += actual_credits_used
+
+            # Ensure contest_judge_id for the AI agent is fetched or available
+            # This AI agent (request.agent_id) should be an assigned judge.
+            # We need the ContestJudge.id for this AI agent in this contest to create votes.
+            ai_contest_judge_entry_stmt = select(ContestJudge).filter(
+                ContestJudge.contest_id == request.contest_id,
+                ContestJudge.agent_judge_id == request.agent_id
+            )
+            ai_contest_judge_entry_result = await db.execute(ai_contest_judge_entry_stmt)
+            ai_contest_judge_entry = ai_contest_judge_entry_result.scalar_one_or_none()
+
+            if not ai_contest_judge_entry:
+                # This should ideally not happen if the check at the beginning of the function passed.
+                # However, it's a critical piece for vote creation.
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to find ContestJudge entry for AI agent {request.agent_id} in contest {request.contest_id} before creating votes."
+                )
 
             for vote_info in parsed_votes_from_ai:
                 vote_create_data = VoteCreate(
@@ -282,7 +312,14 @@ class AgentService:
                     is_ai_vote=True,
                     ai_model=request.model
                 )
-                await VoteService.create_vote(db, vote_create_data, current_user_id, request.contest_id)
+                # Pass the AI agent's ID (request.agent_id) as the judge_id to VoteService.create_vote
+                # because VoteService.create_vote expects a user_id or an agent_id as judge_id.
+                await VoteService.create_vote(
+                    db=db, 
+                    vote_data=vote_create_data, 
+                    judge_id=request.agent_id, # Pass the AI agent's ID
+                    contest_id=request.contest_id
+                )
 
             exec_record = await AgentRepository.create_agent_execution(
                 db=db, agent_id=agent.id, owner_id=current_user_id,
@@ -310,7 +347,9 @@ class AgentService:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=error_msg)
         finally:
             if total_credits_for_run > 0:
-                await CreditService.deduct_credits(db, current_user_id, total_credits_for_run, f"AI Judge Agent execution: {agent.name} on contest {request.contest_id}", request.model, actual_tokens_used)
+                # Ensure actual_tokens_used for deduction description is the sum of prompt and completion tokens
+                actual_total_tokens_for_deduction = actual_prompt_tokens + actual_completion_tokens
+                await CreditService.deduct_credits(db, current_user_id, total_credits_for_run, f"AI Judge Agent execution: {agent.name} on contest {request.contest_id}", request.model, actual_total_tokens_for_deduction)
 
         return execution_responses
     

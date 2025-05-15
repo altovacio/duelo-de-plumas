@@ -59,6 +59,7 @@ async def test_02_02_user1_creates_judge1(client: AsyncClient): # async def, Asy
     assert not judge1_data.is_public
     assert judge1_data.owner_id == test_data["user1_id"]
     test_data["judge1_id"] = judge1_data.id
+    test_data["judge1_ai_id"] = judge1_data.id  # Alias for AI Judge ID in later tests
     print(f"User 1 created judge1 (ID: {judge1_data.id}) successfully.")
 
 @pytest.mark.run(after='test_02_02_user1_creates_judge1')

@@ -25,7 +25,7 @@ class ContestUpdate(BaseModel):
     password: Optional[str] = None
     min_votes_required: Optional[int] = None
     end_date: Optional[datetime] = None
-    state: Optional[str] = None  # "open", "evaluation", "closed"
+    status: Optional[str] = None  # "open", "evaluation", "closed"
 
 
 # For assigning judges to contests
@@ -56,7 +56,7 @@ class JudgeAssignmentResponse(BaseModel):
 class ContestResponse(ContestBase):
     id: int
     creator_id: int
-    state: str  # "open", "evaluation", "closed"
+    status: str  # "open", "evaluation", "closed"
     created_at: datetime
     updated_at: datetime
     end_date: Optional[datetime] = None

@@ -25,6 +25,22 @@ class TextService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Text not found"
             )
+            
+        # Check if text is part of any contest in evaluation or closed phase
+        contest_texts = await self.repository.get_contest_texts(text_id)
+        for contest_text in contest_texts:
+            contest = await self.repository.get_contest(contest_text.contest_id)
+            if contest and contest.status.lower() in ["evaluation", "closed"]:
+                # If text is in any contest in evaluation or closed phase, allow access
+                return db_text
+                
+        # For texts not in any evaluation/closed contest, require authentication
+        if current_user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required"
+            )
+            
         return db_text
     
     async def get_texts(self, skip: int = 0, limit: int = 100) -> List[Text]:

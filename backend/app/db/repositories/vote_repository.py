@@ -2,18 +2,22 @@ from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select, delete, update
 
-from app.db.models import Vote, ContestText
+from app.db.models import Vote, ContestText, AgentExecution
 
 
 class VoteRepository:
     @staticmethod
-    async def create_vote(db: AsyncSession, vote_data: dict, judge_id: int, contest_id: int, text_id: int) -> Vote:
-        """Create a new vote."""
+    async def create_vote(db: AsyncSession, vote_data: dict, contest_judge_id: int, contest_id: int) -> Vote:
+        """Create a new vote. vote_data is expected to contain text_id."""
+        # vote_data should contain text_id, comment, text_place, etc. from VoteCreate schema
+        # contest_id and contest_judge_id are passed explicitly.
+        # Only pass actual column fields to the Vote constructor
+        allowed_keys = {"text_id", "text_place", "comment"}
+        filtered_data = {k: v for k, v in vote_data.items() if k in allowed_keys}
         vote = Vote(
-            judge_id=judge_id,
+            contest_judge_id=contest_judge_id,
             contest_id=contest_id,
-            text_id=text_id,
-            **vote_data
+            **filtered_data
         )
         db.add(vote)
         await db.commit()
@@ -35,39 +39,9 @@ class VoteRepository:
         return result.scalars().all()
 
     @staticmethod
-    async def get_votes_by_judge_and_contest(db: AsyncSession, judge_id: int, contest_id: int) -> List[Vote]:
-        """Get all votes by a specific judge in a specific contest."""
-        stmt = select(Vote).filter(
-            Vote.judge_id == judge_id,
-            Vote.contest_id == contest_id
-        )
-        result = await db.execute(stmt)
-        return result.scalars().all()
-
-    @staticmethod
-    async def get_human_votes_by_judge_and_contest(db: AsyncSession, judge_id: int, contest_id: int) -> List[Vote]:
-        """Get human votes by a specific judge in a specific contest."""
-        stmt = select(Vote).filter(
-            Vote.judge_id == judge_id,
-            Vote.contest_id == contest_id,
-            Vote.is_ai_vote == False
-        )
-        result = await db.execute(stmt)
-        return result.scalars().all()
-
-    @staticmethod
-    async def get_ai_votes_by_judge_and_contest(db: AsyncSession, judge_id: int, contest_id: int, 
-                                               ai_model: Optional[str] = None) -> List[Vote]:
-        """Get AI votes by a specific judge in a specific contest, optionally filtered by AI model."""
-        stmt = select(Vote).filter(
-            Vote.judge_id == judge_id,
-            Vote.contest_id == contest_id,
-            Vote.is_ai_vote == True
-        )
-        
-        if ai_model:
-            stmt = stmt.filter(Vote.ai_model == ai_model)
-            
+    async def get_votes_by_contest_judge_id(db: AsyncSession, contest_judge_id: int) -> List[Vote]:
+        """Get all votes by a specific contest_judge_id."""
+        stmt = select(Vote).filter(Vote.contest_judge_id == contest_judge_id)
         result = await db.execute(stmt)
         return result.scalars().all()
 
@@ -89,46 +63,38 @@ class VoteRepository:
         return False
 
     @staticmethod
-    async def delete_ai_votes(db: AsyncSession, judge_id: int, contest_id: int, ai_model: str) -> int:
-        """Delete all AI votes from a specific judge using a specific AI model in a contest.
+    async def delete_ai_votes_by_contest_judge(db: AsyncSession, contest_judge_id: int, contest_id: int, ai_model: str) -> int:
+        """Delete all AI votes associated with a specific contest_judge_id using a specific AI model.
         Returns the number of votes deleted."""
-        stmt = delete(Vote).where(
-            Vote.judge_id == judge_id,
-            Vote.contest_id == contest_id,
-            Vote.is_ai_vote == True,
-            Vote.ai_model == ai_model
+        stmt_select_ids = select(Vote.id).join(Vote.agent_execution).filter(
+            Vote.contest_judge_id == contest_judge_id,
+            AgentExecution.model == ai_model
         )
-        result = await db.execute(stmt)
+        vote_ids_result = await db.execute(stmt_select_ids)
+        vote_ids_to_delete = vote_ids_result.scalars().all()
+
+        if not vote_ids_to_delete:
+            return 0
+
+        stmt_delete = delete(Vote).where(Vote.id.in_(vote_ids_to_delete))
+        result = await db.execute(stmt_delete)
         await db.commit()
         return result.rowcount
 
     @staticmethod
-    async def delete_human_votes(db: AsyncSession, judge_id: int, contest_id: int) -> int:
-        """Delete all human votes from a specific judge in a contest.
-        Returns the number of votes deleted."""
-        stmt = delete(Vote).where(
-            Vote.judge_id == judge_id,
-            Vote.contest_id == contest_id,
-            Vote.is_ai_vote == False
-        )
-        result = await db.execute(stmt)
-        await db.commit()
-        return result.rowcount
-
-    @staticmethod
-    async def delete_human_vote_by_place(db: AsyncSession, judge_id: int, contest_id: int, place: int) -> bool:
-        """Delete a human vote from a specific judge in a contest with a specific place.
+    async def delete_human_vote_by_place_and_contest_judge(db: AsyncSession, contest_judge_id: int, contest_id: int, text_place: int) -> bool:
+        """Delete a human vote from a specific contest_judge_id in a contest with a specific place.
         Returns True if a vote was deleted, False otherwise."""
         stmt = delete(Vote).where(
-            Vote.judge_id == judge_id,
-            Vote.contest_id == contest_id,
-            Vote.is_ai_vote == False,
-            Vote.text_place == place
+            Vote.contest_judge_id == contest_judge_id,
+            Vote.agent_execution_id.is_(None),
+            Vote.text_place == text_place
         ).returning(Vote.id)
         
         result = await db.execute(stmt)
+        deleted_id = result.scalar_one_or_none()
         await db.commit()
-        return result.scalar_one_or_none() is not None
+        return deleted_id is not None
 
     @staticmethod
     async def calculate_contest_results(db: AsyncSession, contest_id: int) -> None:

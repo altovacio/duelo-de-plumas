@@ -12,6 +12,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
 from httpx import AsyncClient, ASGITransport # For the new client fixture
 
+from typing import AsyncGenerator
+
 # --- Path Setup ---
 # Ensures tests can find the 'app' module.
 # Assumes conftest.py is in backend/tests/, and backend root (/app in Docker) is its parent.
@@ -165,7 +167,7 @@ async def client(db_session: AsyncSession) -> AsyncClient: # Ensure db_session i
         yield ac
 
 @pytest.fixture(scope="function")
-async def db_session() -> AsyncSession: # No longer needs setup_database_suite as explicit dep, autouse=True handles it
+async def db_session() -> AsyncGenerator[AsyncSession, None]:
     """Provides a clean, async database session from TestAsyncSessionLocal for each test function."""
     if not TestAsyncSessionLocal:
         pytest.fail("CRITICAL [conftest.py]: 'TestAsyncSessionLocal' is not initialized for db_session.")

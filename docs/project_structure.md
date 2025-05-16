@@ -118,25 +118,7 @@ duelo-de-plumas/
 │   │   ├── e2e_sec_07_contest_closure_results.py
 │   │   ├── e2e_sec_08_cost_usage_monitoring_pre_cleanup.py
 │   │   ├── e2e_sec_09_cleanup_routine.py
-│   │   ├── e2e_sec_10_final_state_verification_post_cleanup.py
-│   │   │
-│   │   ├── # Original E2E test file (to be refactored/removed by user)
-│   │   ├── # end_to_end_test.py # User will move tests from here
-│   │   │
-│   │   ├── test_api/           # Unit/Integration tests for API routes (existing structure)
-│   │   │   ├── __init__.py
-│   │   │   ├── test_auth.py
-│   │   │   ├── test_users.py
-│   │   │   ├── test_texts.py
-│   │   │   ├── test_contests.py
-│   │   │   ├── test_votes.py
-│   │   │   └── test_agents.py
-│   │   │
-│   │   └── test_services/
-│   │       ├── __init__.py
-│   │       ├── test_auth_service.py
-│   │       ├── test_user_service.py
-│   │       └── ...
+│   │   └── e2e_sec_10_final_state_verification_post_cleanup.py
 │   │
 │   ├── .env                    # Backend environment variables
 │   ├── .env.example            # Template for environment variables
@@ -146,25 +128,65 @@ duelo-de-plumas/
 │   └── alembic.ini             # Alembic configuration
 │   └── pytest.ini              # Pytest configuration (e.g., test file patterns) (NEW)
 │
-├── frontend/                   # Frontend application (placeholder)
-│   ├── public/                 # Static files
+├── frontend/                   # Frontend application
+│   ├── public/                 # Static assets
+│   │   ├── index.html          # HTML template
+│   │   └── assets/             # Images, icons, etc.
+│   │
 │   ├── src/                    # Source code
-│   │   ├── components/         # UI components
-│   │   ├── pages/              # Page components
-│   │   ├── services/           # API service integrations
-│   │   ├── styles/             # CSS/styling files
-│   │   ├── utils/              # Utility functions
-│   │   └── App.js              # Main application component
+│   │   ├── components/         # Reusable UI components
+│   │   │   ├── Layout/         # App-level layout (Header, Footer, MainLayout)
+│   │   │   ├── auth/           # Authentication related components (e.g., ProtectedRoute)
+│   │   │   ├── ContestCard/    # Contest preview cards
+│   │   │   ├── TextEditor/     # Markdown editor component
+│   │   │   └── AgentControls/  # UI for running AI agents (judge/writer)
+│   │   │
+│   │   ├── pages/              # Page components (views)
+│   │   │   ├── Home/           # Landing page (highlights, welcome)
+│   │   │   ├── ContestList/    # All contests listing
+│   │   │   ├── ContestDetail/  # Detail for a specific contest
+│   │   │   ├── Dashboard/      # User workspace (texts, agents, credits)
+│   │   │   ├── Auth/           # Login & Register pages (LoginPage.tsx, RegistrationPage.tsx)
+│   │   │   └── Admin/          # Admin panels (user mgmt, global AI agents)
+│   │   │
+│   │   ├── services/           # API integration (calls to FastAPI)
+│   │   │   ├── authService.ts  # Authentication services (exports apiClient instance)
+│   │   │   ├── contestService.ts
+│   │   │   ├── textService.ts
+│   │   │   ├── agentService.ts
+│   │   │   └── creditService.ts
+│   │   │
+│   │   ├── hooks/              # Custom React hooks (e.g., useFetch)
+│   │   │   ├── useAuth.ts      # Authentication hooks
+│   │   │   ├── useCredits.ts   # Credit management hooks
+│   │   │   └── useMultiVote.ts # Hooks for handling multiple vote types
+│   │   │
+│   │   ├── contexts/           # React Context providers (e.g., ThemeContext)
+│   │   ├── store/              # Global state management (e.g., Zustand stores like authStore.ts)
+│   │   ├── types/              # TypeScript type definitions (e.g., auth.ts)
+│   │   ├── utils/              # Utility functions (markdown parsing, formatting)
+│   │   │   ├── markdownUtils.ts
+│   │   │   ├── creditUtils.ts  # Credit calculation helpers
+│   │   │   └── formatters.ts   # Date/time/number formatters
+│   │   │
+│   │   ├── styles/             # Global styles, theme definitions
+│   │   ├── App.tsx             # Application root
+│   │   ├── index.tsx           # Entry point
+│   │   └── vite-env.d.ts     # Vite client TypeScript environment definitions
 │   │
 │   ├── package.json            # Frontend dependencies and scripts
-│   └── .env                    # Frontend environment variables
+│   ├── tsconfig.json           # TypeScript config (if TS)
+│   ├── .env                    # Frontend environment variables
+│   └── README.md               # Frontend-specific instructions
 │
 ├── docs/                       # Project documentation
-│   ├── schemas_and_structure.md
-│   ├── api_plan.md
 │   ├── project_description.md
 │   ├── project_structure.md
-│   └── implementation_status.md # Track implementation progress and deviations
+│   ├── implementation_plan.md
+│   ├── front_implementation_plan.md
+│   └── implementation_status.md
+│
+├── examples/                  # Example text files
 │
 ├── .gitignore                  # Git ignore file
 ├── docker-compose.yml          # Docker Compose configuration for both services

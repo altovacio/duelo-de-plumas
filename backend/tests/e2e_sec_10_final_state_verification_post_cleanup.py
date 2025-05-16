@@ -95,7 +95,7 @@ async def test_10_02_admin_checks_ai_costs_summary_post_cleanup(client: AsyncCli
     print(f"AI total real cost USD post-cleanup: {costs_summary_after.total_real_cost_usd}. Verified against pre-cleanup USD cost: {stored_pre_cleanup_real_cost}.")
 
     # Export the post-cleanup AI costs summary to a file
-    with open("ai_costs_summary_post_cleanup.json", "w") as f:
+    with open("./tests/outputs/ai_costs_summary_post_cleanup.json", "w") as f:
         json.dump(response.json(), f, indent=2)
     print("AI costs summary post-cleanup exported to ai_costs_summary_post_cleanup.json")
 

@@ -42,6 +42,7 @@ class CreditUsageSummary(BaseModel):
     usage_by_user: Dict[str, int] = Field(default_factory=dict)
     average_cost_per_operation: float
     total_tokens_used: int
+    total_real_cost_usd: float
 
 
 class UserCreditUpdate(BaseModel):

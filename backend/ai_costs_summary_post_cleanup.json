@@ -1,0 +1,12 @@
+{
+  "total_credits_used": 7,
+  "usage_by_model": {
+    "gpt-4.1-nano-2025-04-14": 7
+  },
+  "usage_by_user": {
+    "Hefesto": 3
+  },
+  "average_cost_per_operation": 1.0,
+  "total_tokens_used": 5798,
+  "total_real_cost_usd": 0.0012614000000000002
+}

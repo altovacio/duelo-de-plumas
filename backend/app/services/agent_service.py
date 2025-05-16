@@ -28,7 +28,7 @@ from app.db.models.contest_judge import ContestJudge
 from app.db.models.user import User as UserModel
 from app.db.models.text import Text as TextModel
 from app.db.models.vote import Vote as VoteModel
-from app.utils.ai_models import estimate_credits
+from app.utils.ai_models import estimate_credits, estimate_cost_usd
 from app.core.config import settings
 
 
@@ -349,7 +349,17 @@ class AgentService:
             if total_credits_for_run > 0:
                 # Ensure actual_tokens_used for deduction description is the sum of prompt and completion tokens
                 actual_total_tokens_for_deduction = actual_prompt_tokens + actual_completion_tokens
-                await CreditService.deduct_credits(db, current_user_id, total_credits_for_run, f"AI Judge Agent execution: {agent.name} on contest {request.contest_id}", request.model, actual_total_tokens_for_deduction)
+                # Compute real cost in USD for accurate tracking
+                real_cost_usd = estimate_cost_usd(request.model, actual_prompt_tokens, actual_completion_tokens)
+                await CreditService.deduct_credits(
+                    db=db,
+                    user_id=current_user_id,
+                    amount=total_credits_for_run,
+                    description=f"AI Judge Agent execution: {agent.name} on contest {request.contest_id}",
+                    ai_model=request.model,
+                    tokens_used=actual_total_tokens_for_deduction,
+                    model_cost_rate=real_cost_usd
+                )
 
         return execution_responses
     
@@ -463,15 +473,18 @@ class AgentService:
                 if request.description:
                     description_msg += f" - Topic: {request.description[:50]}"
                 elif request.title:
-                     description_msg += f" - Title: {request.title[:50]}"
+                    description_msg += f" - Title: {request.title[:50]}"
 
+                # Compute real cost in USD for accurate tracking
+                real_cost_usd = estimate_cost_usd(request.model, actual_prompt_tokens, actual_completion_tokens)
                 await CreditService.deduct_credits(
-                    db, 
-                    current_user_id, 
-                    actual_credits_used, 
-                    description_msg,
-                    request.model, 
-                    actual_total_tokens
+                    db=db,
+                    user_id=current_user_id,
+                    amount=actual_credits_used,
+                    description=description_msg,
+                    ai_model=request.model,
+                    tokens_used=actual_total_tokens,
+                    model_cost_rate=real_cost_usd
                 )
 
             # Create the execution record in all cases (success or failure during AI call/text saving)

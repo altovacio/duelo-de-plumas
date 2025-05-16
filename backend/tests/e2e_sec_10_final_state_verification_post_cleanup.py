@@ -3,6 +3,7 @@ import pytest
 from httpx import AsyncClient # MODIFIED: For async client
 from typing import List # Keep if listing endpoints are used for verification
 import logging
+import json
 
 from app.schemas.credit import CreditUsageSummary # MODIFIED: Was AIServiceCostSummaryResponse
 from app.schemas.user import UserResponse # ADDED for listing users
@@ -84,5 +85,18 @@ async def test_10_02_admin_checks_ai_costs_summary_post_cleanup(client: AsyncCli
         f"AI total cost should remain the same after cleanup. Post-cleanup: {costs_summary_after.total_credits_used}, Pre-cleanup: {stored_pre_cleanup_cost}"
 
     print(f"AI costs summary post-cleanup total: {costs_summary_after.total_credits_used}. Verified against pre-cleanup cost: {stored_pre_cleanup_cost}.") # MODIFIED
+
+    # Ensure and compare the total real cost USD
+    assert hasattr(costs_summary_after, 'total_real_cost_usd'), "Total real cost USD field missing in summary post-cleanup."
+    assert 'ai_total_real_cost_pre_cleanup' in test_data, "Pre-cleanup AI real cost USD was not stored in test_data."
+    stored_pre_cleanup_real_cost = test_data['ai_total_real_cost_pre_cleanup']
+    assert costs_summary_after.total_real_cost_usd == stored_pre_cleanup_real_cost, \
+        f"AI total real cost USD should remain the same after cleanup. Post-cleanup USD: {costs_summary_after.total_real_cost_usd}, Pre-cleanup USD: {stored_pre_cleanup_real_cost}"
+    print(f"AI total real cost USD post-cleanup: {costs_summary_after.total_real_cost_usd}. Verified against pre-cleanup USD cost: {stored_pre_cleanup_real_cost}.")
+
+    # Export the post-cleanup AI costs summary to a file
+    with open("ai_costs_summary_post_cleanup.json", "w") as f:
+        json.dump(response.json(), f, indent=2)
+    print("AI costs summary post-cleanup exported to ai_costs_summary_post_cleanup.json")
 
 # --- End of Test Section 10 --- 

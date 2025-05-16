@@ -335,7 +335,7 @@ async def test_06_09_admin_triggers_judge1_ai_evaluation_for_contest1(client: As
     # Admin triggers AI judge via the unified endpoint
     trigger_payload = {
         "agent_id": test_data["judge1_ai_id"],
-        "model": "gpt-4-turbo",
+        "model": settings.DEFAULT_TEST_MODEL_ID,
         "contest_id": test_data["contest1_id"]
     }
     response = await client.post(

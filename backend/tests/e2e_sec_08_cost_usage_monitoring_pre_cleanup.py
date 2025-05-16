@@ -23,12 +23,16 @@ async def test_08_01_admin_checks_ai_costs_summary(client: AsyncClient): # MODIF
     response = await client.get(f"/admin/credits/usage", headers=test_data["admin_headers"]) # MODIFIED: await, removed settings.API_V1_STR, changed path
     assert response.status_code == 200, f"Admin failed to get AI costs summary: {response.text}"
     
-    costs_summary = CreditUsageSummary(**response.json()) # MODIFIED
-    assert costs_summary.total_credits_used >= 0, "Total AI cost should be non-negative." # MODIFIED
-    # Potentially more assertions based on expected costs from previous tests if tracked meticulously
-    # For now, just check structure and non-negative total cost.
-    test_data['ai_total_cost_pre_cleanup'] = costs_summary.total_credits_used # STORE FOR SEC 10
-    print(f"Admin successfully retrieved AI costs summary. Total cost: {costs_summary.total_credits_used}, Breakdown: {costs_summary.usage_by_model}. Stored pre-cleanup cost.") # MODIFIED
+    costs_summary = CreditUsageSummary(**response.json())
+    assert costs_summary.total_credits_used >= 0, "Total AI cost should be non-negative."
+    # Ensure the real cost USD field is present and record it
+    assert hasattr(costs_summary, 'total_real_cost_usd'), "Total real cost USD field missing in summary."
+    test_data['ai_total_cost_pre_cleanup'] = costs_summary.total_credits_used  # STORE for section 10
+    test_data['ai_total_real_cost_pre_cleanup'] = costs_summary.total_real_cost_usd  # STORE real USD cost pre-cleanup
+    print(
+        f"Admin successfully retrieved AI costs summary. Total credits used: {costs_summary.total_credits_used}, "
+        f"Total real cost USD: {costs_summary.total_real_cost_usd}, Breakdown: {costs_summary.usage_by_model}. Stored pre-cleanup costs."
+    )
 
 @pytest.mark.run(after='test_08_01_admin_checks_ai_costs_summary')
 async def test_08_02_admin_checks_user1_credit_history(client: AsyncClient): # MODIFIED: async def, AsyncClient

@@ -97,7 +97,7 @@ duelo-de-plumas/
 │   │   └── alembic.ini
 │   │
 │   ├── scripts/                # Utility scripts for setup and maintenance
-│   │   └── create_admin.py     # Script to create admin user
+│   │   └── create_admin.py     # Script to create admin user and database tables
 │   │
 │   ├── tests/                  # Backend tests
 │   │   ├── __init__.py         # Makes 'tests' a Python package (NEW)

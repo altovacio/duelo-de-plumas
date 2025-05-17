@@ -90,7 +90,7 @@ This section describes setting up and running the backend directly on your machi
 
    # App settings
    DEBUG=True
-   ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8000
+   ALLOWED_ORIGINS=http://localhost:3001,http://localhost:8000
 
    # Admin credentials (used by create_admin.py script if no arguments provided)
    ADMIN_USERNAME=admin
@@ -106,16 +106,26 @@ This section describes setting up and running the backend directly on your machi
 
 6. Create an admin user:
    
-   You can create an admin user in two ways:
+   You can create an admin user in several ways:
    
-   a. By providing command line arguments:
+   a. Create tables and admin user in one command:
    ```
-   python scripts/create_admin.py <username> <email> <password>
+   python scripts/create_admin.py setup
    ```
    
-   b. By using values from the `.env` file (recommended):
+   b. Create only tables:
    ```
-   python scripts/create_admin.py
+   python scripts/create_admin.py tables
+   ```
+   
+   c. Create only admin user with command line arguments:
+   ```
+   python scripts/create_admin.py admin <username> <email> <password>
+   ```
+   
+   d. Create only admin user with values from the `.env` file:
+   ```
+   python scripts/create_admin.py admin
    ```
    This will use the `ADMIN_USERNAME`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` values from your `.env` file.
 

@@ -90,7 +90,7 @@ async def test_10_02_admin_checks_ai_costs_summary_post_cleanup(client: AsyncCli
     assert hasattr(costs_summary_after, 'total_real_cost_usd'), "Total real cost USD field missing in summary post-cleanup."
     assert 'ai_total_real_cost_pre_cleanup' in test_data, "Pre-cleanup AI real cost USD was not stored in test_data."
     stored_pre_cleanup_real_cost = test_data['ai_total_real_cost_pre_cleanup']
-    assert costs_summary_after.total_real_cost_usd == stored_pre_cleanup_real_cost, \
+    assert abs(costs_summary_after.total_real_cost_usd - stored_pre_cleanup_real_cost) < 0.00001, \
         f"AI total real cost USD should remain the same after cleanup. Post-cleanup USD: {costs_summary_after.total_real_cost_usd}, Pre-cleanup USD: {stored_pre_cleanup_real_cost}"
     print(f"AI total real cost USD post-cleanup: {costs_summary_after.total_real_cost_usd}. Verified against pre-cleanup USD cost: {stored_pre_cleanup_real_cost}.")
 

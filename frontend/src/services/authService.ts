@@ -70,11 +70,33 @@ apiClient.interceptors.response.use(
  */
 export const login = async (credentials: LoginRequest): Promise<{ user: User; tokens: AuthTokens }> => {
   try {
-    const response = await apiClient.post('/api/auth/login', credentials);
-    const { user, ...tokens } = response.data;
+    // Try using a direct connection to the backend server
+    console.log('Attempting direct login to backend server');
+    
+    const formData = new URLSearchParams();
+    formData.append('username', credentials.username);
+    formData.append('password', credentials.password);
+    
+    // Connect directly to the backend rather than through the proxy
+    const response = await axios.post('http://localhost:8000/auth/login', formData, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    });
+    
+    console.log('Login response received:', response.data);
+    const tokens = response.data;
     
     // Store tokens in localStorage
     storeTokens(tokens);
+    
+    // Fetch user info using the token
+    const userResponse = await axios.get('http://localhost:8000/users/me', {
+      headers: {
+        'Authorization': `Bearer ${tokens.access_token}`
+      }
+    });
+    const user = userResponse.data;
     
     return { user, tokens };
   } catch (error) {
@@ -88,8 +110,25 @@ export const login = async (credentials: LoginRequest): Promise<{ user: User; to
  */
 export const register = async (userData: RegisterRequest): Promise<{ user: User; tokens: AuthTokens }> => {
   try {
-    const response = await apiClient.post('/api/auth/signup', userData);
-    const { user, ...tokens } = response.data;
+    console.log('Attempting registration with username:', userData.username);
+    
+    // Register the user - direct connection to backend
+    const response = await axios.post('http://localhost:8000/auth/signup', userData);
+    const user = response.data;
+    
+    // After registration, log them in to get tokens
+    const formData = new URLSearchParams();
+    formData.append('username', userData.username);
+    formData.append('password', userData.password);
+    
+    const loginResponse = await axios.post('http://localhost:8000/auth/login', formData, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    });
+    
+    const tokens = loginResponse.data;
+    console.log('Login after registration successful');
     
     // Store tokens in localStorage
     storeTokens(tokens);
@@ -149,7 +188,20 @@ export const logout = async (): Promise<void> => {
  */
 export const getCurrentUser = async (): Promise<User | null> => {
   try {
-    const response = await apiClient.get('/api/auth/me');
+    const tokens = getTokens();
+    if (!tokens) {
+      return null;
+    }
+    
+    console.log('Fetching current user data');
+    
+    const response = await axios.get('http://localhost:8000/users/me', {
+      headers: {
+        'Authorization': `Bearer ${tokens.access_token}`
+      }
+    });
+    
+    console.log('User data received');
     return response.data;
   } catch (error) {
     console.error('Get current user error:', error);

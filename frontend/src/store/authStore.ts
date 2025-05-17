@@ -32,6 +32,7 @@ export const useAuthStore = create<
       const { user, tokens } = await apiLogin({ username, password });
       set({ user, tokens, isAuthenticated: true, isLoading: false });
     } catch (error) {
+      console.error('AuthStore: Login error', error);
       const errorMessage = error instanceof Error ? error.message : 'Login failed';
       set({ error: errorMessage, isLoading: false, isAuthenticated: false });
     }

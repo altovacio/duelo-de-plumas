@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Body
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from jose import JWTError, jwt
 from datetime import timedelta
-from typing import Optional
+from typing import Optional, Dict
 
 from app.db.database import get_db
 from app.schemas.user import UserCreate, UserResponse, Token, TokenData
@@ -18,7 +18,7 @@ from app.db.repositories.user_repository import UserRepository # Added import
 
 router = APIRouter(tags=["authentication"])
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 # Function to get current user from token
 async def get_current_user(
@@ -124,13 +124,23 @@ async def signup(user: UserCreate, db: AsyncSession = Depends(get_db)):
 
 @router.post("/login", response_model=Token)
 async def login(
-    form_data: OAuth2PasswordRequestForm = Depends(),
+    # Support both form data and JSON
+    credentials: Dict[str, str] = Body(...),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Authenticate and login a user.
     """
-    user = await authenticate_user(db, form_data.username, form_data.password)
+    username = credentials.get("username")
+    password = credentials.get("password")
+    
+    if not username or not password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username and password are required",
+        )
+    
+    user = await authenticate_user(db, username, password)
     
     if not user:
         raise HTTPException(

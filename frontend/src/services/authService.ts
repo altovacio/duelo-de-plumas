@@ -10,15 +10,10 @@ export const login = async (credentials: LoginRequest): Promise<{ user: User; to
   try {
     console.log('Attempting login with username:', credentials.username);
     
-    const formData = new URLSearchParams();
-    formData.append('username', credentials.username);
-    formData.append('password', credentials.password);
-    
-    // Use the api client with form data
-    const response = await apiClient.post(AUTH_ENDPOINTS.LOGIN, formData, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      }
+    // Use the api client with JSON data (standardized format)
+    const response = await apiClient.post(AUTH_ENDPOINTS.LOGIN, {
+      username: credentials.username,
+      password: credentials.password
     });
     
     console.log('Login response received');
@@ -55,14 +50,9 @@ export const register = async (userData: RegisterRequest): Promise<{ user: User;
     const user = response.data;
     
     // After registration, log them in to get tokens
-    const formData = new URLSearchParams();
-    formData.append('username', userData.username);
-    formData.append('password', userData.password);
-    
-    const loginResponse = await apiClient.post(AUTH_ENDPOINTS.LOGIN, formData, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      }
+    const loginResponse = await apiClient.post(AUTH_ENDPOINTS.LOGIN, {
+      username: userData.username,
+      password: userData.password
     });
     
     const tokens = loginResponse.data;

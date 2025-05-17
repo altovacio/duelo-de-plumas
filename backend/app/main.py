@@ -27,7 +27,10 @@ app.add_middleware(
 
 @app.middleware("http")
 async def add_debug_middleware(request, call_next):
+    # For debugging - log any server errors
     response = await call_next(request)
+    if response.status_code >= 500:
+        print(f"5XX Error occurred: {request.method} {request.url.path} - Status {response.status_code}")
     return response
 
 # Include routers
@@ -44,6 +47,11 @@ app.include_router(agents.router, prefix="/agents", tags=["agents"])
 @app.get("/")
 async def root():
     return {"message": "Welcome to Duelo de Plumas API"}
+
+# Add a health check endpoint
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
 
 if __name__ == "__main__":
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True) 

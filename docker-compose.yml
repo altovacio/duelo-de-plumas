@@ -11,10 +11,9 @@ services:
       - db
     command: >
       sh -c "./wait-for-it.sh db:5432 --timeout=30 --strict -- \
-      alembic upgrade head && \
-      python scripts/create_tables.py && \
-      python scripts/create_admin.py && \
+      python create_tables.py && \
       uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    restart: always
     
   db:
     image: postgres:15
@@ -40,6 +39,7 @@ services:
       - VITE_API_BASE_URL=http://localhost:8000
     depends_on:
       - backend
+    restart: always
 
 volumes:
   postgres_data: 

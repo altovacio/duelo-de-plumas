@@ -31,5 +31,10 @@ class User(Base):
         viewonly=True,
         overlaps="contest_judges"
     )
-    credit_transactions = relationship("CreditTransaction", back_populates="user", cascade="all, delete-orphan")
+    credit_transactions = relationship(
+        "CreditTransaction", 
+        back_populates="user", 
+        cascade="all, delete-orphan",
+        lazy="noload"
+    )
     agents = relationship("Agent", back_populates="owner", cascade="all, delete-orphan") 

@@ -20,5 +20,10 @@ class CreditTransaction(Base):
     model_cost_rate = Column(Float, nullable=True)  # Cost per 1000 tokens if applicable
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
-    # Relationship
-    user = relationship("User", back_populates="credit_transactions") 
+    # Relationship with User, using foreign_keys and lazy loading to avoid circular issues
+    user = relationship(
+        "User", 
+        back_populates="credit_transactions",
+        foreign_keys=[user_id],
+        lazy="noload"
+    ) 

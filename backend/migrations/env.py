@@ -28,10 +28,6 @@ config = context.config
 # Update db URL from settings
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
-# Add this print:
-print(f"DEBUG [migrations/env.py]: settings.DATABASE_URL as seen by env.py = {settings.DATABASE_URL}")
-print(f"DEBUG [migrations/env.py]: Alembic context config sqlalchemy.url = {config.get_main_option('sqlalchemy.url')}")
-
 # Interpret the config file for Python logging.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

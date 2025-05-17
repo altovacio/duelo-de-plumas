@@ -84,7 +84,6 @@ async def execute_judge_agent(
     - The contest must be in evaluation state
     - User must have sufficient credits
     """
-    print(f"DEBUG: /execute/judge route handler called with agent_id={request.agent_id}")
     return await AgentService.execute_judge_agent(db, request, current_user.id)
 
 
@@ -99,8 +98,6 @@ async def execute_writer_agent(
     - The agent must be a writer agent
     - User must have sufficient credits
     """
-    print(f"DEBUG: /execute/writer route handler called with agent_id={request.agent_id}")
-    print(f"DEBUG: Writer execution route handler called for user_id={current_user.id}, user credits={current_user.credits}")
     return await AgentService.execute_writer_agent(db, request, current_user.id)
 
 
@@ -129,7 +126,6 @@ async def get_agent(
     Get details of a specific AI agent.
     User must be the owner of the agent or the agent must be public, or user is admin.
     """
-    print(f"DEBUG: /{agent_id} route handler called")
     return await AgentService.get_agent_by_id(db, agent_id, current_user.id)
 
 
@@ -172,5 +168,4 @@ async def clone_agent(
     Clone a public agent to the user's account.
     The agent must be public to be cloned.
     """
-    print(f"DEBUG: /{agent_id}/clone route handler called")
     return await AgentService.clone_public_agent(db, agent_id, current_user.id) 

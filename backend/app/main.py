@@ -25,10 +25,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Add a print statement to see which route is being called
 @app.middleware("http")
 async def add_debug_middleware(request, call_next):
-    print(f"DEBUG: Got request to {request.method} {request.url.path}")
     response = await call_next(request)
     return response
 

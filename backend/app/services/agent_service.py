@@ -368,11 +368,9 @@ class AgentService:
         db: AsyncSession, request: AgentExecuteWriter, current_user_id: int
     ) -> AgentExecutionResponse:
         """Execute a writer agent to generate text."""
-        print(f"DEBUG: execute_writer_agent called with agent_id={request.agent_id}, user_id={current_user_id}")
         agent = await AgentService.get_agent_by_id(db, request.agent_id, current_user_id, skip_auth_check=True)
         
         if agent.type != "writer":
-            print(f"DEBUG: Agent is not writer type, raising 400")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Agent with id {request.agent_id} is not a writer agent"
@@ -381,7 +379,6 @@ class AgentService:
         user_repo = UserRepository(db)
         is_admin = await user_repo.is_admin(current_user_id)
         if agent.owner_id != current_user_id and not is_admin and not agent.is_public:
-            print(f"DEBUG: User doesn't have permission, raising 403")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You don't have permission to use this private agent"
@@ -398,13 +395,10 @@ class AgentService:
         estimated_output_tokens = settings.DEFAULT_WRITER_MAX_TOKENS // 2
 
         estimated_cost = estimate_credits(request.model, estimated_input_tokens, estimated_output_tokens)
-        print(f"DEBUG: Estimated cost={estimated_cost}")
 
         has_credits = await CreditService.has_sufficient_credits(db, current_user_id, estimated_cost)
-        print(f"DEBUG: has_sufficient_credits returned {has_credits}")
         
         if not has_credits:
-            print(f"DEBUG: Insufficient credits, raising 402")
             raise HTTPException(
                 status_code=status.HTTP_402_PAYMENT_REQUIRED,
                 detail=f"Insufficient credits. Required approx: {estimated_cost}"

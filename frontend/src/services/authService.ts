@@ -2,8 +2,8 @@ import axios from 'axios';
 import { LoginRequest, RegisterRequest, AuthTokens, User } from '../types/auth';
 import { getTokens, storeTokens, isTokenExpired, removeTokens } from '../utils/tokenUtils';
 
-// Create axios instance
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+// Use the proxy configured in Vite for local development
+const API_BASE_URL = '';
 
 // Create axios instance with base configuration
 export const apiClient = axios.create({
@@ -88,7 +88,7 @@ export const login = async (credentials: LoginRequest): Promise<{ user: User; to
  */
 export const register = async (userData: RegisterRequest): Promise<{ user: User; tokens: AuthTokens }> => {
   try {
-    const response = await apiClient.post('/api/auth/register', userData);
+    const response = await apiClient.post('/api/auth/signup', userData);
     const { user, ...tokens } = response.data;
     
     // Store tokens in localStorage

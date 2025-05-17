@@ -12,6 +12,8 @@ services:
     command: >
       sh -c "./wait-for-it.sh db:5432 --timeout=30 --strict -- \
       alembic upgrade head && \
+      python scripts/create_tables.py && \
+      python scripts/create_admin.py && \
       uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     
   db:
@@ -27,17 +29,17 @@ services:
       - POSTGRES_DB=duelo_de_plumas
     restart: always
     
-  # frontend:
-  #   build: ./frontend
-  #   ports:
-  #     - "3000:3000"
-  #   volumes:
-  #     - ./frontend:/app
-  #     - /app/node_modules
-  #   env_file:
-  #     - ./frontend/.env
-  #   depends_on:
-  #     - backend
+  frontend:
+    build: ./frontend
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000
+    depends_on:
+      - backend
 
 volumes:
   postgres_data: 

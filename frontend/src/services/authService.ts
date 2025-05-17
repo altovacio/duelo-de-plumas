@@ -79,21 +79,12 @@ export const register = async (userData: RegisterRequest): Promise<{ user: User;
 };
 
 /**
- * Logs out a user by removing tokens and calling the logout endpoint
+ * Logs out a user by removing tokens from localStorage
+ * Frontend-only implementation that doesn't require a backend endpoint
  */
-export const logout = async (): Promise<void> => {
-  try {
-    const tokens = getTokens();
-    if (tokens) {
-      // Call logout endpoint to invalidate token on server
-      await apiClient.post(AUTH_ENDPOINTS.LOGOUT, { refresh_token: tokens.refresh_token });
-    }
-  } catch (error) {
-    console.error('Logout error:', error);
-  } finally {
-    // Always remove tokens locally, even if API call fails
-    removeTokens();
-  }
+export const logout = (): void => {
+  // Simply remove tokens locally
+  removeTokens();
 };
 
 /**

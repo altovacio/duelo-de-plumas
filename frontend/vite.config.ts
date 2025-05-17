@@ -13,6 +13,40 @@ export default defineConfig({
   server: {
     port: 3001,
     proxy: {
+      // Direct API routes without the /api prefix
+      '/auth': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/users': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/texts': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/contests': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/votes': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/admin': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/dashboard': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/agents': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      // Keep compatibility with any code still using the /api prefix
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,

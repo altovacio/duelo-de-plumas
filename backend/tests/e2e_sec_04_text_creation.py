@@ -125,7 +125,7 @@ async def test_04_06_user1_uses_writer1_no_credits_fails(client: AsyncClient): #
         title="Text Gen Attempt No Credits"
     )
     response = await client.post( # Changed
-        "/agents/execute/writer", # MODIFIED: Correct path for writer execution
+        "/agents/execute/writer", # MODIFIED: Revert to original path
         json=execute_payload.model_dump(),
         headers=test_data["user1_headers"]
     )
@@ -192,7 +192,7 @@ async def test_04_08_user1_uses_writer1_with_credits_succeeds(client: AsyncClien
         description="A tale of gears and fire."
     )
     response = await client.post( # Changed
-        "/agents/execute/writer", # MODIFIED: Correct path for writer execution
+        "/agents/execute/writer", # MODIFIED: Revert to original path
         json=execute_payload.model_dump(),
         headers=test_data["user1_headers"]
     )
@@ -234,7 +234,7 @@ async def test_04_09_user2_uses_writer1_fails(client: AsyncClient): # Changed
         title="Attempt by User2 on User1 Agent"
     )
     response = await client.post( # Changed
-        "/agents/execute/writer", # MODIFIED: Correct path for writer execution
+        "/agents/execute/writer", # MODIFIED: Revert to original path
         json=execute_payload.model_dump(),
         headers=test_data["user2_headers"]
     )
@@ -259,7 +259,7 @@ async def test_04_10_user2_uses_global_writer_succeeds(client: AsyncClient): # C
         description="A thrilling subterranean expedition."
     )
     response = await client.post( # Changed
-        "/agents/execute/writer", # MODIFIED: Correct path for writer execution
+        "/agents/execute/writer", # MODIFIED: Revert to original path
         json=execute_payload.model_dump(),
         headers=test_data["user2_headers"]
     )
@@ -388,7 +388,7 @@ async def test_04_15_admin_uses_user1_writer1_succeeds(client: AsyncClient): # C
         description="A fantasy short produced by an agent."
     )
     response = await client.post( # Changed
-        "/agents/execute/writer", # MODIFIED: Correct path
+        "/agents/execute/writer", # MODIFIED: Revert to original path
         json=execute_payload.model_dump(),
         headers=test_data["admin_headers"]
     )

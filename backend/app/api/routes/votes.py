@@ -1,5 +1,5 @@
-from typing import List
-from fastapi import APIRouter, Depends, Path, status
+from typing import List, Optional, Dict, Any
+from fastapi import APIRouter, Depends, Path, Query, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
@@ -8,7 +8,7 @@ from app.schemas.vote import VoteCreate, VoteResponse
 from app.services.vote_service import VoteService
 from app.db.models.user import User
 
-router = APIRouter()
+router = APIRouter(tags=["votes"])
 
 
 @router.post(

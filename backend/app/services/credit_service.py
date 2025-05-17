@@ -131,16 +131,22 @@ class CreditService:
     @staticmethod
     async def has_sufficient_credits(db: AsyncSession, user_id: int, required_credits: int) -> bool:
         """Check if a user has sufficient credits for an operation."""
+        print(f"DEBUG: has_sufficient_credits called for user_id={user_id}, required_credits={required_credits}")
         user_repo = UserRepository(db)
         user = await user_repo.get_by_id(user_id)
         if not user:
             # Consider if this should return False or raise an error.
             # Raising error seems more appropriate if user must exist.
+            print(f"DEBUG: User not found for credit check")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"User with id {user_id} not found for credit check"
             )
         if required_credits < 0: # Credits required should not be negative
+            print(f"DEBUG: Required credits negative, returning true")
             return True # Or raise error, depends on desired behavior
 
-        return user.credits >= required_credits 
+        print(f"DEBUG: User has {user.credits} credits, required {required_credits}")
+        result = user.credits >= required_credits
+        print(f"DEBUG: Returning {result} from has_sufficient_credits")
+        return result 

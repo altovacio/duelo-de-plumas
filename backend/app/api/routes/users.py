@@ -1,17 +1,17 @@
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, Query, Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
 from app.db.database import get_db
 from app.schemas.user import UserResponse, UserUpdate, UserCredit
 from app.services.user_service import UserService
-from app.api.routes.auth import get_current_user
-from app.db.models.user import User
+from app.api.routes.auth import get_current_user, get_current_admin_user
+from app.db.models.user import User as UserModel
 
-router = APIRouter()
+router = APIRouter(tags=["users"])
 
 @router.get("/me", response_model=UserResponse)
-async def read_users_me(current_user: User = Depends(get_current_user)):
+async def read_users_me(current_user: UserModel = Depends(get_current_user)):
     """Get current user details."""
     return current_user
 
@@ -20,7 +20,7 @@ async def get_users(
     skip: int = 0, 
     limit: int = 100,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: UserModel = Depends(get_current_admin_user)
 ):
     """
     Get all users. Only administrators can access this endpoint.
@@ -39,7 +39,7 @@ async def get_users(
 async def get_user(
     user_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: UserModel = Depends(get_current_user)
 ):
     """
     Get a specific user. Users can view their own details, administrators can view all.
@@ -60,7 +60,7 @@ async def update_user(
     user_id: int,
     user_data: UserUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: UserModel = Depends(get_current_user)
 ):
     """
     Update a user. Users can only update their own details, administrators can update all.
@@ -73,7 +73,7 @@ async def update_user(
 async def delete_user(
     user_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: UserModel = Depends(get_current_admin_user)
 ):
     """
     Delete a user. Only administrators can delete users.
@@ -87,7 +87,7 @@ async def update_user_credits(
     user_id: int,
     credit_data: UserCredit,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: UserModel = Depends(get_current_admin_user)
 ):
     """
     Update a user's credits. Only administrators can update user credits.

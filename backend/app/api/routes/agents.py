@@ -1,5 +1,5 @@
 from typing import List, Dict, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Path
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
@@ -16,8 +16,9 @@ from app.schemas.agent import (
 from app.schemas.text import TextResponse as TextSchemaResponse
 from app.services.agent_service import AgentService
 
-router = APIRouter(tags=["agents"])
+router = APIRouter()
 
+# First define all fixed-path routes
 
 @router.post("", response_model=AgentResponse)
 async def create_agent(
@@ -71,6 +72,53 @@ async def get_agents(
             return all_relevant_agents[skip : skip + limit]
 
 
+@router.post("/execute/judge", response_model=List[AgentExecutionResponse])
+async def execute_judge_agent(
+    request: AgentExecuteJudge,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user)
+):
+    """
+    Execute a judge agent on a contest.
+    - The agent must be a judge agent
+    - The contest must be in evaluation state
+    - User must have sufficient credits
+    """
+    print(f"DEBUG: /execute/judge route handler called with agent_id={request.agent_id}")
+    return await AgentService.execute_judge_agent(db, request, current_user.id)
+
+
+@router.post("/execute/writer", response_model=AgentExecutionResponse)
+async def execute_writer_agent(
+    request: AgentExecuteWriter,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user)
+):
+    """
+    Execute a writer agent to generate a text.
+    - The agent must be a writer agent
+    - User must have sufficient credits
+    """
+    print(f"DEBUG: /execute/writer route handler called with agent_id={request.agent_id}")
+    print(f"DEBUG: Writer execution route handler called for user_id={current_user.id}, user credits={current_user.credits}")
+    return await AgentService.execute_writer_agent(db, request, current_user.id)
+
+
+@router.get("/executions", response_model=List[AgentExecutionResponse])
+async def get_agent_executions(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user)
+):
+    """
+    Get a list of agent executions performed by the current user.
+    """
+    return await AgentService.get_agent_executions(db, current_user.id, skip=skip, limit=limit)
+
+
+# Now define all parameterized routes
+
 @router.get("/{agent_id}", response_model=AgentResponse)
 async def get_agent(
     agent_id: int,
@@ -81,6 +129,7 @@ async def get_agent(
     Get details of a specific AI agent.
     User must be the owner of the agent or the agent must be public, or user is admin.
     """
+    print(f"DEBUG: /{agent_id} route handler called")
     return await AgentService.get_agent_by_id(db, agent_id, current_user.id)
 
 
@@ -123,46 +172,5 @@ async def clone_agent(
     Clone a public agent to the user's account.
     The agent must be public to be cloned.
     """
-    return await AgentService.clone_public_agent(db, agent_id, current_user.id)
-
-
-@router.post("/execute/judge", response_model=List[AgentExecutionResponse])
-async def execute_judge_agent(
-    request: AgentExecuteJudge,
-    db: AsyncSession = Depends(get_db),
-    current_user: UserModel = Depends(get_current_user)
-):
-    """
-    Execute a judge agent on a contest.
-    - The agent must be a judge agent
-    - The contest must be in evaluation state
-    - User must have sufficient credits
-    """
-    return await AgentService.execute_judge_agent(db, request, current_user.id)
-
-
-@router.post("/execute/writer", response_model=AgentExecutionResponse)
-async def execute_writer_agent(
-    request: AgentExecuteWriter,
-    db: AsyncSession = Depends(get_db),
-    current_user: UserModel = Depends(get_current_user)
-):
-    """
-    Execute a writer agent to generate a text.
-    - The agent must be a writer agent
-    - User must have sufficient credits
-    """
-    return await AgentService.execute_writer_agent(db, request, current_user.id)
-
-
-@router.get("/executions", response_model=List[AgentExecutionResponse])
-async def get_agent_executions(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=200),
-    db: AsyncSession = Depends(get_db),
-    current_user: UserModel = Depends(get_current_user)
-):
-    """
-    Get a list of agent executions performed by the current user.
-    """
-    return await AgentService.get_agent_executions(db, current_user.id, skip=skip, limit=limit) 
+    print(f"DEBUG: /{agent_id}/clone route handler called")
+    return await AgentService.clone_public_agent(db, agent_id, current_user.id) 

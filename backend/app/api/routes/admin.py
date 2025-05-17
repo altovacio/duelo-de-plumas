@@ -11,7 +11,7 @@ from app.services.credit_service import CreditService
 from app.db.models.user import User as UserModel
 from datetime import datetime
 
-router = APIRouter(tags=["admin"])
+router = APIRouter()
 
 
 @router.get("/users", response_model=List[UserResponse])

@@ -25,17 +25,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add a print statement to see which route is being called
+@app.middleware("http")
+async def add_debug_middleware(request, call_next):
+    print(f"DEBUG: Got request to {request.method} {request.url.path}")
+    response = await call_next(request)
+    return response
+
 # Include routers
-app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
-app.include_router(users.router, prefix="/users", tags=["Users"])
-app.include_router(texts.router, prefix="/texts", tags=["Texts"])
-app.include_router(contests.router, prefix="/contests", tags=["Contests"])
-app.include_router(votes.router, prefix="", tags=["Votes"])  # Note: votes endpoints are at /contests/{contest_id}/votes
-app.include_router(admin.router, prefix="/admin", tags=["Admin"])
-app.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
-app.include_router(agents.router, prefix="/agents", tags=["AI Agents"])
+app.include_router(auth.router, prefix="/auth", tags=["authentication"])
+app.include_router(users.router, prefix="/users", tags=["users"])
+app.include_router(texts.router, prefix="/texts", tags=["texts"])
+app.include_router(contests.router, prefix="/contests", tags=["contests"])
+app.include_router(votes.router, prefix="", tags=["votes"])  # Note: votes endpoints are at /contests/{contest_id}/votes
+app.include_router(admin.router, prefix="/admin", tags=["admin"])
+app.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
+app.include_router(agents.router, prefix="/agents", tags=["agents"])
 # Include other routers as they become available
-# app.include_router(agents.router, prefix="/agents", tags=["AI Agents"])
 
 @app.get("/")
 async def root():

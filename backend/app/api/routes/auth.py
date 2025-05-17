@@ -16,7 +16,7 @@ from app.core.config import settings
 from app.core.security import create_access_token
 from app.db.repositories.user_repository import UserRepository # Added import
 
-router = APIRouter()
+router = APIRouter(tags=["authentication"])
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 

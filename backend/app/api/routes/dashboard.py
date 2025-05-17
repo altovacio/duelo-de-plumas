@@ -11,7 +11,7 @@ from app.schemas.contest import ContestResponse
 from app.services.contest_service import ContestService
 from app.services.credit_service import CreditService
 
-router = APIRouter(tags=["dashboard"])
+router = APIRouter()
 
 
 @router.get("", response_model=dict)

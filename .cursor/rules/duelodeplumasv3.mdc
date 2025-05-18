@@ -5,6 +5,7 @@ alwaysApply: false
 ---
 -Read [project_description.md](mdc:docs/project_description.md) and [project_structure.md](mdc:docs/project_structure.md) before anything.
 -Read and keep [front_implementation_plan.md](mdc:docs/front_implementation_plan.md) updated
+-The endpoints available are in [api_endpoints_programmatically.md](mdc:docs/api_endpoints_programmatically.md)
 -Avoid generating new endpoints in the backend. First look for the working ones and already implemented.
 -remember, we use docker
 

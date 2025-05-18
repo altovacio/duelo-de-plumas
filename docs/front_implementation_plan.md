@@ -51,31 +51,31 @@ This document outlines the major frontend development tasks for Duelo de Plumas 
 **Phase 3: User Workspace & Core Functionality**
 
 1.  **User Dashboard/Workspace (`/workspace` or `/dashboard`):**
-    *   [ ] **Overview Section:**
+    *   [x] **Overview Section:**
         *   "Urgent Actions" list (e.g., contests to evaluate).
         *   Credit balance display.
-    *   [ ] **Contest Management (for owned contests):**
-        *   [ ] Create New Contest Page/Modal.
-        *   [ ] Edit Contest Page/Modal.
-        *   [ ] Delete Contest functionality.
-        *   [ ] View list of owned contests.
-    *   [ ] **Text Management:**
+    *   [x] **Contest Management (for owned contests):**
+        *   [x] Create New Contest Page/Modal.
+        *   [x] Edit Contest Page/Modal.
+        *   [x] Delete Contest functionality.
+        *   [x] View list of owned contests.
+    *   [x] **Text Management:**
         *   [x] Create New Text Page/Modal (using `react-md-editor` for input or PDF upload).
         *   [x] Edit Text Page/Modal.
         *   [x] Delete Text functionality.
         *   [x] View list of owned texts.
-    *   [ ] **AI Agent Management (Writers & Judges):**
-        *   [ ] Create New AI Agent Page/Modal.
-        *   [ ] Edit AI Agent Page/Modal.
-        *   [ ] Delete AI Agent functionality.
-        *   [ ] View list of owned AI agents.
-        *   [ ] Section for Public AI Agents (copyable).
-    *   [ ] **Participation Tracking:**
-        *   [ ] List of contests where user is an author.
-        *   [ ] List of contests where user is a judge.
-    *   [ ] **Credit Management:**
-        *   [ ] Detailed credit transaction history.
-        *   [ ] Filters for transaction history.
+    *   [x] **AI Agent Management (Writers & Judges):**
+        *   [x] Create New AI Agent Page/Modal.
+        *   [x] Edit AI Agent Page/Modal.
+        *   [x] Delete AI Agent functionality.
+        *   [x] View list of owned AI agents.
+        *   [x] Section for Public AI Agents (copyable).
+    *   [x] **Participation Tracking:**
+        *   [x] List of contests where user is an author.
+        *   [x] List of contests where user is a judge.
+    *   [x] **Credit Management:**
+        *   [x] Detailed credit transaction history.
+        *   [x] Filters for transaction history.
 
 **Phase 4: Contest Interaction & AI Execution**
 

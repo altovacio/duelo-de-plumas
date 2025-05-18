@@ -19,7 +19,6 @@ export interface CreateAgentRequest {
   description: string;
   type: 'writer' | 'judge';
   prompt: string;
-  model: string;
   is_public?: boolean;
 }
 
@@ -27,7 +26,6 @@ export interface UpdateAgentRequest {
   name?: string;
   description?: string;
   prompt?: string;
-  model?: string;
   is_public?: boolean;
 }
 

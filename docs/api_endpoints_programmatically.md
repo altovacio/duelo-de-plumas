@@ -12,6 +12,7 @@ API for literary contests with AI assistance
 - [authentication](#authentication)
 - [contests](#contests)
 - [dashboard](#dashboard)
+- [llm_models](#llm_models)
 - [texts](#texts)
 - [users](#users)
 - [votes](#votes)
@@ -360,6 +361,23 @@ Get the current user's dashboard data.
 **Summary:** Get User Credit Transactions
 
 Get the current user's credit transaction history.
+
+
+## llm_models
+
+### GET /models
+
+**Summary:** Get Available Llm Models
+
+Get all available LLM models.
+Returns models that are currently enabled in the system with their pricing information.
+
+### GET /models/{model_id}
+
+**Summary:** Get Llm Model Details
+
+Get technical details and pricing information about a specific LLM model.
+Returns id, name, provider, context window size, and pricing information.
 
 
 ## texts

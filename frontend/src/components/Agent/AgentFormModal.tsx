@@ -8,7 +8,6 @@ interface AgentFormModalProps {
     description: string;
     type: 'writer' | 'judge';
     prompt: string;
-    model: string;
     is_public?: boolean;
   }) => void;
   initialAgent?: { 
@@ -16,22 +15,12 @@ interface AgentFormModalProps {
     description: string;
     type: 'writer' | 'judge';
     prompt: string;
-    model: string;
     is_public?: boolean;
     version?: string;
   };
   isEditing?: boolean;
   isAdmin?: boolean;
 }
-
-const MODEL_FAMILIES = {
-  openai: ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo'],
-  anthropic: ['claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku'],
-  meta: ['llama-3-70b', 'llama-3-8b'],
-  mistral: ['mistral-large', 'mistral-medium', 'mistral-small'],
-};
-
-type ModelFamily = keyof typeof MODEL_FAMILIES;
 
 const TEMPLATE_PROMPTS = {
   writer: {
@@ -91,8 +80,7 @@ const AgentFormModal: React.FC<AgentFormModalProps> = ({
     name: '', 
     description: '', 
     type: 'writer', 
-    prompt: '', 
-    model: 'gpt-3.5-turbo',
+    prompt: '',
     is_public: false 
   },
   isEditing = false,
@@ -106,41 +94,8 @@ const AgentFormModal: React.FC<AgentFormModalProps> = ({
   const [description, setDescription] = useState(initialAgent.description);
   const [type, setType] = useState<'writer' | 'judge'>(initialAgent.type);
   const [prompt, setPrompt] = useState(initialAgent.prompt);
-  const [model, setModel] = useState(initialAgent.model);
-  const [modelFamily, setModelFamily] = useState<ModelFamily>('openai');
   const [isPublic, setIsPublic] = useState(initialAgent.is_public || false);
   const [selectedTemplate, setSelectedTemplate] = useState('');
-  const [estimatedCost, setEstimatedCost] = useState({ min: 0, max: 0 });
-
-  // Update model family when model changes
-  useEffect(() => {
-    for (const [family, models] of Object.entries(MODEL_FAMILIES)) {
-      if (models.includes(model)) {
-        setModelFamily(family as ModelFamily);
-        break;
-      }
-    }
-  }, [model]);
-
-  // Update estimated cost when model changes
-  useEffect(() => {
-    // Simple estimation logic - could be refined with actual API data
-    const costMap: Record<string, { min: number, max: number }> = {
-      'gpt-3.5-turbo': { min: 1, max: 5 },
-      'gpt-4': { min: 10, max: 20 },
-      'gpt-4-turbo': { min: 15, max: 30 },
-      'claude-3-opus': { min: 20, max: 40 },
-      'claude-3-sonnet': { min: 10, max: 25 },
-      'claude-3-haiku': { min: 5, max: 15 },
-      'llama-3-70b': { min: 10, max: 25 },
-      'llama-3-8b': { min: 3, max: 10 },
-      'mistral-large': { min: 15, max: 30 },
-      'mistral-medium': { min: 7, max: 20 },
-      'mistral-small': { min: 2, max: 8 },
-    };
-    
-    setEstimatedCost(costMap[model] || { min: 1, max: 5 });
-  }, [model]);
 
   // Only update form values when the modal opens or initialAgent changes significantly
   useEffect(() => {
@@ -150,18 +105,8 @@ const AgentFormModal: React.FC<AgentFormModalProps> = ({
       setDescription(initialAgent.description);
       setType(initialAgent.type);
       setPrompt(initialAgent.prompt);
-      setModel(initialAgent.model);
       setIsPublic(initialAgent.is_public || false);
       setSelectedTemplate('');
-      
-      // Set model family based on the selected model
-      for (const [family, models] of Object.entries(MODEL_FAMILIES)) {
-        if (models.includes(initialAgent.model)) {
-          setModelFamily(family as ModelFamily);
-          break;
-        }
-      }
-      
       firstRender.current = false;
     }
     
@@ -192,7 +137,6 @@ const AgentFormModal: React.FC<AgentFormModalProps> = ({
       description, 
       type,
       prompt,
-      model,
       is_public: isAdmin ? isPublic : undefined
     });
     onClose();
@@ -290,53 +234,6 @@ const AgentFormModal: React.FC<AgentFormModalProps> = ({
                     ? 'Writer agents generate texts based on a prompt.'
                     : 'Judge agents evaluate and rank texts in a contest.'}
                 </p>
-              </div>
-
-              <div className="mb-4">
-                <label htmlFor="model_family" className="block text-sm font-medium text-gray-700">
-                  Model Provider
-                </label>
-                <select
-                  id="model_family"
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                  value={modelFamily}
-                  onChange={(e) => {
-                    const family = e.target.value as ModelFamily;
-                    setModelFamily(family);
-                    setModel(MODEL_FAMILIES[family][0]);
-                  }}
-                  required
-                >
-                  <option value="openai">OpenAI</option>
-                  <option value="anthropic">Anthropic</option>
-                  <option value="meta">Meta (Llama)</option>
-                  <option value="mistral">Mistral AI</option>
-                </select>
-              </div>
-
-              <div className="mb-4">
-                <label htmlFor="model" className="block text-sm font-medium text-gray-700">
-                  AI Model
-                </label>
-                <select
-                  id="model"
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                  value={model}
-                  onChange={(e) => setModel(e.target.value)}
-                  required
-                >
-                  {MODEL_FAMILIES[modelFamily].map((modelOption) => (
-                    <option key={modelOption} value={modelOption}>
-                      {modelOption}
-                    </option>
-                  ))}
-                </select>
-                <div className="mt-1 text-sm text-gray-500 flex items-center">
-                  <span className="mr-2">Estimated cost:</span>
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                    {estimatedCost.min} - {estimatedCost.max} credits per use
-                  </span>
-                </div>
               </div>
 
               <div className="mb-4">

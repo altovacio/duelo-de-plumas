@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 
 type LoginFormData = {
@@ -9,8 +9,9 @@ type LoginFormData = {
 };
 
 const LoginPage: React.FC = () => {
-  const { login, error, clearError } = useAuth();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { login, error, clearError, isSubmitting } = useAuth();
+  const navigate = useNavigate();
+  const [loginSuccess, setLoginSuccess] = useState(false);
   
   const { 
     register, 
@@ -18,18 +19,30 @@ const LoginPage: React.FC = () => {
     formState: { errors } 
   } = useForm<LoginFormData>();
 
-  const onSubmit = async (data: LoginFormData) => {
-    setIsSubmitting(true);
+  // Use this function with handleSubmit to guarantee preventing default form submission
+  const processSubmit = async (data: LoginFormData) => {
     clearError();
     try {
-      await login(data.username, data.password);
-    } finally {
-      setIsSubmitting(false);
+      await login(data.username, data.password, '/dashboard');
+      setLoginSuccess(true);
+    } catch (err) {
+      console.error('Login error', err);
     }
   };
 
+  // Handle successful login redirect
+  useEffect(() => {
+    if (loginSuccess) {
+      const redirectTimer = setTimeout(() => {
+        navigate('/dashboard');
+      }, 500); // Short delay to show success state
+      
+      return () => clearTimeout(redirectTimer);
+    }
+  }, [loginSuccess, navigate]);
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-[calc(100vh-64px)] flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
@@ -43,7 +56,20 @@ const LoginPage: React.FC = () => {
           </p>
         </div>
         
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
+        {loginSuccess && (
+          <div className="rounded-md bg-green-50 p-4">
+            <div className="flex">
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-green-800">Login successful!</h3>
+                <div className="mt-2 text-sm text-green-700">Redirecting to your dashboard...</div>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Use onSubmit with handleSubmit which properly prevents default */}
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit(processSubmit)}>
+          <input type="hidden" name="remember" value="true" />
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
               <label htmlFor="username" className="sr-only">Username</label>
@@ -90,12 +116,12 @@ const LoginPage: React.FC = () => {
           <div>
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || loginSuccess}
               className={`group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${
-                isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
+                (isSubmitting || loginSuccess) ? 'opacity-70 cursor-not-allowed' : ''
               }`}
             >
-              {isSubmitting ? 'Signing in...' : 'Sign in'}
+              {isSubmitting ? 'Signing in...' : loginSuccess ? 'Signed in!' : 'Sign in'}
             </button>
           </div>
         </form>

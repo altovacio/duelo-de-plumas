@@ -60,10 +60,10 @@ This document outlines the major frontend development tasks for Duelo de Plumas 
         *   [ ] Delete Contest functionality.
         *   [ ] View list of owned contests.
     *   [ ] **Text Management:**
-        *   [ ] Create New Text Page/Modal (using `react-md-editor` for input or PDF upload).
-        *   [ ] Edit Text Page/Modal.
-        *   [ ] Delete Text functionality.
-        *   [ ] View list of owned texts.
+        *   [x] Create New Text Page/Modal (using `react-md-editor` for input or PDF upload).
+        *   [x] Edit Text Page/Modal.
+        *   [x] Delete Text functionality.
+        *   [x] View list of owned texts.
     *   [ ] **AI Agent Management (Writers & Judges):**
         *   [ ] Create New AI Agent Page/Modal.
         *   [ ] Edit AI Agent Page/Modal.

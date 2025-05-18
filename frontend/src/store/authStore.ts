@@ -30,7 +30,7 @@ export const useAuthStore = create<
     set({ isLoading: true, error: null });
     try {
       const { user, tokens } = await apiLogin({ username, password });
-      set({ user, tokens, isAuthenticated: true, isLoading: false });
+      set({ user, tokens, isAuthenticated: true, isLoading: false, error: null });
     } catch (error) {
       console.error('AuthStore: Login error', error);
       const errorMessage = error instanceof Error ? error.message : 'Login failed';
@@ -43,7 +43,7 @@ export const useAuthStore = create<
     set({ isLoading: true, error: null });
     try {
       const { user, tokens } = await apiRegister({ username, email, password });
-      set({ user, tokens, isAuthenticated: true, isLoading: false });
+      set({ user, tokens, isAuthenticated: true, isLoading: false, error: null });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Registration failed';
       set({ error: errorMessage, isLoading: false, isAuthenticated: false });

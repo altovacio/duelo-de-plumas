@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 
 type RegisterFormData = {
@@ -11,8 +11,9 @@ type RegisterFormData = {
 };
 
 const RegisterPage: React.FC = () => {
-  const { register: registerUser, error, clearError } = useAuth();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { register: registerUser, error, clearError, isSubmitting } = useAuth();
+  const navigate = useNavigate();
+  const [registrationSuccess, setRegistrationSuccess] = useState(false);
   
   const { 
     register, 
@@ -23,18 +24,19 @@ const RegisterPage: React.FC = () => {
 
   const password = watch('password', '');
 
-  const onSubmit = async (data: RegisterFormData) => {
-    setIsSubmitting(true);
+  // Use this function with handleSubmit to guarantee preventing default form submission
+  const processSubmit = async (data: RegisterFormData) => {
     clearError();
     try {
-      await registerUser(data.username, data.email, data.password);
-    } finally {
-      setIsSubmitting(false);
+      await registerUser(data.username, data.email, data.password, '/dashboard');
+      setRegistrationSuccess(true);
+    } catch (err) {
+      console.error('Registration error', err);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-[calc(100vh-64px)] flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
@@ -48,7 +50,20 @@ const RegisterPage: React.FC = () => {
           </p>
         </div>
         
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
+        {registrationSuccess && (
+          <div className="rounded-md bg-green-50 p-4">
+            <div className="flex">
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-green-800">Registration successful!</h3>
+                <div className="mt-2 text-sm text-green-700">Your account has been created. Redirecting to dashboard...</div>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Use onSubmit with handleSubmit which properly prevents default */}
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit(processSubmit)}>
+          <input type="hidden" name="remember" value="true" />
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
               <label htmlFor="username" className="sr-only">Username</label>
@@ -140,12 +155,12 @@ const RegisterPage: React.FC = () => {
           <div>
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || registrationSuccess}
               className={`group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${
-                isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
+                (isSubmitting || registrationSuccess) ? 'opacity-70 cursor-not-allowed' : ''
               }`}
             >
-              {isSubmitting ? 'Creating account...' : 'Create account'}
+              {isSubmitting ? 'Creating account...' : registrationSuccess ? 'Account created!' : 'Create account'}
             </button>
           </div>
         </form>

@@ -10,9 +10,9 @@ import RegisterPage from './pages/Auth/RegisterPage';
 import HomePage from './pages/Home/HomePage';
 import ContestListPage from './pages/ContestList/ContestListPage';
 import ContestDetailPage from './pages/ContestDetail/ContestDetailPage';
+import DashboardPage from './pages/Dashboard/DashboardPage';
 
 // Placeholder components - these will be implemented later
-const Dashboard = () => <div>Dashboard Page</div>;
 const AdminDashboard = () => <div>Admin Dashboard</div>;
 
 function App() {
@@ -31,9 +31,9 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Auth routes without layout */}
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
+        {/* Auth routes with layout */}
+        <Route path="/login" element={<MainLayout><LoginPage /></MainLayout>} />
+        <Route path="/register" element={<MainLayout><RegisterPage /></MainLayout>} />
 
         {/* Routes with MainLayout */}
         <Route path="/" element={<MainLayout><HomePage /></MainLayout>} />
@@ -42,7 +42,7 @@ function App() {
 
         {/* Protected routes - require authentication */}
         <Route element={<ProtectedRoute />}>
-          <Route path="/dashboard" element={<MainLayout><Dashboard /></MainLayout>} />
+          <Route path="/dashboard" element={<MainLayout><DashboardPage /></MainLayout>} />
         </Route>
 
         {/* Admin routes - require admin role */}

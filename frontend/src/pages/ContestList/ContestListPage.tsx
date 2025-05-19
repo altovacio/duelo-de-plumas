@@ -1,21 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-
-// Contest interface (same as in HomePage for consistency)
-interface Contest {
-  id: number;
-  title: string;
-  description: string;
-  participantCount: number;
-  lastModified: string;
-  endDate?: string;
-  type: 'public' | 'private';
-  status: 'open' | 'evaluation' | 'closed';
-}
+import { getContests, Contest as ContestServiceType } from '../../services/contestService';
 
 const ContestListPage: React.FC = () => {
-  const [contests, setContests] = useState<Contest[]>([]);
-  const [filteredContests, setFilteredContests] = useState<Contest[]>([]);
+  const [allContests, setAllContests] = useState<ContestServiceType[]>([]);
+  const [filteredContests, setFilteredContests] = useState<ContestServiceType[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchParams, setSearchParams] = useSearchParams();
   
@@ -26,84 +15,24 @@ const ContestListPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>(searchParams.get('search') || '');
 
   useEffect(() => {
-    // This would be replaced with an actual API call
-    const fetchContests = () => {
+    const fetchContestsData = async () => {
       setIsLoading(true);
-      
-      // Simulate API delay
-      setTimeout(() => {
-        // Sample data - would come from backend in a real app
-        const allContests: Contest[] = [
-          {
-            id: 1,
-            title: "Summer Poetry Challenge",
-            description: "Share your best summer-inspired poems.",
-            participantCount: 12,
-            lastModified: "2023-06-15",
-            endDate: "2023-07-30",
-            type: "public",
-            status: "open"
-          },
-          {
-            id: 2,
-            title: "Short Story Festival",
-            description: "Submit your short stories under 5000 words.",
-            participantCount: 24,
-            lastModified: "2023-06-10",
-            type: "public",
-            status: "open"
-          },
-          {
-            id: 3,
-            title: "Spring Fiction Competition",
-            description: "Fiction stories inspired by spring themes.",
-            participantCount: 35,
-            lastModified: "2023-05-25",
-            endDate: "2023-06-01",
-            type: "public",
-            status: "closed"
-          },
-          {
-            id: 4,
-            title: "Microfiction Challenge",
-            description: "Tell your story in less than 100 words.",
-            participantCount: 48,
-            lastModified: "2023-05-15",
-            endDate: "2023-05-30",
-            type: "public",
-            status: "closed"
-          },
-          {
-            id: 5,
-            title: "Private Writing Workshop",
-            description: "A private workshop for advanced writers.",
-            participantCount: 8,
-            lastModified: "2023-06-05",
-            type: "private",
-            status: "open"
-          },
-          {
-            id: 6,
-            title: "Sci-Fi Short Stories",
-            description: "Write your best sci-fi short story.",
-            participantCount: 15,
-            lastModified: "2023-05-20",
-            type: "public",
-            status: "evaluation"
-          }
-        ];
-        
-        setContests(allContests);
-        setIsLoading(false);
-      }, 1000);
+      try {
+        const contestsData = await getContests();
+        setAllContests(contestsData);
+      } catch (error) {
+        console.error("Error fetching contests:", error);
+        setAllContests([]);
+      }
+      setIsLoading(false);
     };
     
-    fetchContests();
+    fetchContestsData();
   }, []);
 
-  // Apply filters and sorting whenever filter states change
+  // Apply filters and sorting whenever filter states or allContests change
   useEffect(() => {
-    let result = [...contests];
+    let result = [...allContests];
     
     // Apply status filter
     if (statusFilter !== 'all') {
@@ -112,7 +41,8 @@ const ContestListPage: React.FC = () => {
     
     // Apply type filter
     if (typeFilter !== 'all') {
-      result = result.filter(contest => contest.type === typeFilter);
+      const expectedTypeBoolean = typeFilter === 'private';
+      result = result.filter(contest => contest.is_private === expectedTypeBoolean);
     }
     
     // Apply search filter
@@ -128,13 +58,13 @@ const ContestListPage: React.FC = () => {
     result.sort((a, b) => {
       switch (sortBy) {
         case 'newest':
-          return new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime();
+          return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
         case 'oldest':
-          return new Date(a.lastModified).getTime() - new Date(b.lastModified).getTime();
+          return new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
         case 'participants-high':
-          return b.participantCount - a.participantCount;
+          return (b.participant_count || 0) - (a.participant_count || 0);
         case 'participants-low':
-          return a.participantCount - b.participantCount;
+          return (a.participant_count || 0) - (b.participant_count || 0);
         case 'title-az':
           return a.title.localeCompare(b.title);
         case 'title-za':
@@ -154,21 +84,21 @@ const ContestListPage: React.FC = () => {
     if (searchTerm) params.search = searchTerm;
     
     setSearchParams(params, { replace: true });
-  }, [contests, statusFilter, typeFilter, sortBy, searchTerm, setSearchParams]);
+  }, [allContests, statusFilter, typeFilter, sortBy, searchTerm, setSearchParams]);
 
-  const ContestCard = ({ contest }: { contest: Contest }) => (
+  const ContestCard = ({ contest }: { contest: ContestServiceType }) => (
     <div className="border rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow bg-white">
       <div className="flex justify-between items-start mb-2">
         <h3 className="text-lg font-semibold">{contest.title}</h3>
         <div className="flex space-x-2">
           <div 
             className={`text-xs px-2 py-1 rounded-full ${
-              contest.type === 'public' 
+              !contest.is_private
                 ? 'bg-blue-100 text-blue-800' 
                 : 'bg-purple-100 text-purple-800'
             }`}
           >
-            {contest.type.charAt(0).toUpperCase() + contest.type.slice(1)}
+            {!contest.is_private ? 'Public' : 'Private'}
           </div>
           <div 
             className={`text-xs px-2 py-1 rounded-full ${
@@ -185,8 +115,8 @@ const ContestListPage: React.FC = () => {
       </div>
       <p className="text-sm text-gray-600 mb-3">{contest.description}</p>
       <div className="flex justify-between text-xs text-gray-500">
-        <span>{contest.participantCount} participants</span>
-        <span>Last updated: {new Date(contest.lastModified).toLocaleDateString()}</span>
+        <span>{contest.participant_count || 0} participants</span>
+        <span>Last updated: {new Date(contest.updated_at).toLocaleDateString()}</span>
       </div>
       <div className="mt-3">
         <Link 

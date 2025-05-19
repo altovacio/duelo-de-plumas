@@ -1,34 +1,31 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { getContest, getContestSubmissions, getContestJudges } from '../../services/contestService';
+import { getContest, getContestSubmissions, getContestJudges, Contest as ContestServiceType } from '../../services/contestService';
 import TextSubmissionForm from '../../components/Contest/TextSubmissionForm';
 import HumanJudgingForm from '../../components/Contest/HumanJudgingForm';
 import AIJudgeExecutionForm from '../../components/Contest/AIJudgeExecutionForm';
 import ContestResults from '../../components/Contest/ContestResults';
 import { Text as TextType } from '../../services/textService';
 
-// Updated Contest interface to match API responses
-interface Contest {
-  id: number;
-  title: string;
-  description: string;
-  full_description?: string; // Markdown content
-  creator: {
+// Use the Contest type from the service, potentially extended if needed locally
+// For now, assume ContestServiceType is sufficient, but we need to handle 'creator' if it's different.
+// The service defines `creator_id`, but this page expects a `creator` object.
+// This implies the actual response for getContest might be richer than the generic ContestServiceType.
+// We'll define a local type that reflects what this page *expects* getContest to return,
+// aligning fields with ContestServiceType where possible.
+
+interface ContestPageSpecificData extends Omit<ContestServiceType, 'creator_id' | 'updated_at' | 'is_private' | 'has_password' | 'min_votes_required'> {
+  full_description?: string; // Markdown content, specific to detail view
+  creator: { // Assuming backend sends this nested object for this specific endpoint
     id: number;
     username: string;
   };
-  participant_count: number;
-  text_count: number;
-  last_modified: string;
-  created_at: string;
-  end_date?: string;
-  type: 'public' | 'private';
-  status: 'open' | 'evaluation' | 'closed';
-  is_password_protected: boolean;
-  min_required_votes?: number;
-  judge_restrictions?: boolean;
-  author_restrictions?: boolean;
+  last_modified: string; // Page uses last_modified, service has updated_at
+  type: 'public' | 'private'; // Page uses type, service has is_private
+  is_password_protected: boolean; // Page uses is_password_protected, service has has_password
+  min_required_votes?: number; // Page uses min_required_votes, service has min_votes_required
+  // participant_count and text_count are already fine (snake_case in both)
 }
 
 // Text interface for local use in this component (separate from the service)
@@ -45,6 +42,7 @@ interface ContestText {
     username: string;
   };
   created_at: string;
+  updated_at?: string; // Add updated_at, can be same as created_at if not available from submission
   votes?: {
     rank: number;
     judge: {
@@ -60,7 +58,7 @@ interface ContestText {
 const ContestDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const { isAuthenticated, user } = useAuth();
-    const [contest, setContest] = useState<Contest | null>(null);
+    const [contest, setContest] = useState<ContestPageSpecificData | null>(null);
     const [texts, setTexts] = useState<ContestText[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [password, setPassword] = useState<string>('');
@@ -82,11 +80,39 @@ const ContestDetailPage: React.FC = () => {
         setIsLoading(true);
         
         // Fetch contest details
-        const contestData = await getContest(parseInt(id || '1'), isPasswordCorrect ? password : undefined);
-        setContest(contestData);
+        const contestDataFromService = await getContest(parseInt(id || '1'), isPasswordCorrect ? password : undefined);
+        
+        // Transform data from ContestServiceType to ContestPageSpecificData
+        const contestDataForPage: ContestPageSpecificData = {
+          ...contestDataFromService,
+          // Assuming backend for this specific endpoint sends a creator object
+          // If it sends creator_id, this will need adjustment or a separate fetch for user details
+          creator: contestDataFromService.creator_id ? { id: contestDataFromService.creator_id, username: 'Fetching...' } : { id: 0, username: 'Unknown' }, // Placeholder, ideally backend sends this or needs another fetch
+          full_description: contestDataFromService.description, // Assuming full_description is part of description or needs specific handling
+          last_modified: contestDataFromService.updated_at,
+          type: contestDataFromService.is_private ? 'private' : 'public',
+          is_password_protected: contestDataFromService.has_password,
+          min_required_votes: contestDataFromService.min_votes_required,
+          // Explicitly map fields that are present in both but might be overlooked by spread if optional
+          participant_count: contestDataFromService.participant_count || 0,
+          text_count: contestDataFromService.text_count || 0,
+        };
+        
+        // If backend *actually* sends creator object for this endpoint:
+        // const contestDataForPage = {
+        //   ...contestDataFromService,
+        //   // creator: contestDataFromService.creator, // if API sends it directly
+        //   last_modified: contestDataFromService.updated_at,
+        //   type: contestDataFromService.is_private ? 'private' : 'public',
+        //   is_password_protected: contestDataFromService.has_password,
+        //   min_required_votes: contestDataFromService.min_votes_required,
+        // };
+
+
+        setContest(contestDataForPage);
         
         // If contest is private and we haven't verified the password, show password modal
-        if (contestData.type === 'private' && !isPasswordCorrect) {
+        if (contestDataForPage.type === 'private' && !isPasswordCorrect) {
           setShowPasswordModal(true);
           setIsLoading(false);
           return;
@@ -94,10 +120,10 @@ const ContestDetailPage: React.FC = () => {
         
         // Fetch submissions if appropriate
         if (
-          contestData.status === 'evaluation' || 
-          contestData.status === 'closed' ||
+          contestDataForPage.status === 'evaluation' || 
+          contestDataForPage.status === 'closed' ||
           // Also fetch if open but user is the creator to see current submissions
-          (contestData.status === 'open' && contestData.creator.id === user?.id)
+          (contestDataForPage.status === 'open' && contestDataForPage.creator.id === user?.id)
         ) {
           const submissionsData = await getContestSubmissions(
             parseInt(id || '1'),
@@ -118,6 +144,7 @@ const ContestDetailPage: React.FC = () => {
               username: submission.owner.username
             } : undefined,
             created_at: submission.created_at,
+            updated_at: submission.updated_at || submission.created_at, // Populate updated_at
             // Votes would be populated from a separate API call in a real implementation
           }));
           
@@ -139,7 +166,7 @@ const ContestDetailPage: React.FC = () => {
         }
         
         // Check if user has already submitted to this contest
-        if (isAuthenticated && user && contestData.status === 'open') {
+        if (isAuthenticated && user && contestDataForPage.status === 'open') {
           // This is a simplification - in reality, you'd check if the user has submissions
           setHasSubmitted(false); // Default assumption
         }
@@ -336,7 +363,7 @@ const ContestDetailPage: React.FC = () => {
         <h2 className="text-xl font-bold mb-4">Contest Details</h2>
         <div className="prose max-w-none">
           {/* This would use react-markdown to render Markdown content */}
-          <pre className="whitespace-pre-wrap">{contest.full_description}</pre>
+          <pre className="whitespace-pre-wrap">{contest.full_description || contest.description}</pre>
         </div>
       </div>
       
@@ -437,7 +464,15 @@ const ContestDetailPage: React.FC = () => {
           ) : (
             <ContestResults 
               contestId={parseInt(id || '1')} 
-              texts={texts as TextType[]} 
+              texts={texts.map(text => ({ // Map ContestText to TextType
+                id: text.id,
+                title: text.title,
+                content: text.content,
+                owner_id: text.owner?.id || text.author?.id || 0, // Determine owner_id. Ensure it's always a number.
+                author: text.author?.username || (typeof text.author === 'string' ? text.author : 'Unknown'), // Handle if author is string or object
+                created_at: text.created_at,
+                updated_at: text.updated_at || text.created_at, // Ensure updated_at is present
+              }))} 
             />
           )}
         </div>
@@ -464,7 +499,15 @@ const ContestDetailPage: React.FC = () => {
           <div className="max-w-4xl w-full mx-4 max-h-screen overflow-y-auto p-4">
             <HumanJudgingForm
               contestId={parseInt(id || '1')}
-              texts={texts as TextType[]}
+              texts={texts.map(text => ({ // Map ContestText to TextType
+                id: text.id,
+                title: text.title,
+                content: text.content,
+                owner_id: text.owner?.id || text.author?.id || 0, // Determine owner_id. Ensure it's always a number.
+                author: text.author?.username || (typeof text.author === 'string' ? text.author : 'Unknown'), // Handle if author is string or object
+                created_at: text.created_at,
+                updated_at: text.updated_at || text.created_at, // Ensure updated_at is present
+              }))}
               onSuccess={handleJudgingSuccess}
               onCancel={() => setShowJudgeModal(false)}
             />

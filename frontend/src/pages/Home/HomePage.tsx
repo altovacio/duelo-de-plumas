@@ -1,86 +1,42 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-
-// This would typically come from an API call
-interface Contest {
-  id: number;
-  title: string;
-  description: string;
-  participantCount: number;
-  lastModified: string;
-  endDate?: string;
-  type: 'public' | 'private';
-  status: 'open' | 'evaluation' | 'closed';
-}
+import { getContests, Contest as ContestServiceType } from '../../services/contestService';
 
 const HomePage: React.FC = () => {
-  const [recentOpenContests, setRecentOpenContests] = useState<Contest[]>([]);
-  const [recentClosedContests, setRecentClosedContests] = useState<Contest[]>([]);
+  const [recentOpenContests, setRecentOpenContests] = useState<ContestServiceType[]>([]);
+  const [recentClosedContests, setRecentClosedContests] = useState<ContestServiceType[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    // This would be replaced with an actual API call
-    const fetchContests = () => {
+    const fetchContestsData = async () => {
       setIsLoading(true);
-      
-      // Simulate API delay
-      setTimeout(() => {
-        // Sample data - would come from backend in a real app
-        const openContests: Contest[] = [
-          {
-            id: 1,
-            title: "Summer Poetry Challenge",
-            description: "Share your best summer-inspired poems.",
-            participantCount: 12,
-            lastModified: "2023-06-15",
-            endDate: "2023-07-30",
-            type: "public",
-            status: "open"
-          },
-          {
-            id: 2,
-            title: "Short Story Festival",
-            description: "Submit your short stories under 5000 words.",
-            participantCount: 24,
-            lastModified: "2023-06-10",
-            type: "public",
-            status: "open"
-          }
-        ];
-        
-        const closedContests: Contest[] = [
-          {
-            id: 3,
-            title: "Spring Fiction Competition",
-            description: "Fiction stories inspired by spring themes.",
-            participantCount: 35,
-            lastModified: "2023-05-25",
-            endDate: "2023-06-01",
-            type: "public",
-            status: "closed"
-          },
-          {
-            id: 4,
-            title: "Microfiction Challenge",
-            description: "Tell your story in less than 100 words.",
-            participantCount: 48,
-            lastModified: "2023-05-15",
-            endDate: "2023-05-30",
-            type: "public",
-            status: "closed"
-          }
-        ];
-        
+      try {
+        const allContests = await getContests();
+        // Filter and sort contests for display
+        // Example: take top 2 most recently updated open and closed contests
+        const openContests = allContests
+          .filter(c => c.status === 'open')
+          .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+          .slice(0, 2);
+
+        const closedContests = allContests
+          .filter(c => c.status === 'closed')
+          .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+          .slice(0, 2);
+
         setRecentOpenContests(openContests);
         setRecentClosedContests(closedContests);
-        setIsLoading(false);
-      }, 1000);
+      } catch (error) {
+        console.error("Error fetching contests:", error);
+        // Handle error state if needed, e.g., show an error message
+      }
+      setIsLoading(false);
     };
     
-    fetchContests();
+    fetchContestsData();
   }, []);
 
-  const ContestCard = ({ contest }: { contest: Contest }) => (
+  const ContestCard = ({ contest }: { contest: ContestServiceType }) => (
     <div className="border rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow bg-white">
       <div className="flex justify-between items-start mb-2">
         <h3 className="text-lg font-semibold">{contest.title}</h3>
@@ -98,8 +54,8 @@ const HomePage: React.FC = () => {
       </div>
       <p className="text-sm text-gray-600 mb-3 line-clamp-2">{contest.description}</p>
       <div className="flex justify-between text-xs text-gray-500">
-        <span>{contest.participantCount} participants</span>
-        <span>Last updated: {new Date(contest.lastModified).toLocaleDateString()}</span>
+        <span>{contest.participant_count || 0} participants</span>
+        <span>Last updated: {new Date(contest.updated_at).toLocaleDateString()}</span>
       </div>
       <div className="mt-3">
         <Link 

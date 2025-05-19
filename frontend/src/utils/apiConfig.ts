@@ -10,7 +10,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 // Auth endpoints
 export const AUTH_ENDPOINTS = {
-  LOGIN: '/auth/login',
+  LOGIN: '/auth/login/json',
   SIGNUP: '/auth/signup',
   REFRESH_TOKEN: '/auth/refresh-token',
   LOGOUT: '/auth/logout',

@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     
     # App settings
     DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3001", "http://localhost:8000"] # Pydantic will parse from JSON env var if present
+    ALLOWED_ORIGINS: List[str] = json.loads(os.getenv("ALLOWED_ORIGINS", '["http://localhost:3001", "http://localhost:8000"]'))
 
     # Superuser Credentials (for initial setup/tests)
     # These should align with the credentials used by scripts/create_admin.py

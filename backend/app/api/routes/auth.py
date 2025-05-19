@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Body
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from jose import JWTError, jwt
@@ -6,7 +6,7 @@ from datetime import timedelta
 from typing import Optional, Dict
 
 from app.db.database import get_db
-from app.schemas.user import UserCreate, UserResponse, Token, TokenData
+from app.schemas.user import UserCreate, UserResponse, Token, TokenData, UserLogin
 from app.services.auth_service import (
     authenticate_user,
     create_user,
@@ -124,15 +124,14 @@ async def signup(user: UserCreate, db: AsyncSession = Depends(get_db)):
 
 @router.post("/login", response_model=Token)
 async def login(
-    # Support both form data and JSON
-    credentials: Dict[str, str] = Body(...),
+    form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Authenticate and login a user.
     """
-    username = credentials.get("username")
-    password = credentials.get("password")
+    username = form_data.username
+    password = form_data.password
     
     if not username or not password:
         raise HTTPException(
@@ -141,6 +140,31 @@ async def login(
         )
     
     user = await authenticate_user(db, username, password)
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username, "id": user.id},
+        expires_delta=access_token_expires
+    )
+    
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@router.post("/login/json", response_model=Token)
+async def login_json(
+    user_data: UserLogin,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Authenticate and login a user using JSON payload.
+    """
+    user = await authenticate_user(db, user_data.username, user_data.password)
     
     if not user:
         raise HTTPException(

@@ -587,6 +587,19 @@ class ContestService:
         )
 
     @staticmethod
+    async def get_contests_by_creator(db: AsyncSession, creator_id: int, skip: int = 0, limit: int = 100) -> List[Contest]:
+        """Get contests created by the specified user."""
+        # Validate user exists (optional, but good practice)
+        user_repo = UserRepository(db)
+        creator_user = await user_repo.get_by_id(creator_id)
+        if not creator_user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"User with id {creator_id} not found.")
+
+        stmt = select(Contest).filter(Contest.creator_id == creator_id).order_by(Contest.id.desc()).offset(skip).limit(limit)
+        result = await db.execute(stmt)
+        return result.scalars().all()
+
+    @staticmethod
     async def get_contests_where_user_is_judge(db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100) -> List[Contest]:
         """Get contests where the specified user is a judge."""
         # Validate user exists (optional, but good practice)

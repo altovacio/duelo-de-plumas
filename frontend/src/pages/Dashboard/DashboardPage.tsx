@@ -283,8 +283,15 @@ const DashboardPage: React.FC = () => {
       setIsLoading(true);
       setError(null);
       const dashboardData = await getDashboardData();
-      // Update state with data from dashboard
-      // This would typically update multiple states/components
+      
+      // Update contests data if available
+      if (dashboardData.author_contests) {
+        setContestsData(dashboardData.author_contests);
+      }
+      
+      // Also fetch texts separately since they're not part of the dashboard endpoint
+      fetchTexts();
+      
       setIsLoading(false);
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
@@ -376,7 +383,7 @@ const DashboardPage: React.FC = () => {
                 </div>
                 <div className="bg-white border border-gray-200 rounded-lg p-4">
                   <h3 className="font-medium text-gray-700">My Contests</h3>
-                  <p className="text-2xl font-bold text-indigo-600">0</p>
+                  <p className="text-2xl font-bold text-indigo-600">{contestsData.length}</p>
                 </div>
                 <div className="bg-white border border-gray-200 rounded-lg p-4">
                   <h3 className="font-medium text-gray-700">My Texts</h3>
@@ -578,7 +585,125 @@ const DashboardPage: React.FC = () => {
             </div>
           )}
 
-                              {activeTab === 'agents' && (            <div>              <div className="flex justify-between items-center mb-6">                <h2 className="text-xl font-medium">My AI Agents</h2>                <button                   className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"                  onClick={handleOpenCreateAgentModal}                >                  Create New Agent                </button>              </div>                            {error && (                <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">                  <div className="flex">                    <div className="flex-shrink-0">                      <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />                      </svg>                    </div>                    <div className="ml-3">                      <p className="text-sm text-red-700">{error}</p>                    </div>                  </div>                </div>              )}                            <div className="mb-8">                <h3 className="text-lg font-medium text-gray-800 mb-4">My Agents</h3>                {isLoading ? (                  <div className="flex justify-center items-center h-32">                    <svg className="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>                    </svg>                  </div>                ) : ownedAgentsData.length > 0 ? (                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">                    {ownedAgentsData.map((agent) => (                      <div key={agent.id} className="bg-white overflow-hidden shadow rounded-lg divide-y divide-gray-200">                        <div className="px-4 py-5 sm:px-6">                          <div className="flex justify-between items-start">                            <h3 className="text-lg font-medium text-gray-900 truncate">{agent.name}</h3>                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${                              agent.type === 'writer' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'                            }`}>                              {agent.type.charAt(0).toUpperCase() + agent.type.slice(1)}                            </span>                          </div>                          <p className="mt-1 text-sm text-gray-500 line-clamp-2">{agent.description}</p>                        </div>                        <div className="px-4 py-4 sm:px-6 flex justify-between items-center">                          <div className="text-sm text-gray-500">                            Model: {agent.model}                          </div>                          <div>                            <button                              onClick={() => handleOpenEditAgentModal(agent)}                              className="text-indigo-600 hover:text-indigo-900 mr-3 text-sm"                            >                              Edit                            </button>                            <button                              onClick={() => handleDeleteAgent(agent.id)}                              className="text-red-600 hover:text-red-900 text-sm"                            >                              Delete                            </button>                          </div>                        </div>                      </div>                    ))}                  </div>                ) : (                  <p className="text-gray-500 italic">You haven't created any AI agents yet.</p>                )}              </div>                            <div>                <h3 className="text-lg font-medium text-gray-800 mb-4">Public Agents</h3>                {isLoadingPublic ? (                  <div className="flex justify-center items-center h-32">                    <svg className="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>                    </svg>                  </div>                ) : publicAgentsData.length > 0 ? (                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">                    {publicAgentsData.map((agent) => (                      <div key={agent.id} className="bg-white overflow-hidden shadow rounded-lg divide-y divide-gray-200">                        <div className="px-4 py-5 sm:px-6">                          <div className="flex justify-between items-start">                            <h3 className="text-lg font-medium text-gray-900 truncate">{agent.name}</h3>                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${                              agent.type === 'writer' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'                            }`}>                              {agent.type.charAt(0).toUpperCase() + agent.type.slice(1)}                            </span>                          </div>                          <p className="mt-1 text-sm text-gray-500 line-clamp-2">{agent.description}</p>                        </div>                        <div className="px-4 py-4 sm:px-6 flex justify-between items-center">                          <div className="text-sm text-gray-500">                            Model: {agent.model}                          </div>                          <button                            onClick={() => handleCloneAgent(agent.id)}                            className="text-indigo-600 hover:text-indigo-900 text-sm"                          >                            Clone to My Agents                          </button>                        </div>                      </div>                    ))}                  </div>                ) : (                  <p className="text-gray-500 italic">No public agents available yet.</p>                )}              </div>            </div>          )}
+          {activeTab === 'agents' && (
+            <div>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-medium">My AI Agents</h2>
+                <button 
+                  className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
+                  onClick={handleOpenCreateAgentModal}
+                >
+                  Create New Agent
+                </button>
+              </div>
+              {error && (
+                <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <p className="text-sm text-red-700">{error}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div className="mb-8">
+                <h3 className="text-lg font-medium text-gray-800 mb-4">My Agents</h3>
+                {isLoading ? (
+                  <div className="flex justify-center items-center h-32">
+                    <svg className="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  </div>
+                ) : ownedAgentsData.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {ownedAgentsData.map((agent) => (
+                      <div key={agent.id} className="bg-white overflow-hidden shadow rounded-lg divide-y divide-gray-200">
+                        <div className="px-4 py-5 sm:px-6">
+                          <div className="flex justify-between items-start">
+                            <h3 className="text-lg font-medium text-gray-900 truncate">{agent.name}</h3>
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              agent.type === 'writer' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              {agent.type.charAt(0).toUpperCase() + agent.type.slice(1)}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-sm text-gray-500 line-clamp-2">{agent.description}</p>
+                        </div>
+                        <div className="px-4 py-4 sm:px-6 flex justify-between items-center">
+                          <div className="text-sm text-gray-500">
+                            Model: {agent.model}
+                          </div>
+                          <div>
+                            <button 
+                              onClick={() => handleOpenEditAgentModal(agent)}
+                              className="text-indigo-600 hover:text-indigo-900 mr-3 text-sm"
+                            >
+                              Edit
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteAgent(agent.id)}
+                              className="text-red-600 hover:text-red-900 text-sm"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 italic">You haven't created any AI agents yet.</p>
+                )}
+              </div>
+              <div>
+                <h3 className="text-lg font-medium text-gray-800 mb-4">Public Agents</h3>
+                {isLoadingPublic ? (
+                  <div className="flex justify-center items-center h-32">
+                    <svg className="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  </div>
+                ) : publicAgentsData.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {publicAgentsData.map((agent) => (
+                      <div key={agent.id} className="bg-white overflow-hidden shadow rounded-lg divide-y divide-gray-200">
+                        <div className="px-4 py-5 sm:px-6">
+                          <div className="flex justify-between items-start">
+                            <h3 className="text-lg font-medium text-gray-900 truncate">{agent.name}</h3>
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              agent.type === 'writer' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              {agent.type.charAt(0).toUpperCase() + agent.type.slice(1)}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-sm text-gray-500 line-clamp-2">{agent.description}</p>
+                        </div>
+                        <div className="px-4 py-4 sm:px-6 flex justify-between items-center">
+                          <div className="text-sm text-gray-500">
+                            Model: {agent.model}
+                          </div>
+                          <button 
+                            onClick={() => handleCloneAgent(agent.id)}
+                            className="text-indigo-600 hover:text-indigo-900 text-sm"
+                          >
+                            Clone to My Agents
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 italic">No public agents available yet.</p>
+                )}
+              </div>
+            </div>
+          )}
 
           {activeTab === 'participation' && (
             <div>

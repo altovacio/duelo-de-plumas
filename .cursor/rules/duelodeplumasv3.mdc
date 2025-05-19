@@ -8,6 +8,7 @@ alwaysApply: false
 -The endpoints available are in [api_endpoints_programmatically.md](mdc:docs/api_endpoints_programmatically.md)
 -Avoid generating new endpoints in the backend. First look for the working ones and already implemented.
 -remember, we use docker
+-You cannot see, read or list the .env file, but it exist. If you need info from this file, ask the user.
 
 
 

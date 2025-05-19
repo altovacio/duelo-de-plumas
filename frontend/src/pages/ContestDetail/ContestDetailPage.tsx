@@ -1,32 +1,38 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { getContest, getContestSubmissions, getContestJudges } from '../../services/contestService';
+import TextSubmissionForm from '../../components/Contest/TextSubmissionForm';
+import HumanJudgingForm from '../../components/Contest/HumanJudgingForm';
+import AIJudgeExecutionForm from '../../components/Contest/AIJudgeExecutionForm';
+import ContestResults from '../../components/Contest/ContestResults';
+import { Text as TextType } from '../../services/textService';
 
-// Contest interface (expanded from the list page)
+// Updated Contest interface to match API responses
 interface Contest {
   id: number;
   title: string;
   description: string;
-  fullDescription?: string; // Markdown content
+  full_description?: string; // Markdown content
   creator: {
     id: number;
     username: string;
   };
-  participantCount: number;
-  textCount: number;
-  lastModified: string;
-  createdAt: string;
-  endDate?: string;
+  participant_count: number;
+  text_count: number;
+  last_modified: string;
+  created_at: string;
+  end_date?: string;
   type: 'public' | 'private';
   status: 'open' | 'evaluation' | 'closed';
-  isPasswordProtected: boolean;
-  minRequiredVotes?: number;
-  restrictJudgesFromParticipating?: boolean;
-  restrictMultipleSubmissions?: boolean;
+  is_password_protected: boolean;
+  min_required_votes?: number;
+  judge_restrictions?: boolean;
+  author_restrictions?: boolean;
 }
 
-// Text interface for submissions
-interface Text {
+// Text interface for local use in this component (separate from the service)
+interface ContestText {
   id: number;
   title: string;
   content: string; // Markdown content
@@ -38,7 +44,7 @@ interface Text {
     id: number;
     username: string;
   };
-  createdAt: string;
+  created_at: string;
   votes?: {
     rank: number;
     judge: {
@@ -53,118 +59,102 @@ interface Text {
 
 const ContestDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
-    const { isAuthenticated } = useAuth(); // Removed unused 'user' variable
+    const { isAuthenticated, user } = useAuth();
     const [contest, setContest] = useState<Contest | null>(null);
-    const [texts, setTexts] = useState<Text[]>([]);
+    const [texts, setTexts] = useState<ContestText[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [password, setPassword] = useState<string>('');
     const [isPasswordCorrect, setIsPasswordCorrect] = useState<boolean>(false);
     const [passwordError, setPasswordError] = useState<string | null>(null);
     const [showPasswordModal, setShowPasswordModal] = useState<boolean>(false);
+    
+    // States for modal dialogs
+    const [showSubmitTextModal, setShowSubmitTextModal] = useState<boolean>(false);
+    const [showJudgeModal, setShowJudgeModal] = useState<boolean>(false);
+    const [showAIJudgeModal, setShowAIJudgeModal] = useState<boolean>(false);
+    const [isJudge, setIsJudge] = useState<boolean>(false);
+    const [hasSubmitted, setHasSubmitted] = useState<boolean>(false);
+    const [averageTextLength, setAverageTextLength] = useState<number>(1000); // Default estimate
 
   useEffect(() => {
-    // This would be replaced with an actual API call
-    const fetchContestDetails = () => {
-      setIsLoading(true);
-      
-      // Simulate API delay
-      setTimeout(() => {
-        // Mock data - would come from backend in a real app
-        const mockContest: Contest = {
-          id: parseInt(id || '1'),
-          title: "Summer Poetry Challenge",
-          description: "Share your best summer-inspired poems.",
-          fullDescription: "# Summer Poetry Challenge\n\nWelcome to our annual Summer Poetry Challenge! This year, we're looking for poems that capture the essence of summer.\n\n## Guidelines\n\n- Poems should be between 10 and 40 lines\n- Any form of poetry is acceptable\n- Submissions must be original and previously unpublished\n- One entry per participant\n\n## Judging Criteria\n\n- Originality (30%)\n- Technical skill (30%)\n- Emotional impact (40%)\n\nWe look forward to reading your summer-inspired creations!",
-          creator: {
-            id: 1,
-            username: "poetrylover"
-          },
-          participantCount: 12,
-          textCount: 15,
-          lastModified: "2023-06-15",
-          createdAt: "2023-06-01",
-          endDate: "2023-07-30",
-          type: "public", // Change to private to test password protection
-          status: "open", // Change to "evaluation" or "closed" to test different states
-          isPasswordProtected: false,
-          minRequiredVotes: 3,
-          restrictJudgesFromParticipating: true,
-          restrictMultipleSubmissions: true
-        };
+    const fetchContestDetails = async () => {
+      try {
+        setIsLoading(true);
         
-        // Mock text submissions
-        const mockTexts: Text[] = [
-          {
-            id: 101,
-            title: "Summer Breeze",
-            content: "Summer breeze makes me feel fine\nBlowing through the jasmine in my mind...",
-            createdAt: "2023-06-05"
-          },
-          {
-            id: 102,
-            title: "Ocean Waves",
-            content: "The gentle rhythm of the ocean waves\nCrashing on the shore under summer rays...",
-            createdAt: "2023-06-07"
-          },
-          {
-            id: 103,
-            title: "Sunset Dreams",
-            content: "Crimson skies at day's end\nWhisper promises of tomorrow...",
-            createdAt: "2023-06-10"
-          }
-        ];
+        // Fetch contest details
+        const contestData = await getContest(parseInt(id || '1'), isPasswordCorrect ? password : undefined);
+        setContest(contestData);
         
-        // For evaluation or closed status, show authors and votes
-        if (mockContest.status === 'evaluation' || mockContest.status === 'closed') {
-          mockTexts.forEach(text => {
-            text.author = {
-              id: 200 + Math.floor(Math.random() * 100),
-              username: `user${Math.floor(Math.random() * 100)}`
-            };
-            
-            // For closed status, add voting results
-            if (mockContest.status === 'closed') {
-              text.votes = [
-                {
-                  rank: Math.floor(Math.random() * 3) + 1,
-                  judge: {
-                    id: 300,
-                    username: "judge1",
-                    isAI: false
-                  },
-                  comment: "Beautiful imagery and rhythm."
-                },
-                {
-                  rank: Math.floor(Math.random() * 3) + 1,
-                  judge: {
-                    id: 301,
-                    username: "AI Judge",
-                    isAI: true,
-                    aiModel: "GPT-4"
-                  },
-                  comment: "Excellent use of metaphor and sensory language."
-                }
-              ];
-            }
-          });
+        // If contest is private and we haven't verified the password, show password modal
+        if (contestData.type === 'private' && !isPasswordCorrect) {
+          setShowPasswordModal(true);
+          setIsLoading(false);
+          return;
         }
         
-        setContest(mockContest);
-        setTexts(mockTexts);
+        // Fetch submissions if appropriate
+        if (
+          contestData.status === 'evaluation' || 
+          contestData.status === 'closed' ||
+          // Also fetch if open but user is the creator to see current submissions
+          (contestData.status === 'open' && contestData.creator.id === user?.id)
+        ) {
+          const submissionsData = await getContestSubmissions(
+            parseInt(id || '1'),
+            isPasswordCorrect ? password : undefined
+          );
+          
+          // Convert API submission data to ContestText format
+          const formattedTexts: ContestText[] = submissionsData.map(submission => ({
+            id: submission.id,
+            title: submission.title,
+            content: submission.content,
+            author: submission.author ? {
+              id: submission.author.id,
+              username: submission.author.username
+            } : undefined,
+            owner: submission.owner ? {
+              id: submission.owner.id,
+              username: submission.owner.username
+            } : undefined,
+            created_at: submission.created_at,
+            // Votes would be populated from a separate API call in a real implementation
+          }));
+          
+          setTexts(formattedTexts);
+          
+          // Calculate average text length for AI cost estimation
+          if (formattedTexts.length > 0) {
+            const totalLength = formattedTexts.reduce(
+              (sum, text) => sum + text.content.length, 0
+            );
+            setAverageTextLength(Math.ceil(totalLength / formattedTexts.length));
+          }
+        }
         
-        // If contest is public or we've already verified the password, show content
-        if (mockContest.type === 'public' || isPasswordCorrect) {
-          setIsPasswordCorrect(true);
-        } else {
-          setShowPasswordModal(true);
+        // Check if user is a judge for this contest
+        if (isAuthenticated && user) {
+          const judges = await getContestJudges(parseInt(id || '1'));
+          setIsJudge(judges.some(judge => judge.user_id === user.id));
+        }
+        
+        // Check if user has already submitted to this contest
+        if (isAuthenticated && user && contestData.status === 'open') {
+          // This is a simplification - in reality, you'd check if the user has submissions
+          setHasSubmitted(false); // Default assumption
         }
         
         setIsLoading(false);
-      }, 1000);
+      } catch (err) {
+        console.error('Error fetching contest details:', err);
+        setIsLoading(false);
+      }
     };
     
-    fetchContestDetails();
-  }, [id, isPasswordCorrect]);
+    if (id) {
+      fetchContestDetails();
+    }
+  }, [id, isPasswordCorrect, password, isAuthenticated, user]);
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -179,26 +169,50 @@ const ContestDetailPage: React.FC = () => {
     }
   };
 
-  // Calculate points and ranking (for closed contests)
-  const getContestRanking = () => {
-    if (!texts || texts.length === 0 || contest?.status !== 'closed') {
-      return [];
+  // Handle text submission
+  const handleSubmitText = () => {
+    if (!isAuthenticated) {
+      // Redirect to login
+      return;
     }
     
-    const textScores = texts.map(text => {
-      const points = text.votes?.reduce((total: number, vote) => {
-        // 3 points for 1st place, 2 for 2nd, 1 for 3rd
-        return total + (4 - vote.rank);
-      }, 0) || 0;
-      
-      return {
-        ...text,
-        points
-      };
-    });
+    setShowSubmitTextModal(true);
+  };
+  
+  // Handle submission success
+  const handleSubmissionSuccess = () => {
+    setShowSubmitTextModal(false);
+    setHasSubmitted(true);
+    // Refresh contest data
+    // This would be replaced with an actual API call in a real implementation
+  };
+  
+  // Handle judge actions
+  const handleJudge = () => {
+    if (!isAuthenticated) {
+      // Redirect to login
+      return;
+    }
     
-    // Sort by points, highest first
-    return textScores.sort((a, b) => ((b.points as number) || 0) - ((a.points as number) || 0));
+    setShowJudgeModal(true);
+  };
+  
+  // Handle AI judge execution
+  const handleAIJudge = () => {
+    if (!isAuthenticated) {
+      // Redirect to login
+      return;
+    }
+    
+    setShowAIJudgeModal(true);
+  };
+  
+  // Handle judging success
+  const handleJudgingSuccess = () => {
+    setShowJudgeModal(false);
+    setShowAIJudgeModal(false);
+    // Refresh contest data
+    // This would be replaced with an actual API call in a real implementation
   };
 
   if (isLoading) {
@@ -298,21 +312,21 @@ const ContestDetailPage: React.FC = () => {
             <span className="font-medium">Created by:</span> {contest.creator.username}
           </div>
           <div>
-            <span className="font-medium">Created:</span> {new Date(contest.createdAt).toLocaleDateString()}
+            <span className="font-medium">Created:</span> {new Date(contest.created_at).toLocaleDateString()}
           </div>
           <div>
-            <span className="font-medium">Last updated:</span> {new Date(contest.lastModified).toLocaleDateString()}
+            <span className="font-medium">Last updated:</span> {new Date(contest.last_modified).toLocaleDateString()}
           </div>
-          {contest.endDate && (
+          {contest.end_date && (
             <div>
-              <span className="font-medium">End date:</span> {new Date(contest.endDate).toLocaleDateString()}
+              <span className="font-medium">End date:</span> {new Date(contest.end_date).toLocaleDateString()}
             </div>
           )}
           <div>
-            <span className="font-medium">Participants:</span> {contest.participantCount}
+            <span className="font-medium">Participants:</span> {contest.participant_count}
           </div>
           <div>
-            <span className="font-medium">Submissions:</span> {contest.textCount}
+            <span className="font-medium">Submissions:</span> {contest.text_count}
           </div>
         </div>
       </div>
@@ -322,25 +336,37 @@ const ContestDetailPage: React.FC = () => {
         <h2 className="text-xl font-bold mb-4">Contest Details</h2>
         <div className="prose max-w-none">
           {/* This would use react-markdown to render Markdown content */}
-          <pre className="whitespace-pre-wrap">{contest.fullDescription}</pre>
+          <pre className="whitespace-pre-wrap">{contest.full_description}</pre>
         </div>
       </div>
       
       {/* Contest State-specific Content */}
       {contest.status === 'open' && (
-        <div className="bg-white p-6 rounded-lg shadow-sm">
+        <div className="bg-white p-6 rounded-lg shadow-sm mb-8">
           <h2 className="text-xl font-bold mb-4">Submit Your Entry</h2>
           
           {isAuthenticated ? (
-            <div>
-              <p className="mb-4">Ready to participate? Submit your text to this contest.</p>
-              <Link 
-                to={`/dashboard/texts/new?contestId=${contest.id}`}
-                className="inline-block px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-              >
-                Submit Text
-              </Link>
-            </div>
+            hasSubmitted ? (
+              <div>
+                <p className="mb-4">You have already submitted a text to this contest.</p>
+                <button
+                  onClick={() => setHasSubmitted(false)} // In a real app, this would withdraw the submission
+                  className="text-red-600 hover:text-red-800 font-medium"
+                >
+                  Withdraw Submission
+                </button>
+              </div>
+            ) : (
+              <div>
+                <p className="mb-4">Ready to participate? Submit your text to this contest.</p>
+                <button 
+                  onClick={handleSubmitText}
+                  className="inline-block px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                >
+                  Submit Text
+                </button>
+              </div>
+            )
           ) : (
             <div>
               <p className="mb-4">You need to be logged in to submit a text to this contest.</p>
@@ -355,76 +381,109 @@ const ContestDetailPage: React.FC = () => {
         </div>
       )}
       
-      {(contest.status === 'evaluation' || contest.status === 'closed') && (
-        <div className="bg-white p-6 rounded-lg shadow-sm">
-          <h2 className="text-xl font-bold mb-4">
-            {contest.status === 'evaluation' ? 'Submissions Under Evaluation' : 'Contest Results'}
-          </h2>
+      {contest.status === 'evaluation' && (
+        <div className="bg-white p-6 rounded-lg shadow-sm mb-8">
+          <h2 className="text-xl font-bold mb-4">Submissions Under Evaluation</h2>
           
           {texts.length === 0 ? (
             <p className="text-gray-500">No texts have been submitted to this contest.</p>
           ) : (
-            <div className="space-y-6">
-              {contest.status === 'closed' ? (
-                // Display results for closed contests
-                getContestRanking().map((text: Text & { points?: number }, index: number) => (
-                  <div key={text.id} className="border-b pb-6 last:border-b-0">
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <h3 className="text-lg font-semibold">{text.title}</h3>
-                        <p className="text-sm text-gray-600">
-                          by {text.author?.username} • Submitted on {new Date(text.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full font-medium">
-                        {index === 0 ? '🥇 First Place' : 
-                         index === 1 ? '🥈 Second Place' : 
-                         index === 2 ? '🥉 Third Place' : `${index + 1}th Place`} 
-                         ({text.points} points)
-                      </div>
-                    </div>
-                    
-                    <div className="prose prose-sm max-w-none mb-4">
-                      <pre className="whitespace-pre-wrap">{text.content}</pre>
-                    </div>
-                    
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h4 className="font-medium mb-2">Judge Comments</h4>
-                      {text.votes?.map((vote: {
-                        rank: number;
-                        judge: {
-                          id: number;
-                          username: string;
-                          isAI: boolean;
-                          aiModel?: string;
-                        };
-                        comment: string;
-                      }, vIndex: number) => (
-                        <div key={vIndex} className="mb-2 last:mb-0">
-                          <p className="text-sm font-medium">
-                            {vote.judge.username} 
-                            {vote.judge.isAI && <span className="text-gray-500"> (AI: {vote.judge.aiModel})</span>}
-                            <span className="font-normal text-gray-500"> • Ranked #{vote.rank}</span>
-                          </p>
-                          <p className="text-sm">{vote.comment}</p>
-                        </div>
-                      ))}
-                    </div>
+            <div>
+              <div className="mb-6">
+                <p className="text-gray-600 mb-4">
+                  This contest is currently being evaluated by judges. Results will be available once the evaluation phase is complete.
+                </p>
+                
+                {isJudge && (
+                  <div className="mt-6 flex flex-col sm:flex-row sm:space-x-4 space-y-3 sm:space-y-0">
+                    <button
+                      onClick={handleJudge}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                    >
+                      Judge Submissions
+                    </button>
+                    <button
+                      onClick={handleAIJudge}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                      Use AI Judge
+                    </button>
                   </div>
-                ))
-              ) : (
-                // Display anonymized texts for evaluation phase
-                texts.map((text: Text) => (
+                )}
+              </div>
+              
+              <div className="space-y-6">
+                {/* Display anonymized texts for evaluation phase */}
+                {texts.map((text) => (
                   <div key={text.id} className="border-b pb-6 last:border-b-0">
                     <h3 className="text-lg font-semibold mb-2">{text.title}</h3>
                     <div className="prose prose-sm max-w-none">
-                      <pre className="whitespace-pre-wrap">{text.content}</pre>
+                      <pre className="whitespace-pre-wrap bg-gray-50 p-4 rounded">{text.content}</pre>
                     </div>
                   </div>
-                ))
-              )}
+                ))}
+              </div>
             </div>
           )}
+        </div>
+      )}
+      
+      {contest.status === 'closed' && (
+        <div className="bg-white p-6 rounded-lg shadow-sm mb-8">
+          <h2 className="text-xl font-bold mb-4">Contest Results</h2>
+          
+          {texts.length === 0 ? (
+            <p className="text-gray-500">No texts were submitted to this contest.</p>
+          ) : (
+            <ContestResults 
+              contestId={parseInt(id || '1')} 
+              texts={texts as TextType[]} 
+            />
+          )}
+        </div>
+      )}
+      
+      {/* Text Submission Modal */}
+      {showSubmitTextModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="max-w-2xl w-full mx-4">
+            <TextSubmissionForm
+              contestId={parseInt(id || '1')}
+              isPrivate={contest?.type === 'private'}
+              password={password}
+              onSuccess={handleSubmissionSuccess}
+              onCancel={() => setShowSubmitTextModal(false)}
+            />
+          </div>
+        </div>
+      )}
+      
+      {/* Human Judging Modal */}
+      {showJudgeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="max-w-4xl w-full mx-4 max-h-screen overflow-y-auto p-4">
+            <HumanJudgingForm
+              contestId={parseInt(id || '1')}
+              texts={texts as TextType[]}
+              onSuccess={handleJudgingSuccess}
+              onCancel={() => setShowJudgeModal(false)}
+            />
+          </div>
+        </div>
+      )}
+      
+      {/* AI Judge Modal */}
+      {showAIJudgeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="max-w-2xl w-full mx-4">
+            <AIJudgeExecutionForm
+              contestId={parseInt(id || '1')}
+              contestTextCount={texts.length}
+              averageTextLength={averageTextLength}
+              onSuccess={handleJudgingSuccess}
+              onCancel={() => setShowAIJudgeModal(false)}
+            />
+          </div>
         </div>
       )}
     </div>

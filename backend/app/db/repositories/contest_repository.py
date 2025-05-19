@@ -37,18 +37,24 @@ class ContestRepository:
         skip: int = 0,
         limit: int = 100,
         status: Optional[str] = None,
-        current_user_id: Optional[int] = None
+        current_user_id: Optional[int] = None,
+        creator_id: Optional[int] = None
     ) -> List[Contest]:
         query = select(Contest)
         
-        # Only filter by status if provided
+        # Filter by status if provided
         if status:
             query = query.where(Contest.status == status)
+        
+        # Filter by creator_id if provided
+        if creator_id is not None:
+            query = query.where(Contest.creator_id == creator_id)
             
-        # Remove filtering based on is_private or creator_id for the list view
+        # The comment below is for the general case of listing all contests.
+        # Specific views like "My Contests" will use the creator_id filter.
         # All contests are listed; details are protected by GET /{id}
             
-        result = await db.execute(query.offset(skip).limit(limit))
+        result = await db.execute(query.order_by(Contest.created_at.desc()).offset(skip).limit(limit))
         return result.scalars().all()
     
     @staticmethod

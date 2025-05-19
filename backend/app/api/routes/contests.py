@@ -36,13 +36,15 @@ async def create_contest(
 async def get_contests(
     skip: int = 0,
     limit: int = 100,
-    status: Optional[str] = None,
+    status: Optional[str] = Query(None, description="Filter contests by status (e.g., open, closed, evaluation)"),
+    creator: Optional[str] = Query(None, description="Filter contests by creator. Use 'me' for current user's contests."),
     db: AsyncSession = Depends(get_db),
     current_user: Optional[UserModel] = Depends(get_optional_current_user)
 ):
     """
     Get list of contests with optional filtering.
-    All users (authenticated or visitor) see all contests listed.
+    If 'creator=me' is passed, only contests created by the current user are returned.
+    Otherwise, all users (authenticated or visitor) see all contests listed (unless other filters apply).
     Access to details of private contests is handled by the GET /{contest_id} endpoint.
     """
     user_id = current_user.id if current_user else None
@@ -51,7 +53,8 @@ async def get_contests(
         skip=skip,
         limit=limit,
         status=status,
-        current_user_id=user_id
+        current_user_id=user_id,
+        creator=creator
     )
 
 

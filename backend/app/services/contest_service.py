@@ -47,14 +47,22 @@ class ContestService:
         skip: int = 0, 
         limit: int = 100,
         status: Optional[str] = None,
-        current_user_id: Optional[int] = None
+        current_user_id: Optional[int] = None,
+        creator: Optional[str] = None  # New parameter: 'me' or None
     ) -> List[ContestResponse]:
+        creator_id_to_filter: Optional[int] = None
+        if creator == "me" and current_user_id is not None:
+            creator_id_to_filter = current_user_id
+        # If creator is something else, or current_user_id is None, no creator filter is applied unless explicitly passed
+        # This maintains existing behavior for general contest listing if creator != 'me'
+
         contests_orm = await ContestRepository.get_contests(
             db=db, 
             skip=skip, 
             limit=limit, 
             status=status,
-            current_user_id=current_user_id
+            current_user_id=current_user_id, # Still passed for any other internal uses it might have
+            creator_id=creator_id_to_filter  # Pass the determined creator_id for filtering
         )
         
         response_list = []

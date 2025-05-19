@@ -10,100 +10,89 @@ from app.schemas.user import UserCreate, UserResponse, Token, TokenData, UserLog
 from app.services.auth_service import (
     authenticate_user,
     create_user,
-    # get_user_by_username # This is no longer directly imported if auth_service doesn't expose it
 )
 from app.core.config import settings
 from app.core.security import create_access_token
-from app.db.repositories.user_repository import UserRepository # Added import
+from app.db.repositories.user_repository import UserRepository
+from app.db.models.user import User as UserModel
 
 router = APIRouter(tags=["authentication"])
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+# Single OAuth2 scheme with auto_error=False
+# This means if the token is not present, `Depends(oauth2_scheme)` will pass `None`
+# instead of automatically raising an error.
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
-# Function to get current user from token
-async def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: AsyncSession = Depends(get_db)
-):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    
-    try:
-        payload = jwt.decode(
-            token, 
-            settings.SECRET_KEY, 
-            algorithms=[settings.ALGORITHM]
-        )
-        username: str = payload.get("sub")
-        user_id: int = payload.get("id")
-        
-        if username is None:
-            raise credentials_exception
-            
-        token_data = TokenData(username=username, user_id=user_id)
-    except JWTError:
-        raise credentials_exception
-        
-    user_repo = UserRepository(db) # Instantiate UserRepository
-    user = await user_repo.get_by_username(token_data.username) # Call instance method
-    
-    if user is None:
-        raise credentials_exception
-        
-    return user
+credentials_exception = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    detail="Could not validate credentials",
+    headers={"WWW-Authenticate": "Bearer"},
+)
 
-# New dependency to get user OR None if not authenticated
-async def get_optional_current_user(
-    request: Request, # Depend on the Request
-    db: AsyncSession = Depends(get_db)
-) -> Optional[UserResponse]: # Correct DB Model type hint
-    token = request.headers.get("Authorization")
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-    if token is None or not token.startswith("Bearer "):
-        return None # No token header or wrong scheme
+async def _get_user_from_token_data(
+    token: Optional[str],
+    db: AsyncSession
+) -> Optional[UserModel]:
+    """
+    Internal helper to decode JWT, extract user info, and fetch user from DB.
+    Returns UserModel instance or None if token is invalid, payload is bad, or user not found.
+    Does NOT raise HTTPException directly for "optional" use cases.
+    """
+    if not token:
+        return None
 
     try:
-        token_value = token.split("Bearer ")[1]
         payload = jwt.decode(
-            token_value,
+            token,
             settings.SECRET_KEY,
             algorithms=[settings.ALGORITHM]
         )
         username: Optional[str] = payload.get("sub")
-        user_id: Optional[int] = payload.get("id") # Added Optional just in case
+        user_id: Optional[int] = payload.get("id")
 
         if username is None or user_id is None:
-            # Invalid payload
-            return None 
+            # Invalid payload structure
+            return None
+        
+        # TokenData can be used for validation if needed, but we have username and id
+        # token_data = TokenData(username=username, user_id=user_id)
 
-        token_data = TokenData(username=username, user_id=user_id)
     except JWTError:
-        # Invalid token (e.g., expired, bad signature)
-        return None
-    except IndexError:
-        # Malformed Bearer token
+        # Token is invalid (e.g., expired, bad signature)
         return None
     
-    # If token is valid, try to fetch user
     user_repo = UserRepository(db)
-    user = await user_repo.get_by_username(token_data.username)
+    user = await user_repo.get_by_username(username=username)
+    return user
 
+
+async def get_current_user(
+    token: Optional[str] = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db)
+) -> UserModel: # Returns UserModel, raises error if not authenticated
+    if not token: # Token was not provided
+        raise credentials_exception
+        
+    user = await _get_user_from_token_data(token, db)
+    
     if user is None:
-        # User ID from token not found in DB
-        return None
+        # Token was provided, but was invalid, or user not found
+        raise credentials_exception
+        
+    return user
 
-    return user # Valid user found
 
-# Dependency for admin users - now depends directly on get_current_user
-async def get_current_admin_user(current_user: UserResponse = Depends(get_current_user)):
+async def get_optional_current_user(
+    token: Optional[str] = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db)
+) -> Optional[UserModel]: # Returns Optional[UserModel]
+    # _get_user_from_token_data handles missing token, invalid token, or user not found by returning None.
+    return await _get_user_from_token_data(token, db)
+
+
+async def get_current_admin_user(
+    current_user: UserModel = Depends(get_current_user) # Depends on the new get_current_user
+) -> UserModel: # Returns UserModel
     if not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, 
@@ -119,8 +108,8 @@ async def signup(user: UserCreate, db: AsyncSession = Depends(get_db)):
     # Check if username or email already exists
     # This will be implemented in the auth_service
     
-    user = await create_user(db, user)
-    return user
+    user_db = await create_user(db, user) # create_user likely returns UserModel
+    return user_db # FastAPI will convert UserModel to UserResponse based on response_model
 
 @router.post("/login", response_model=Token)
 async def login(
@@ -139,7 +128,7 @@ async def login(
             detail="Username and password are required",
         )
     
-    user = await authenticate_user(db, username, password)
+    user = await authenticate_user(db, username, password) # authenticate_user returns UserModel or None
     
     if not user:
         raise HTTPException(
@@ -150,7 +139,7 @@ async def login(
         
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.username, "id": user.id},
+        data={"sub": user.username, "id": user.id}, # Uses attributes from UserModel
         expires_delta=access_token_expires
     )
     
@@ -164,7 +153,7 @@ async def login_json(
     """
     Authenticate and login a user using JSON payload.
     """
-    user = await authenticate_user(db, user_data.username, user_data.password)
+    user = await authenticate_user(db, user_data.username, user_data.password) # authenticate_user returns UserModel or None
     
     if not user:
         raise HTTPException(
@@ -175,7 +164,7 @@ async def login_json(
         
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.username, "id": user.id},
+        data={"sub": user.username, "id": user.id}, # Uses attributes from UserModel
         expires_delta=access_token_expires
     )
     

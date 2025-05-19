@@ -59,3 +59,64 @@ These instructions assume you are in the **project root directory**.
     ```
 
 For more detailed instructions, including native Python setup and running the API, please see [backend/README.md](backend/README.md).
+
+## Running in Production vs. Debug Mode (Backend)
+
+The backend service in `docker-compose.yml` can be configured to run in either a debugging mode or a production-like mode.
+
+### Debug Mode (Default in `docker-compose.yml`)
+
+This mode is configured to:
+1. Run `python scripts/create_admin.py setup`.
+2. Start the `debugpy` debugger, listening on port `5678`.
+3. **Wait for a debugger client** (e.g., from your IDE) to attach before fully starting the application.
+4. Launch Uvicorn with `--reload` enabled for automatic code reloading on changes.
+
+The command in `docker-compose.yml` looks like this:
+```yaml
+command: >
+  sh -c "./wait-for-it.sh db:5432 --timeout=30 --strict -- \
+  python scripts/create_admin.py setup && \
+  python -m debugpy --wait-for-client --listen 0.0.0.0:5678 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+```
+To use this mode, you need to attach your IDE's debugger to port `5678` after starting the services with `docker-compose up`.
+
+### Production-like Mode
+
+This mode is configured to:
+1. Run `python scripts/create_admin.py setup`.
+2. Start Uvicorn directly without the debugger and without `--reload`.
+
+To switch to this mode:
+1. Open `docker-compose.yml`.
+2. Comment out the entire `command:` block for the **DEBUGGING COMMAND**.
+3. Uncomment the `command:` block for the **PRODUCTION-LIKE COMMAND**.
+
+It should look like this after the change:
+```yaml
+    # COMMANDS - Choose one based on your needs:
+
+    # 1. DEBUGGING COMMAND (current): 
+    #    Starts the application with the debugpy debugger, waiting for a client to attach.
+    #    Uvicorn will use --reload for automatic code reloading.
+    # command: >
+    #   sh -c "./wait-for-it.sh db:5432 --timeout=30 --strict -- \
+    #   python scripts/create_admin.py setup && \
+    #   python -m debugpy --wait-for-client --listen 0.0.0.0:5678 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+    # 2. PRODUCTION-LIKE COMMAND (commented out):
+    #    Starts the application directly with Uvicorn. No debugger, no auto-reload.
+    #    For true production, ensure DEBUG environment variables are also appropriately set to False.
+    command: >
+      sh -c "./wait-for-it.sh db:5432 --timeout=30 --strict -- \
+      python scripts/create_admin.py setup && \
+      uvicorn app.main:app --host 0.0.0.0 --port 8000"
+```
+
+After making this change, rebuild and restart your services if necessary:
+```bash
+docker-compose up --build -d backend
+# or simply
+docker-compose up -d --force-recreate backend
+```
+Remember to also manage any `DEBUG` environment variables appropriately for a true production setting (e.g., set `DEBUG=False` in your `.env` file or directly in `docker-compose.yml` for the backend service if applicable).

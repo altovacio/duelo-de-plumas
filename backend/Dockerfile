@@ -7,6 +7,8 @@ ENV PYTHONPATH /app
 COPY requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
+# debugpy, if included in requirements.txt, will be installed here, enabling debugging capabilities.
+# For a lean production image, consider multi-stage builds or separate requirements files if debugpy is large or only for development.
 
 # Copy only necessary files (exclude tests, etc. using .dockerignore)
 COPY . .

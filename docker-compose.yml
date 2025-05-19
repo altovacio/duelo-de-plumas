@@ -10,10 +10,23 @@ services:
       - ./backend/.env
     depends_on:
       - db
+    # COMMANDS - Choose one based on your needs:
+
+    # 1. DEBUGGING COMMAND (current): 
+    #    Starts the application with the debugpy debugger, waiting for a client to attach.
+    #    Uvicorn will use --reload for automatic code reloading.
     command: >
       sh -c "./wait-for-it.sh db:5432 --timeout=30 --strict -- \
       python scripts/create_admin.py setup && \
       python -m debugpy --wait-for-client --listen 0.0.0.0:5678 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+    # 2. PRODUCTION-LIKE COMMAND (commented out):
+    #    Starts the application directly with Uvicorn. No debugger, no auto-reload.
+    #    For true production, ensure DEBUG environment variables are also appropriately set to False.
+    # command: >
+    #   sh -c \"./wait-for-it.sh db:5432 --timeout=30 --strict -- \
+    #   python scripts/create_admin.py setup && \
+    #   uvicorn app.main:app --host 0.0.0.0 --port 8000\"
     restart: always
     
   db:

@@ -90,8 +90,7 @@ export const submitTextToContest = async (contestId: number, textId: number, pas
 
 // Get all submissions for a contest
 export const getContestSubmissions = async (contestId: number, password?: string): Promise<any[]> => {
-  const params = password ? { password } : {};
-  const response = await apiClient.get(`/contests/${contestId}/submissions`, { params });
+  const response = await apiClient.get(`/contests/${contestId}/submissions`);
   return response.data;
 };
 

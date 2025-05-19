@@ -13,6 +13,7 @@ from app.services.credit_service import CreditService
 from app.services.text_service import TextService
 from app.services.agent_service import AgentService
 from app.db.repositories.vote_repository import VoteRepository
+from app.db.repositories.contest_repository import ContestRepository
 
 router = APIRouter()
 
@@ -23,8 +24,31 @@ async def get_user_dashboard(
     current_user: UserModel = Depends(get_current_user)
 ):
     """Get the current user's dashboard data."""
-    author_contests = await ContestService.get_contests_by_creator(db, current_user.id)
-    judge_contests = await ContestService.get_contests_where_user_is_judge(db, current_user.id)
+    # Process author_contests
+    raw_author_contests = await ContestService.get_contests_by_creator(db, current_user.id)
+    processed_author_contests: List[ContestResponse] = []
+    for contest_orm in raw_author_contests:
+        contest_detail_dict = await ContestRepository.get_contest_with_counts(db, contest_orm.id)
+        if contest_detail_dict:
+            contest_detail_dict['has_password'] = bool(contest_detail_dict.get('password'))
+            processed_author_contests.append(ContestResponse.model_validate(contest_detail_dict))
+        else:
+            # Log or handle missing contest details if necessary
+            print(f"Warning: Dashboard could not retrieve full details for author contest ID: {contest_orm.id}")
+    author_contests = processed_author_contests
+
+    # Process judge_contests
+    raw_judge_contests = await ContestService.get_contests_where_user_is_judge(db, current_user.id)
+    processed_judge_contests: List[ContestResponse] = []
+    for contest_orm in raw_judge_contests:
+        contest_detail_dict = await ContestRepository.get_contest_with_counts(db, contest_orm.id)
+        if contest_detail_dict:
+            contest_detail_dict['has_password'] = bool(contest_detail_dict.get('password'))
+            processed_judge_contests.append(ContestResponse.model_validate(contest_detail_dict))
+        else:
+            # Log or handle missing contest details
+            print(f"Warning: Dashboard could not retrieve full details for judge contest ID: {contest_orm.id}")
+    judge_contests = processed_judge_contests
     
     text_service = TextService(db)
     user_texts = await text_service.get_user_texts(current_user.id)
@@ -34,16 +58,21 @@ async def get_user_dashboard(
     urgent_actions = []
     for contest in judge_contests:
         if contest.status.lower() == "evaluation":
-            judge_entries = await ContestService.get_contest_judges(db, contest.id, current_user.id)
-            
-            user_judge_entry = next((j for j in judge_entries if j.user_judge_id == current_user.id), None)
-            
-            if user_judge_entry and not user_judge_entry.has_voted:
-                urgent_actions.append({
-                    "type": "judge_contest",
-                    "contest_id": contest.id,
-                    "contest_title": contest.title,
-                })
+            try:
+                judge_entries = await ContestService.get_contest_judges(db, contest.id, current_user.id)
+                
+                # Find the specific judge entry for the current user
+                user_judge_entry = next((j for j in judge_entries if j.user_judge_id == current_user.id), None)
+                
+                if user_judge_entry and not user_judge_entry.has_voted:
+                    urgent_actions.append({
+                        "type": "judge_contest",
+                        "contest_id": contest.id,
+                        "contest_title": contest.title,
+                    })
+            except Exception as e:
+                # Log the error but continue processing other contests
+                print(f"Error processing judge entry for contest {contest.id}: {str(e)}")
     
     dashboard_data = {
         "user_info": UserResponse.model_validate(current_user),

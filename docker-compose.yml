@@ -3,6 +3,7 @@ services:
     build: ./backend
     ports:
       - "8000:8000"
+      - "5678:5678"
     volumes:
       - ./backend:/app
     env_file:
@@ -12,7 +13,7 @@ services:
     command: >
       sh -c "./wait-for-it.sh db:5432 --timeout=30 --strict -- \
       python scripts/create_admin.py setup && \
-      uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+      python -m debugpy --wait-for-client --listen 0.0.0.0:5678 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     restart: always
     
   db:

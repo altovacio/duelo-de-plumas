@@ -97,7 +97,10 @@ class TextSubmissionResponse(BaseModel):
 
 # For text details within a contest context
 class ContestTextResponse(BaseModel):
+    id: int
+    contest_id: int
     text_id: int
+    submission_date: datetime
     title: str
     content: str
     # Author and owner details conditionally included based on contest state

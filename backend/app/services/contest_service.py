@@ -18,6 +18,10 @@ from app.db.models.vote import Vote
 from app.db.repositories.vote_repository import VoteRepository
 from app.schemas.evaluation import EvaluationCommentResponse
 
+# Import UserModel for author details
+from app.db.models.user import User as UserModel
+from app.db.models.text import Text as TextModel
+
 
 class ContestService:
     @staticmethod
@@ -343,42 +347,42 @@ class ContestService:
             
         return contest_text
     
-    @staticmethod
-    async def get_contest_texts(
-        db: AsyncSession, 
-        contest_id: int, 
-        current_user_id: Optional[int] = None,
-        password: Optional[str] = None
-    ) -> List[ContestText]:
-        # Check contest access - this handles password for private contests
-        contest = await ContestService.check_contest_access(
-            db=db, 
-            contest_id=contest_id, 
-            current_user_id=current_user_id,
-            password=password
-        )
+    # @staticmethod
+    # async def get_contest_texts(
+    #     db: AsyncSession, 
+    #     contest_id: int, 
+    #     current_user_id: Optional[int] = None,
+    #     password: Optional[str] = None
+    # ) -> List[ContestText]:
+    #     # Check contest access - this handles password for private contests
+    #     contest = await ContestService.check_contest_access(
+    #         db=db, 
+    #         contest_id=contest_id, 
+    #         current_user_id=current_user_id,
+    #         password=password
+    #     )
         
-        # For open contests, only the creator and admins can see submissions details
-        if contest.status == "open":
-            # Require authentication for open contests
-            if current_user_id is None:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Not authenticated"
-                )
-            # Allow only contest creator or admin
-            user_repo = UserRepository(db)
-            is_admin_user = await user_repo.is_admin(current_user_id)
-            is_creator = contest.creator_id == current_user_id
-            if not (is_admin_user or is_creator):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Submissions are not visible to participants while the contest is open."
-                )
+    #     # For open contests, only the creator and admins can see submissions details
+    #     if contest.status == "open":
+    #         # Require authentication for open contests
+    #         if current_user_id is None:
+    #             raise HTTPException(
+    #                 status_code=status.HTTP_401_UNAUTHORIZED,
+    #                 detail="Not authenticated"
+    #             )
+    #         # Allow only contest creator or admin
+    #         user_repo = UserRepository(db)
+    #         is_admin_user = await user_repo.is_admin(current_user_id)
+    #         is_creator = contest.creator_id == current_user_id
+    #         if not (is_admin_user or is_creator):
+    #             raise HTTPException(
+    #                 status_code=status.HTTP_403_FORBIDDEN,
+    #                 detail="Submissions are not visible to participants while the contest is open."
+    #             )
         
-        # For evaluation or closed contests, anyone with access can see submissions
-        # No additional authentication needed beyond check_contest_access
-        return await ContestRepository.get_contest_texts(db=db, contest_id=contest_id)
+    #     # For evaluation or closed contests, anyone with access can see submissions
+    #     # No additional authentication needed beyond check_contest_access
+    #     return await ContestRepository.get_contest_texts(db=db, contest_id=contest_id)
     
     @staticmethod
     async def remove_submission(
@@ -712,7 +716,7 @@ class ContestService:
             
             # Construct the response dictionary for the current submission
             submission_data_dict = {
-                "submission_id": ct.id,
+                "id": ct.id,
                 "contest_id": ct.contest_id,
                 "text_id": text.id,
                 "submission_date": ct.submission_date,
@@ -727,6 +731,96 @@ class ContestService:
             results.append(ContestTextResponse.model_validate(submission_data_dict))
             
         return results
+
+    @classmethod
+    async def get_all_my_submissions(
+        cls, db: AsyncSession, current_user_id: int, skip: int = 0, limit: int = 100
+    ) -> List[ContestTextResponse]:
+        """
+        Retrieves all submissions made by the current_user_id across all contests,
+        ordered by submission date (most recent first).
+        """
+        stmt = (
+            select(
+                ContestText,  # The whole submission ORM object
+                TextModel,    # The whole text ORM object
+                UserModel     # The user ORM object for the owner
+            )
+            .join(TextModel, ContestText.text_id == TextModel.id)
+            .join(UserModel, TextModel.owner_id == UserModel.id)
+            .where(TextModel.owner_id == current_user_id)  # Filter by the text's owner
+            .order_by(ContestText.submission_date.desc())
+            .offset(skip)
+            .limit(limit)
+        )
+        
+        result = await db.execute(stmt)
+        raw_results = result.all()  # List of tuples: (ContestText_instance, TextModel_instance, UserModel_instance)
+
+        response_list = []
+        for ct_orm, text_orm, owner_orm in raw_results:
+            # Use the text's author field, which is user-provided text
+            author_name = text_orm.author
+            
+            response_item = ContestTextResponse(
+                id=ct_orm.id,
+                contest_id=ct_orm.contest_id,
+                text_id=ct_orm.text_id,
+                submission_date=ct_orm.submission_date,
+                title=text_orm.title,
+                content=text_orm.content,
+                author=author_name,
+                owner_id=text_orm.owner_id,
+                ranking=ct_orm.ranking,
+                evaluations=None
+            )
+            response_list.append(response_item)
+        
+        return response_list
+
+    @classmethod
+    async def get_my_submissions_for_contest(
+        cls, db: AsyncSession, contest_id: int, current_user_id: int
+    ) -> List[ContestTextResponse]:
+        """
+        Retrieves all submissions made by the current_user_id for the given contest_id.
+        """
+        stmt = (
+            select(
+                ContestText, # The whole submission ORM object (ContestText model)
+                TextModel,     # The whole text ORM object
+                UserModel      # The user ORM object for the owner
+            )
+            .join(TextModel, ContestText.text_id == TextModel.id)
+            .join(UserModel, TextModel.owner_id == UserModel.id) # Join to get owner details
+            .where(ContestText.contest_id == contest_id)
+            .where(TextModel.owner_id == current_user_id) # Filter by the text's owner, who is the current user
+            .order_by(ContestText.submission_date.desc())
+        )
+        
+        result = await db.execute(stmt)
+        raw_results = result.all() # List of tuples: (ContestText_instance, TextModel_instance, UserModel_instance)
+
+        response_list = []
+        for ct_orm, text_orm, owner_orm in raw_results:
+            # Use the text's author field, which is user-provided text
+            author_name = text_orm.author
+            
+            response_item = ContestTextResponse(
+                id=ct_orm.id, # This is submission_id
+                contest_id=ct_orm.contest_id,
+                text_id=ct_orm.text_id,
+                submission_date=ct_orm.submission_date,
+                title=text_orm.title,
+                content=text_orm.content,
+                author=author_name, # Use the actual author field from the text
+                owner_id=text_orm.owner_id,
+                ranking=ct_orm.ranking,
+                evaluations=None # Typically not shown in "my submissions" list
+            )
+            response_list.append(response_item)
+        
+        return response_list
 
     async def _compute_and_store_contest_results(db: AsyncSession, contest_id: int) -> None:
         """Computes scores and rankings for submissions in a contest and stores them."""

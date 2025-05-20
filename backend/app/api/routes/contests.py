@@ -58,6 +58,25 @@ async def get_contests(
     )
 
 
+@router.get("/my-submissions/", response_model=List[ContestTextResponse])
+async def get_all_my_submissions(
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user) # Requires authenticated user
+):
+    """
+    Get all text submissions made by the current authenticated user across all contests.
+    This endpoint provides a complete view of all the user's contest participation.
+    """
+    return await ContestService.get_all_my_submissions(
+        db=db,
+        current_user_id=current_user.id,
+        skip=skip,
+        limit=limit
+    )
+
+
 @router.get("/{contest_id}", response_model=ContestDetailResponse)
 async def get_contest(
     contest_id: int,
@@ -184,6 +203,31 @@ async def get_contest_submissions(
         current_user_id=user_id,
         password=password
     )
+
+
+@router.get("/{contest_id}/my-submissions/", response_model=List[ContestTextResponse])
+async def get_my_contest_submissions(
+    contest_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user) # Requires authenticated user
+):
+    """
+    Get all text submissions made by the current authenticated user for a specific contest.
+    This allows users to see their own submissions even in open contests where general
+    submission visibility is restricted to creators/admins.
+    """
+    # First, ensure the contest exists and the user could potentially access it.
+    # (Optional: A light check, or rely on contest_id being valid from prior navigation)
+    # For this focused endpoint, we primarily care about fetching user's own items.
+    # A more robust check_contest_access without password might be used if strictness is needed here too.
+    
+    # The main logic will be in the service layer
+    my_submissions = await ContestService.get_my_submissions_for_contest(
+        db=db,
+        contest_id=contest_id,
+        current_user_id=current_user.id
+    )
+    return my_submissions
 
 
 @router.delete("/{contest_id}/submissions/{submission_id}", status_code=status.HTTP_204_NO_CONTENT)

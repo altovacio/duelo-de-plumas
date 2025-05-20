@@ -1,12 +1,15 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { getContest, getContestSubmissions, getContestJudges, Contest as ContestServiceType } from '../../services/contestService';
+import * as contestService from '../../services/contestService';
 import TextSubmissionForm from '../../components/Contest/TextSubmissionForm';
 import HumanJudgingForm from '../../components/Contest/HumanJudgingForm';
 import AIJudgeExecutionForm from '../../components/Contest/AIJudgeExecutionForm';
 import ContestResults from '../../components/Contest/ContestResults';
-import { Text as TextType } from '../../services/textService';
+import { toast } from 'react-hot-toast';
+import MarkdownEditor from '../../components/MarkdownEditor';
+import TextSelectionModal from '../../components/TextSelectionModal';
+import JudgingForm from '../../components/Contest/JudgingForm';
 
 // Use the Contest type from the service, potentially extended if needed locally
 // For now, assume ContestServiceType is sufficient, but we need to handle 'creator' if it's different.
@@ -15,7 +18,7 @@ import { Text as TextType } from '../../services/textService';
 // We'll define a local type that reflects what this page *expects* getContest to return,
 // aligning fields with ContestServiceType where possible.
 
-interface ContestPageSpecificData extends Omit<ContestServiceType, 'creator_id' | 'updated_at' | 'is_private' | 'has_password' | 'min_votes_required'> {
+interface ContestPageSpecificData extends Omit<contestService.Contest, 'creator_id' | 'updated_at' | 'is_private' | 'has_password' | 'min_votes_required'> {
   full_description?: string; // Markdown content, specific to detail view
   creator: { // Assuming backend sends this nested object for this specific endpoint
     id: number;
@@ -59,7 +62,7 @@ const ContestDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const { isAuthenticated, user } = useAuth();
     const [contest, setContest] = useState<ContestPageSpecificData | null>(null);
-    const [texts, setTexts] = useState<ContestText[]>([]);
+    const [texts, setTexts] = useState<contestService.ContestText[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [password, setPassword] = useState<string>('');
     const [isPasswordCorrect, setIsPasswordCorrect] = useState<boolean>(false);
@@ -73,26 +76,36 @@ const ContestDetailPage: React.FC = () => {
     const [showJudgeModal, setShowJudgeModal] = useState<boolean>(false);
     const [showAIJudgeModal, setShowAIJudgeModal] = useState<boolean>(false);
     const [isJudge, setIsJudge] = useState<boolean>(false);
-    const [hasSubmitted, setHasSubmitted] = useState<boolean>(false);
     const [averageTextLength, setAverageTextLength] = useState<number>(1000); // Default estimate
 
-  const fetchContestDetails = async (attemptedPassword?: string) => {
-    console.log('v.2 fetchContestDetails called with attemptedPassword:', attemptedPassword !== undefined ? attemptedPassword : '(none)');
+    // New states for managing user's specific submissions and withdrawal process
+    const [userSubmissions, setUserSubmissions] = useState<contestService.ContestText[]>([]);
+    const [isProcessingWithdrawal, setIsProcessingWithdrawal] = useState<number | null>(null);
+
+    // New state for submission success message
+    const [submissionStatusMessage, setSubmissionStatusMessage] = useState<string | null>(null);
+
+  const fetchContestDetails = async (passwordAttemptFromForm?: string) => {
+    console.log('Fetching contest details');
     if (!id) {
-      console.log('v.2 fetchContestDetails: No ID, returning.');
       return;
     }
     setIsLoading(true);
+
+    // Determine which password to use for the API request
+    let passwordForApi: string | undefined = passwordAttemptFromForm;
+    if (passwordForApi === undefined && isPasswordCorrect) {
+      passwordForApi = password; 
+    }
+
     try {
-      const passwordToSend = attemptedPassword !== undefined ? attemptedPassword : (isPasswordCorrect ? password : undefined);
-      console.log('v.2 fetchContestDetails: Calling getContest with password:', passwordToSend !== undefined ? passwordToSend : '(none)');
-      const contestDataFromService = await getContest(parseInt(id), passwordToSend);
+      // Fetch main contest data
+      const contestDataFromService = await contestService.getContest(parseInt(id), passwordForApi);
       
+      // Format contest data for the page
       const contestDataForPage: ContestPageSpecificData = {
         ...contestDataFromService,
-        creator: contestDataFromService.creator_id 
-          ? { id: contestDataFromService.creator_id, username: 'Fetching...' } 
-          : (contestDataFromService as any).creator || { id: 0, username: 'Unknown' }, 
+        creator: contestDataFromService.creator || { id: contestDataFromService.creator_id, username: 'Unknown' }, 
         full_description: contestDataFromService.description, 
         last_modified: contestDataFromService.updated_at,
         type: contestDataFromService.is_private ? 'private' : 'public',
@@ -102,83 +115,137 @@ const ContestDetailPage: React.FC = () => {
         text_count: contestDataFromService.text_count || 0,
       };
       setContest(contestDataForPage);
-
-      if (passwordToSend || !contestDataForPage.is_password_protected) {
-        setIsPasswordCorrect(true); 
-      }
-      setShowPasswordModal(false);
       setPasswordError(null);
 
-      if (
-        contestDataForPage.status === 'evaluation' || 
-        contestDataForPage.status === 'closed' ||
-        (contestDataForPage.status === 'open' && contestDataForPage.creator.id === user?.id)
-      ) {
-        const submissionsData = await getContestSubmissions(parseInt(id), passwordToSend);
-        const formattedTexts: ContestText[] = submissionsData.map(submission => ({
-          id: submission.id,
-          title: submission.title,
-          content: submission.content,
-          author: submission.author ? { id: submission.author.id, username: submission.author.username } : undefined,
-          owner: submission.owner ? { id: submission.owner.id, username: submission.owner.username } : undefined,
-          created_at: submission.created_at,
-          updated_at: submission.updated_at || submission.created_at,
-        }));
-        setTexts(formattedTexts);
-        if (formattedTexts.length > 0) {
-          const totalLength = formattedTexts.reduce((sum, text) => sum + text.content.length, 0);
-          setAverageTextLength(Math.ceil(totalLength / formattedTexts.length));
+      // Determine if user has access to the contest
+      const isCreator = user?.id === contestDataForPage.creator.id;
+      let grantAccess = false;
+      let showPwModal = false;
+
+      if (isCreator) {
+        grantAccess = true;
+      } else if (!contestDataForPage.is_password_protected) {
+        grantAccess = true;
+      } else if (passwordForApi !== undefined) {
+        grantAccess = true;
+        if (passwordAttemptFromForm !== undefined && passwordAttemptFromForm !== password) {
+          setPassword(passwordAttemptFromForm);
         }
+      } else {
+        showPwModal = true;
       }
-      if (isAuthenticated && user) {
-        const judges = await getContestJudges(parseInt(id));
-        setIsJudge(judges.some(judge => judge.user_id === user.id));
-      }
-      if (isAuthenticated && user && contestDataForPage.status === 'open') {
-        setHasSubmitted(false);
+
+      setIsPasswordCorrect(grantAccess);
+      setShowPasswordModal(showPwModal);
+
+      // Reset state variables
+      setTexts([]);
+      setUserSubmissions([]);
+      setIsJudge(false);
+
+      if (grantAccess) {
+        let actualPasswordToUseForSubCalls: string | undefined = undefined;
+        if (contestDataForPage.is_password_protected) {
+          actualPasswordToUseForSubCalls = passwordForApi !== undefined ? passwordForApi : password;
+        }
+
+        // Attempt to fetch submissions if user is authenticated
+        if (isAuthenticated && user) {
+          try {
+            // Fetch current user's submissions regardless of contest status
+            const mySubmissionsData = await contestService.getContestMySubmissions(parseInt(id));
+            setUserSubmissions(mySubmissionsData);
+          } catch (error) {
+            console.warn('Failed to fetch user submissions:', error);
+            setUserSubmissions([]);
+          }
+
+          // Determine if the user can view ALL submissions
+          const canViewAllSubmissions =
+              (contestDataForPage.status === 'evaluation' || contestDataForPage.status === 'closed') ||
+              ((contestDataForPage.status === 'open' || contestDataForPage.status === 'evaluation') && isCreator);
+
+          if (canViewAllSubmissions) {
+            try {
+              const allSubmissionsData = await contestService.getContestSubmissions(parseInt(id), actualPasswordToUseForSubCalls);
+              setTexts(allSubmissionsData);
+              
+              if (allSubmissionsData.length > 0) {
+                const totalLength = allSubmissionsData.reduce((sum, text) => sum + text.content.length, 0);
+                setAverageTextLength(Math.ceil(totalLength / allSubmissionsData.length));
+              }
+            } catch (error) {
+              console.warn('Failed to fetch all submissions:', error);
+              setTexts([]);
+            }
+          } else {
+            setTexts([]);
+          }
+        } else {
+          setTexts([]);
+          setUserSubmissions([]);
+        }
+        
+        // Fetch judge status
+        if (isAuthenticated && user) {
+          try {
+            const judges = await contestService.getContestJudges(parseInt(id));
+            setIsJudge(judges.some(judge => judge.user_id === user.id));
+          } catch (error) {
+            console.warn('Failed to fetch contest judges:', error);
+            setIsJudge(false);
+          }
+        } else {
+          setIsJudge(false);
+        }
+      } else {
+        // Access not granted (password modal will be shown), clear sensitive secondary data
+        console.log('v.11 Access not granted, clearing submissions and judge status.');
+        setTexts([]);
+        setIsJudge(false);
+        setUserSubmissions([]); // Ensure cleared if access not granted
       }
 
     } catch (err: any) {
-      console.error('v.2 Error fetching contest details:', err);
+      console.error('v.11 Error fetching main contest details (likely from getContest):', err);
       const isAxiosError = err.isAxiosError !== undefined;
       const status = isAxiosError ? err.response?.status : null;
+      
+      setContest(null); 
+      setIsPasswordCorrect(false); // Definitely no access if main fetch failed
 
-      if (status === 403 && attemptedPassword === undefined && !isPasswordCorrect) {
-        console.log('v.2 Initial fetch 403, assuming private and prompting for password.');
-        setContest(null); 
+      if (status === 403) {
         setShowPasswordModal(true);
-        setIsPasswordCorrect(false);
-      } else if (status === 403 && attemptedPassword !== undefined) {
-        console.log('v.2 Password attempt 403. Incorrect password or access denied.');
-        setPasswordError('Incorrect password or access denied.');
-        setShowPasswordModal(true); 
-        setIsPasswordCorrect(false);
+        if (passwordAttemptFromForm !== undefined) {
+          setPasswordError('Incorrect password.');
+        } else {
+          setPasswordError('This contest requires a password or access is restricted.');
+        }
       } else if (status === 401) { 
-        console.log('v.2 Unauthorized (401) fetching contest details.');
         setPasswordError('You are not authorized to view this contest.');
+        setShowPasswordModal(false); // Not a password issue, but auth issue
       } else {
-        console.log('v.2 Generic error loading contest details.');
         setPasswordError('Failed to load contest details. Please try again.');
-        setContest(null);
+        setShowPasswordModal(false); // Generic error, hide password modal
       }
     } finally {
       setIsLoading(false);
-      console.log('v.2 fetchContestDetails finished.');
+      console.log('v.11 fetchContestDetails finished.');
     }
   };
 
   useEffect(() => {
-    console.log(`v.2 useEffect triggered. id: ${id}, fetchInitiatedForCurrentId: ${fetchInitiatedForCurrentId.current}, showPasswordModal: ${showPasswordModal}`);
+    console.log(`v.11 useEffect triggered. id: ${id}, fetchInitiatedForCurrentId: ${fetchInitiatedForCurrentId.current}, showPasswordModal: ${showPasswordModal}`);
     if (id && !fetchInitiatedForCurrentId.current && !showPasswordModal) {
-      console.log('v.2 useEffect: Conditions met. Setting fetchInitiatedForCurrentId to true and calling fetchContestDetails.');
+      console.log('v.11 useEffect: Conditions met. Calling fetchContestDetails (initial).');
       fetchInitiatedForCurrentId.current = true;
-      fetchContestDetails();
+      fetchContestDetails(undefined); // Initial call, no password attempt from form
     }
 
     const currentId = id;
     return () => {
       if (currentId !== id) {
-        console.log('v.2 useEffect cleanup: ID changed. Resetting fetchInitiatedForCurrentId and other states.');
+        console.log('v.11 useEffect cleanup: ID changed. Resetting fetchInitiatedForCurrentId and other states.');
         fetchInitiatedForCurrentId.current = false;
         setContest(null);
         setShowPasswordModal(false);
@@ -186,16 +253,16 @@ const ContestDetailPage: React.FC = () => {
         setPasswordError(null);
         setIsPasswordCorrect(false);
       } else {
-        console.log('v.2 useEffect cleanup: Same ID (StrictMode unmount). fetchInitiatedForCurrentId remains:', fetchInitiatedForCurrentId.current);
+        console.log('v.11 useEffect cleanup: Same ID (StrictMode unmount). fetchInitiatedForCurrentId remains:', fetchInitiatedForCurrentId.current);
       }
     };
   }, [id, showPasswordModal, user]);
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setPasswordError(null);
-    if (password) {
-      fetchContestDetails(password);
+    setPasswordError(null); 
+    if (password) { // `password` here is from the input field state
+      fetchContestDetails(password); // User is attempting with a password from the form
     } else {
       setPasswordError('Password cannot be empty.');
     }
@@ -211,7 +278,9 @@ const ContestDetailPage: React.FC = () => {
   
   const handleSubmissionSuccess = () => {
     setShowSubmitTextModal(false);
-    setHasSubmitted(true);
+    setSubmissionStatusMessage("Text submitted successfully!");
+    fetchContestDetails(password);
+    setTimeout(() => setSubmissionStatusMessage(null), 3000); // Clear message after 3 seconds
   };
   
   const handleJudge = () => {
@@ -233,6 +302,35 @@ const ContestDetailPage: React.FC = () => {
   const handleJudgingSuccess = () => {
     setShowJudgeModal(false);
     setShowAIJudgeModal(false);
+  };
+
+  // New function to handle text withdrawal
+  const handleWithdrawText = async (textId: number) => {
+    if (!contest) return;
+    const textToWithdraw = userSubmissions.find(sub => sub.id === textId);
+    if (!textToWithdraw) return;
+
+    // Optional: Add a confirmation step here if desired
+    if (!window.confirm(`Are you sure you want to withdraw "${textToWithdraw.title || 'this text'}"?`)) {
+      return;
+    }
+
+    setIsProcessingWithdrawal(textId);
+    try {
+      // Call the API to withdraw the text
+      await contestService.removeSubmissionFromContest(parseInt(id!), textId);
+      // After withdrawal, refresh only user submissions - not the entire contest details
+      // This avoids the 403 error when trying to fetch contest judges
+      const refreshedSubmissions = await contestService.getContestMySubmissions(parseInt(id!));
+      setUserSubmissions(refreshedSubmissions);
+      // Show success message
+      toast.success("Text withdrawn successfully");
+    } catch (error) {
+      console.error("Error withdrawing text:", error);
+      toast.error("Failed to withdraw text. Please try again.");
+    } finally {
+      setIsProcessingWithdrawal(null);
+    }
   };
 
   if (isLoading) {
@@ -360,28 +458,65 @@ const ContestDetailPage: React.FC = () => {
         <div className="bg-white p-6 rounded-lg shadow-sm mb-8">
           <h2 className="text-xl font-bold mb-4">Submit Your Entry</h2>
           
-          {isAuthenticated ? (
-            hasSubmitted ? (
-              <div>
-                <p className="mb-4">You have already submitted a text to this contest.</p>
-                <button
-                  onClick={() => setHasSubmitted(false)}
-                  className="text-red-600 hover:text-red-800 font-medium"
-                >
-                  Withdraw Submission
-                </button>
-              </div>
-            ) : (
-              <div>
-                <p className="mb-4">Ready to participate? Submit your text to this contest.</p>
-                <button 
-                  onClick={handleSubmitText}
-                  className="inline-block px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-                >
-                  Submit Text
-                </button>
-              </div>
-            )
+          {/* Submission Success Message */} 
+          {submissionStatusMessage && (
+            <div className="mb-4 p-3 bg-green-100 text-green-700 border border-green-200 rounded-md">
+              {submissionStatusMessage}
+            </div>
+          )}
+
+          {isAuthenticated && contest ? (
+            <div>
+              {/* List User's Current Submissions */} 
+              {userSubmissions.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-medium text-gray-700 mb-3">Your Submitted Texts:</h3>
+                  <ul className="space-y-3">
+                    {userSubmissions.map(sub => (
+                      <li key={sub.id} className="flex justify-between items-center p-3 bg-gray-50 border border-gray-200 rounded-md">
+                        <span className="text-gray-800">{sub.title || 'Untitled Submission'}</span>
+                        <button
+                          onClick={() => handleWithdrawText(sub.id)}
+                          className="text-sm font-medium text-red-600 hover:text-red-800 disabled:opacity-50 transition-opacity duration-150"
+                          disabled={isProcessingWithdrawal === sub.id}
+                        >
+                          {isProcessingWithdrawal === sub.id ? 'Withdrawing...' : 'Withdraw'}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Submit New Text Button/Message */} 
+              {(() => {
+                if (contest.author_restrictions && userSubmissions.length > 0) {
+                  // Single submission allowed, and user has already submitted.
+                  return <p className="text-gray-600">You have already submitted your entry for this contest. To submit a different text, please withdraw your current submission first.</p>;
+                } else {
+                  // Either multiple submissions allowed, or single submission allowed and user hasn't submitted yet.
+                  return (
+                    <div>
+                      <p className="mb-4 text-gray-600">
+                        {contest.author_restrictions 
+                          ? "Ready to participate? Submit your text to this contest."
+                          : (userSubmissions.length > 0 
+                              ? "This contest allows multiple submissions. Feel free to submit another text."
+                              : "Ready to participate? This contest allows multiple submissions."
+                            )
+                      }
+                      </p>
+                      <button 
+                        onClick={handleSubmitText}
+                        className="inline-block px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                      >
+                        Submit Text
+                      </button>
+                    </div>
+                  );
+                }
+              })()}
+            </div>
           ) : (
             <div>
               <p className="mb-4">You need to be logged in to submit a text to this contest.</p>
@@ -455,10 +590,10 @@ const ContestDetailPage: React.FC = () => {
                 id: text.id,
                 title: text.title,
                 content: text.content,
-                owner_id: text.owner?.id || text.author?.id || 0,
-                author: text.author?.username || (typeof text.author === 'string' ? text.author : 'Unknown'),
-                created_at: text.created_at,
-                updated_at: text.updated_at || text.created_at,
+                owner_id: text.owner_id || 0,
+                author: text.author?.username || (typeof text.author === 'string' ? text.author as string : 'Unknown'),
+                created_at: text.created_at || text.submission_date || '',
+                updated_at: text.updated_at || text.submission_date || '',
               }))} 
             />
           )}
@@ -488,10 +623,10 @@ const ContestDetailPage: React.FC = () => {
                 id: text.id,
                 title: text.title,
                 content: text.content,
-                owner_id: text.owner?.id || text.author?.id || 0,
-                author: text.author?.username || (typeof text.author === 'string' ? text.author : 'Unknown'),
-                created_at: text.created_at,
-                updated_at: text.updated_at || text.created_at,
+                owner_id: text.owner_id || 0,
+                author: text.author?.username || (typeof text.author === 'string' ? text.author as string : 'Unknown'),
+                created_at: text.created_at || text.submission_date || '',
+                updated_at: text.updated_at || text.submission_date || '',
               }))}
               onSuccess={handleJudgingSuccess}
               onCancel={() => setShowJudgeModal(false)}

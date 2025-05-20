@@ -4,8 +4,20 @@ This document lists known technical debt, areas for refactoring, and potential f
 
 ## TODO
 
-*
-  * **Credit summary in tests** Only points to the admin. Review
+Login revamp
+User can submitt many texts to a contest
+contest details display
+Arrows in view all in home are counterintuitive
+mobile responsiveness
+My contest section behaviour
+Front contest cards to display private/public
+assign judges
+contest creator stuck at fechting..
+Error going from open to closed directly
+
+Received no notification that submission was successful.
+Impossible to know which text has been submitted.
+unable to edit multiple submissions or judge aprticipating of a contest.
 
 ## Frontend
 
@@ -14,7 +26,7 @@ This document lists known technical debt, areas for refactoring, and potential f
   * **CSRF Protection**: Implement proper CSRF protection for API requests.
   * **Error Handling**: Improve error handling for authentication failures and API errors.
   * **API Types**: Ensure all API response types are properly typed for better type safety.
-  * **Token refresh mechanism**: Enhance token refresh logic with proper error handling and recovery strategies.
+  * **Token refresh mechanism**: Imlpement token refresh logic with proper error handling and recovery strategies.
 
 ## Backend
 

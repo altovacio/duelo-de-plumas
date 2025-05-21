@@ -143,23 +143,49 @@ const DashboardPage: React.FC = () => {
     setIsContestModalOpen(true);
   };
 
-  const handleContestSubmit = async (contestData: { 
+  const handleContestSubmit = async (contestDataFromForm: { 
     title: string; 
     description: string; 
     is_private: boolean;
     password?: string;
+    end_date?: string; 
+    judge_restrictions?: boolean;
+    author_restrictions?: boolean;
+    min_votes_required?: number;
+    status?: 'open' | 'evaluation' | 'closed';
   }) => {
     try {
       setIsLoading(true);
       if (isEditing && selectedContest) {
-        // Update existing contest
-        const updatedContest = await updateContest(selectedContest.id, contestData);
+        const { end_date, judge_restrictions, author_restrictions, ...restOfForm } = contestDataFromForm;
+        const dataToUpdate: Partial<Omit<ContestType, 'id' | 'creator_id' | 'created_at' | 'updated_at' | 'participant_count' | 'text_count' | 'has_password'>> = {
+          ...restOfForm,
+          end_date: end_date === undefined || end_date === '' ? null : end_date,
+          judge_restrictions: judge_restrictions === undefined ? false : judge_restrictions,
+          author_restrictions: author_restrictions === undefined ? false : author_restrictions,
+        };
+
+        if (dataToUpdate.status === undefined && selectedContest.status) {
+            dataToUpdate.status = selectedContest.status;
+        }
+
+        const updatedContest = await updateContest(selectedContest.id, dataToUpdate as Omit<ContestType, 'id' | 'creator_id' | 'created_at' | 'updated_at' | 'participant_count' | 'text_count' | 'has_password'>);
         setContestsData(contestsData.map(contest => 
           contest.id === updatedContest.id ? updatedContest : contest
         ));
       } else {
-        // Create new contest
-        const newContest = await createContest(contestData);
+        const { end_date, judge_restrictions, author_restrictions, ...restOfCreationForm } = contestDataFromForm;
+        const creationData: Partial<Omit<ContestType, 'id' | 'creator_id' | 'created_at' | 'updated_at' | 'participant_count' | 'text_count' | 'has_password' | 'status'>> & { status?: 'open' | 'evaluation' | 'closed' } = {
+            ...restOfCreationForm,
+            end_date: end_date === undefined || end_date === '' ? null : end_date,
+            judge_restrictions: judge_restrictions === undefined ? false : judge_restrictions,
+            author_restrictions: author_restrictions === undefined ? false : author_restrictions,
+        };
+        if (contestDataFromForm.status) {
+            creationData.status = contestDataFromForm.status;
+        }
+
+        const newContest = await createContest(creationData as any);
         setContestsData([...contestsData, newContest]);
       }
       setIsLoading(false);
@@ -757,22 +783,27 @@ const DashboardPage: React.FC = () => {
           title: selectedContest.title,
           description: selectedContest.description,
           is_private: selectedContest.is_private,
-          password: selectedContest.password || undefined
+          password: selectedContest.password || undefined,
+          end_date: selectedContest.end_date || undefined,
+          judge_restrictions: selectedContest.judge_restrictions,
+          author_restrictions: selectedContest.author_restrictions,
+          min_votes_required: selectedContest.min_votes_required,
+          status: selectedContest.status,
         } : undefined}
         isEditing={isEditing}
       />
 
-      {/* Agent Form Modal */}
+      {/* Agent Form Modal - Reverting to original props to avoid cascading errors, AgentFormModal.tsx needs type review separately */}
       <AgentFormModal
         isOpen={isAgentModalOpen}
         onClose={() => setIsAgentModalOpen(false)}
-        onSubmit={handleAgentSubmit}
+        onSubmit={handleAgentSubmit} // Reverted
         initialAgent={selectedAgent ? {
           name: selectedAgent.name,
           description: selectedAgent.description,
           type: selectedAgent.type,
           prompt: selectedAgent.prompt,
-          model: selectedAgent.model,
+          model: selectedAgent.model, // Reverted - will cause original linter error, but less disruptive now
           is_public: selectedAgent.is_public
         } : undefined}
         isEditing={isEditing}

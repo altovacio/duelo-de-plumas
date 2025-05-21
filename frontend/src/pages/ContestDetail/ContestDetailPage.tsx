@@ -82,6 +82,9 @@ const ContestDetailPage: React.FC = () => {
     const [userSubmissions, setUserSubmissions] = useState<contestService.ContestText[]>([]);
     const [isProcessingWithdrawal, setIsProcessingWithdrawal] = useState<number | null>(null);
 
+    // New state for admin/creator withdrawal processing
+    const [isProcessingAdminWithdrawal, setIsProcessingAdminWithdrawal] = useState<number | null>(null);
+
     // New state for submission success message
     const [submissionStatusMessage, setSubmissionStatusMessage] = useState<string | null>(null);
 
@@ -307,7 +310,7 @@ const ContestDetailPage: React.FC = () => {
 
   // New function to handle text withdrawal
   const handleWithdrawText = async (textId: number) => {
-    if (!contest) return;
+    if (!contest || !id) return; // Ensure id is string for parseInt
     const textToWithdraw = userSubmissions.find(sub => sub.id === textId);
     if (!textToWithdraw) return;
 
@@ -319,18 +322,45 @@ const ContestDetailPage: React.FC = () => {
     setIsProcessingWithdrawal(textId);
     try {
       // Call the API to withdraw the text
-      await contestService.removeSubmissionFromContest(parseInt(id!), textId);
-      // After withdrawal, refresh only user submissions - not the entire contest details
-      // This avoids the 403 error when trying to fetch contest judges
-      const refreshedSubmissions = await contestService.getContestMySubmissions(parseInt(id!));
+      await contestService.removeSubmissionFromContest(parseInt(id), textId); // Ensure id is parsed
+      // After withdrawal, refresh only user submissions
+      const refreshedSubmissions = await contestService.getContestMySubmissions(parseInt(id)); // Ensure id is parsed
       setUserSubmissions(refreshedSubmissions);
-      // Show success message
+      // Also refresh all texts if they are currently displayed (e.g. if admin withdrew their own text during evaluation)
+      if (texts.some(t => t.id === textId)) {
+        fetchContestDetails(password); 
+      }
       toast.success("Text withdrawn successfully");
     } catch (error) {
       console.error("Error withdrawing text:", error);
       toast.error("Failed to withdraw text. Please try again.");
     } finally {
       setIsProcessingWithdrawal(null);
+    }
+  };
+
+  // New function for admin/creator to withdraw any text
+  const handleAdminWithdrawText = async (textId: number) => {
+    if (!contest || !id || (!user?.is_admin && user?.id !== contest.creator.id)) return;
+
+    const textToWithdraw = texts.find(sub => sub.id === textId);
+    if (!textToWithdraw) return;
+
+    if (!window.confirm(`ADMIN ACTION: Are you sure you want to withdraw "${textToWithdraw.title || 'this text'} by user ${textToWithdraw.author?.username || 'Unknown'}?`)) {
+      return;
+    }
+
+    setIsProcessingAdminWithdrawal(textId);
+    try {
+      await contestService.removeSubmissionFromContest(parseInt(id), textId);
+      toast.success("Text withdrawn successfully by admin/creator.");
+      // Refresh contest details to update the list of all texts
+      fetchContestDetails(password); 
+    } catch (error) {
+      console.error("Error withdrawing text by admin/creator:", error);
+      toast.error("Failed to withdraw text. Please try again.");
+    } finally {
+      setIsProcessingAdminWithdrawal(null);
     }
   };
 
@@ -566,7 +596,19 @@ const ContestDetailPage: React.FC = () => {
               <div className="space-y-6">
                 {texts.map((text) => (
                   <div key={text.id} className="border-b pb-6 last:border-b-0">
-                    <h3 className="text-lg font-semibold mb-2">{text.title}</h3>
+                    <div className="flex justify-between items-start">
+                      <h3 className="text-lg font-semibold mb-2">{text.title}</h3>
+                      {(user?.is_admin || user?.id === contest?.creator.id) && contest.status === 'evaluation' && (
+                        <button
+                          onClick={() => handleAdminWithdrawText(text.id)}
+                          className="ml-4 text-sm font-medium text-red-600 hover:text-red-800 disabled:opacity-50 transition-opacity duration-150"
+                          disabled={isProcessingAdminWithdrawal === text.id}
+                        >
+                          {isProcessingAdminWithdrawal === text.id ? 'Withdrawing...' : 'Withdraw (Admin)'}
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 mb-1">Submitted by: {text.author?.username || 'Anonymous'}</p>
                     <div className="prose prose-sm max-w-none">
                       <pre className="whitespace-pre-wrap bg-gray-50 p-4 rounded">{text.content}</pre>
                     </div>

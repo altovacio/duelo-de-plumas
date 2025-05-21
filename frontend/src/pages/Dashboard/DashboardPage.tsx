@@ -504,6 +504,15 @@ const DashboardPage: React.FC = () => {
                               Edit
                             </button>
                             <button 
+                              onClick={() => {
+                                console.log(`Placeholder: View submissions for contest ID: ${contest.id}, Title: ${contest.title}`);
+                                // Later, this will navigate to: navigate(`/dashboard/contests/${contest.id}/submissions`);
+                              }}
+                              className="text-green-600 hover:text-green-900 mr-3"
+                            >
+                              View Submissions
+                            </button>
+                            <button 
                               onClick={() => handleDeleteContest(contest.id)}
                               className="text-red-600 hover:text-red-900"
                             >

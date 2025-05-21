@@ -7,9 +7,9 @@ import HumanJudgingForm from '../../components/Contest/HumanJudgingForm';
 import AIJudgeExecutionForm from '../../components/Contest/AIJudgeExecutionForm';
 import ContestResults from '../../components/Contest/ContestResults';
 import { toast } from 'react-hot-toast';
-import MarkdownEditor from '../../components/MarkdownEditor';
-import TextSelectionModal from '../../components/TextSelectionModal';
-import JudgingForm from '../../components/Contest/JudgingForm';
+// import MarkdownEditor from '../../components/MarkdownEditor'; // Commented out - not yet developed
+// import TextSelectionModal from '../../components/TextSelectionModal'; // Commented out - not yet developed
+// import JudgingForm from '../../components/Contest/JudgingForm'; // Commented out - not yet developed
 
 // Use the Contest type from the service, potentially extended if needed locally
 // For now, assume ContestServiceType is sufficient, but we need to handle 'creator' if it's different.
@@ -104,6 +104,7 @@ const ContestDetailPage: React.FC = () => {
     try {
       // Fetch main contest data
       const contestDataFromService = await contestService.getContest(parseInt(id), passwordForApi);
+      console.log('API Response for getContest (contestDataFromService):', JSON.stringify(contestDataFromService, null, 2)); // Log the raw service response
       
       // Format contest data for the page
       const contestDataForPage: ContestPageSpecificData = {
@@ -120,8 +121,12 @@ const ContestDetailPage: React.FC = () => {
       setContest(contestDataForPage);
       setPasswordError(null);
 
+      // Log the user object from useAuth() at the time of check
+      console.log('User object from useAuth():', JSON.stringify(user, null, 2));
+
       // Determine if user has access to the contest
       const isCreator = user?.id === contestDataForPage.creator.id;
+      console.log(`Determining isCreator: user?.id (${user?.id}) === contestDataForPage.creator.id (${contestDataForPage.creator.id}). Result: ${isCreator}`);
       const isAdmin = user?.is_admin;
       let grantAccess = false;
       let showPwModal = false;
@@ -165,13 +170,19 @@ const ContestDetailPage: React.FC = () => {
           }
 
           // Determine if the user can view ALL submissions
-          const canViewAllSubmissions =
-              (contestDataForPage.status === 'evaluation' || contestDataForPage.status === 'closed') ||
-              ((contestDataForPage.status === 'open' || contestDataForPage.status === 'evaluation') && isCreator);
+          // This flag determines if we fetch the `texts` array (all submissions).
+          // Creators will manage all submissions via the dashboard for 'open' contests.
+          // For 'evaluation' or 'closed' contests, all submissions are typically viewable by participants/public.
+          const canViewAllSubmissions = 
+              contestDataForPage.status === 'evaluation' || contestDataForPage.status === 'closed';
+
+          console.log(`Value of canViewAllSubmissions: ${canViewAllSubmissions}, Status: ${contestDataForPage.status}, isCreator: ${isCreator}`);
 
           if (canViewAllSubmissions) {
             try {
+              console.log(`Attempting to fetch all submissions for contest ${id}`); // Log before API call
               const allSubmissionsData = await contestService.getContestSubmissions(parseInt(id), actualPasswordToUseForSubCalls);
+              console.log('API Response for getContestSubmissions (allSubmissionsData):', JSON.stringify(allSubmissionsData, null, 2)); // Log the response
               setTexts(allSubmissionsData);
               
               if (allSubmissionsData.length > 0) {
@@ -428,7 +439,20 @@ const ContestDetailPage: React.FC = () => {
       <div className="mb-8">
         <div className="flex justify-between items-start mb-2">
           <h1 className="text-3xl font-bold">{contest.title}</h1>
-          <div className="flex space-x-2">
+          <div className="flex items-center space-x-2">
+            {(user?.is_admin || user?.id === contest?.creator.id) && (
+              <Link 
+                to={`/dashboard`}
+                onClick={() => {
+                  // Optional: If dashboard can highlight/scroll to the contest tab or specific contest, add logic here or via state/URL params.
+                  // For now, just navigates to the main dashboard.
+                  // Consider using navigate hook if more complex state passing is needed upon navigation.
+                }}
+                className="px-3 py-1.5 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+              >
+                Manage Contest in Dashboard
+              </Link>
+            )}
             <div 
               className={`text-xs px-2 py-1 rounded-full ${
                 contest.type === 'public' 

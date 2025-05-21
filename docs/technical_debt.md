@@ -14,8 +14,6 @@ assign judges
 contest creator stuck at fechting..
 Error going from open to closed directly
 
-unable to edit multiple submissions or judge aprticipating of a contest.
-
 ## Frontend
 
 * **Security Improvements**:

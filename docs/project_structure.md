@@ -137,8 +137,10 @@ duelo-de-plumas/
 │   │   ├── components/         # Reusable UI components
 │   │   │   ├── Layout/         # App-level layout (Header, Footer, MainLayout)
 │   │   │   ├── auth/           # Authentication related components (e.g., ProtectedRoute)
-│   │   │   ├── ContestCard/    # Contest preview cards
-│   │   │   ├── TextEditor/     # Markdown editor component
+│   │   │   ├── Contest/        # Contest specific components (e.g. ContestCard, TextSubmissionForm, HumanJudgingForm, AIJudgeExecutionForm, ContestResults, JudgingForm (planned))
+│   │   │   ├── TextEditor/     # Markdown editor component for text input (e.g. wrapper for react-md-editor)
+│   │   │   ├── MarkdownEditor/ # Generic Markdown rendering component (planned, distinct from TextEditor for input)
+│   │   │   ├── TextSelectionModal/ # Modal for selecting texts (planned)
 │   │   │   └── AgentControls/  # UI for running AI agents (judge/writer)
 │   │   │
 │   │   ├── pages/              # Page components (views)

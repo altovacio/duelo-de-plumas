@@ -84,7 +84,7 @@ This document outlines the major frontend development tasks for Duelo de Plumas 
         *   Implement form with text selection (from user's texts) or creation of new text
         *   Integration with `POST /contests/{contest_id}/submissions/` endpoint
         *   Handle password requirement for private contests
-    *   [ ] Handle submission restrictions.
+    *   [x] Handle submission restrictions.
         *   Check contest status (must be "open")
         *   Implement validation for text length and format requirements
         *   Show appropriate error messages for submission failures

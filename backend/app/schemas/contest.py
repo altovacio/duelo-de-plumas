@@ -33,22 +33,22 @@ class ContestUpdate(BaseModel):
 
 # For assigning judges to contests
 class JudgeAssignment(BaseModel):
-    user_id: Optional[int] = None
-    agent_id: Optional[int] = None
+    user_judge_id: Optional[int] = None
+    agent_judge_id: Optional[int] = None
 
     @model_validator(mode='after')
     def check_exactly_one_id_provided(cls, data):
-        if (data.user_id is not None and data.agent_id is not None) or \
-           (data.user_id is None and data.agent_id is None):
-            raise ValueError('Exactly one of user_id or agent_id must be provided.')
+        if (data.user_judge_id is not None and data.agent_judge_id is not None) or \
+           (data.user_judge_id is None and data.agent_judge_id is None):
+            raise ValueError('Exactly one of user_judge_id or agent_judge_id must be provided.')
         return data
 
 
 class JudgeAssignmentResponse(BaseModel):
     id: int
     contest_id: int
-    user_id: Optional[int] = None
-    agent_id: Optional[int] = None
+    user_judge_id: Optional[int] = None
+    agent_judge_id: Optional[int] = None
     assignment_date: datetime
     has_voted: Optional[bool] = None
     

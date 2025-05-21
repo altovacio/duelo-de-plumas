@@ -77,6 +77,8 @@ const ContestDetailPage: React.FC = () => {
     const [showAIJudgeModal, setShowAIJudgeModal] = useState<boolean>(false);
     const [isJudge, setIsJudge] = useState<boolean>(false);
     const [averageTextLength, setAverageTextLength] = useState<number>(1000); // Default estimate
+    const [showFullTextModal, setShowFullTextModal] = useState<boolean>(false);
+    const [selectedTextForModal, setSelectedTextForModal] = useState<contestService.ContestText | null>(null);
 
     // New states for managing user's specific submissions and withdrawal process
     const [userSubmissions, setUserSubmissions] = useState<contestService.ContestText[]>([]);
@@ -205,7 +207,7 @@ const ContestDetailPage: React.FC = () => {
         if (isAuthenticated && user) {
           try {
             const judges = await contestService.getContestJudges(parseInt(id));
-            setIsJudge(judges.some(judge => judge.user_id === user.id));
+            setIsJudge(judges.some(judge => judge.user_judge_id === user.id));
           } catch (error) {
             console.warn('Failed to fetch contest judges:', error);
             setIsJudge(false);
@@ -219,6 +221,11 @@ const ContestDetailPage: React.FC = () => {
         setTexts([]);
         setIsJudge(false);
         setUserSubmissions([]); // Ensure cleared if access not granted
+      }
+
+      // Add this at the end of the fetchContestDetails function, right before the final setIsLoading(false)
+      if (grantAccess && contestDataForPage.status === 'evaluation') {
+        await fetchJudgeStatus(parseInt(id));
       }
 
     } catch (err: any) {
@@ -246,6 +253,35 @@ const ContestDetailPage: React.FC = () => {
     } finally {
       setIsLoading(false);
       console.log('v.11 fetchContestDetails finished.');
+    }
+  };
+
+  // Update the fetchJudgeStatus function to use user_judge_id
+  const fetchJudgeStatus = async (contestId: number) => {
+    if (!isAuthenticated || !user) {
+      setIsJudge(false);
+      return;
+    }
+
+    try {
+      // Fetch contest judges to check if current user is a judge
+      const judges = await contestService.getContestJudges(contestId);
+      const userIsJudge = judges.some(judge => judge.user_judge_id === user.id);
+      
+      // Also consider creators as judges by default
+      const isCreator = contest && user.id === contest.creator.id;
+      
+      setIsJudge(userIsJudge || isCreator || user.is_admin);
+      
+      console.log(`Judge status for contest ${contestId}:`, { 
+        userIsJudge, 
+        isCreator: isCreator || false, 
+        isAdmin: user.is_admin || false,
+        finalStatus: userIsJudge || isCreator || user.is_admin
+      });
+    } catch (err) {
+      console.error('Error checking judge status:', err);
+      // Don't set error state, just log the error to not disrupt the user experience
     }
   };
 
@@ -350,6 +386,25 @@ const ContestDetailPage: React.FC = () => {
     }
   };
 
+  // Helper function to get preview of text content
+  const getTextPreview = (content: string) => {
+    const maxLength = 200;
+    if (content.length <= maxLength) return content;
+    return content.substring(0, maxLength) + '...';
+  };
+  
+  // Function to open the full text modal
+  const openFullTextModal = (text: contestService.ContestText) => {
+    setSelectedTextForModal(text);
+    setShowFullTextModal(true);
+  };
+  
+  // Function to close the full text modal
+  const closeFullTextModal = () => {
+    setSelectedTextForModal(null);
+    setShowFullTextModal(false);
+  };
+
   // New function for admin/creator to withdraw any text
   const handleAdminWithdrawText = async (textId: number) => {
     if (!contest || !id || (!user?.is_admin && user?.id !== contest.creator.id)) return;
@@ -372,6 +427,35 @@ const ContestDetailPage: React.FC = () => {
       toast.error("Failed to withdraw text. Please try again.");
     } finally {
       setIsProcessingAdminWithdrawal(null);
+    }
+  };
+
+  // Update the handleVolunteerAsJudge function to use user_judge_id
+  const handleVolunteerAsJudge = async () => {
+    if (!isAuthenticated || !user || !contest) {
+      return;
+    }
+    
+    try {
+      setIsFetching(true);
+      // Call the API to add the current user as a judge with the correct field name
+      await contestService.assignJudgeToContest(contest.id, { user_id: user.id });
+      toast.success('You have been added as a judge for this contest.');
+      
+      // Update the judge status to reflect the change
+      setIsJudge(true);
+    } catch (err: any) {
+      console.error('Error volunteering as judge:', err);
+      
+      // Check if it's a 409 conflict error (already a judge)
+      if (err.response && err.response.status === 409) {
+        toast.success('You are already a judge for this contest.');
+        setIsJudge(true); // Update UI since they are actually a judge
+      } else {
+        toast.error('Failed to register as a judge. Please try again.');
+      }
+    } finally {
+      setIsFetching(false);
     }
   };
 
@@ -599,7 +683,7 @@ const ContestDetailPage: React.FC = () => {
                   This contest is currently being evaluated by judges. Results will be available once the evaluation phase is complete.
                 </p>
                 
-                {isJudge && (
+                {isJudge || (isAuthenticated && user?.id === contest?.creator.id) ? (
                   <div className="mt-6 flex flex-col sm:flex-row sm:space-x-4 space-y-3 sm:space-y-0">
                     <button
                       onClick={handleJudge}
@@ -613,6 +697,33 @@ const ContestDetailPage: React.FC = () => {
                     >
                       Use AI Judge
                     </button>
+                  </div>
+                ) : isAuthenticated ? (
+                  <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md text-yellow-700">
+                    {!contest.judge_restrictions ? (
+                      <div>
+                        <p className="mb-3">This contest allows volunteers to judge the submissions.</p>
+                        <button
+                          onClick={handleVolunteerAsJudge}
+                          disabled={isFetching}
+                          className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:opacity-50"
+                        >
+                          {isFetching ? 'Processing...' : 'Volunteer as Judge'}
+                        </button>
+                      </div>
+                    ) : (
+                      <p>You are not assigned as a judge for this contest. Only assigned judges can submit evaluations.</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-md text-gray-700">
+                    <p>You need to be logged in and assigned as a judge to evaluate submissions.</p>
+                    <Link
+                      to="/login"
+                      className="inline-block mt-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                    >
+                      Login to Continue
+                    </Link>
                   </div>
                 )}
               </div>
@@ -634,7 +745,16 @@ const ContestDetailPage: React.FC = () => {
                     </div>
                     <p className="text-xs text-gray-500 mb-1">Submitted by: {text.author?.username || 'Anonymous'}</p>
                     <div className="prose prose-sm max-w-none">
-                      <pre className="whitespace-pre-wrap bg-gray-50 p-4 rounded">{text.content}</pre>
+                      <pre className="whitespace-pre-wrap bg-gray-50 p-4 rounded">
+                        {getTextPreview(text.content)}
+                      </pre>
+                      <button
+                        type="button"
+                        onClick={() => openFullTextModal(text)}
+                        className="mt-2 text-sm text-indigo-600 hover:text-indigo-800"
+                      >
+                        Show Full Content
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -712,6 +832,45 @@ const ContestDetailPage: React.FC = () => {
               onSuccess={handleJudgingSuccess}
               onCancel={() => setShowAIJudgeModal(false)}
             />
+          </div>
+        </div>
+      )}
+      
+      {/* Full Text Modal */}
+      {showFullTextModal && selectedTextForModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full h-[80vh] flex flex-col">
+            {/* Modal header */}
+            <div className="px-6 py-4 border-b flex justify-between items-center">
+              <h3 className="text-xl font-bold">
+                {selectedTextForModal.title || 'Text Content'}
+              </h3>
+              <button 
+                onClick={closeFullTextModal}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* Modal content */}
+            <div className="px-6 py-4 overflow-y-auto flex-grow">
+              <pre className="whitespace-pre-wrap bg-gray-50 p-4 rounded text-base">
+                {selectedTextForModal.content}
+              </pre>
+            </div>
+            
+            {/* Modal footer */}
+            <div className="px-6 py-4 border-t">
+              <button
+                onClick={closeFullTextModal}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

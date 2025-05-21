@@ -139,6 +139,13 @@ if __name__ == "__main__":
             content="This is the sequel to the first text written by user1.",
             author="user1-pseudonym" # Assuming author is username, adjust if schema differs
         )
+        for i in range(10):
+            create_text_api(
+                user1_token,
+                title=f"User1's Text {i+1} in a cycle",
+                content=f"This is the {i+1}th text written by user1. "*50,
+                author="user1-pseudonym" # Assuming author is username, adjust if schema differs
+            )
     if user2_token:
         create_text_api(
             user2_token,

@@ -23,6 +23,9 @@ const HumanJudgingForm: React.FC<HumanJudgingFormProps> = ({
   // State for storing comments
   const [comments, setComments] = useState<Record<number, string>>({});
   
+  // State for tracking currently displayed full text (modal)
+  const [fullTextModalId, setFullTextModalId] = useState<number | null>(null);
+  
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -65,6 +68,23 @@ const HumanJudgingForm: React.FC<HumanJudgingFormProps> = ({
       ...comments,
       [textId]: comment
     });
+  };
+  
+  // Open full text modal
+  const openFullTextModal = (textId: number) => {
+    setFullTextModalId(textId);
+  };
+  
+  // Close full text modal
+  const closeFullTextModal = () => {
+    setFullTextModalId(null);
+  };
+  
+  // Get a preview of the text (first 200 characters)
+  const getTextPreview = (content: string) => {
+    const maxLength = 200;
+    if (content.length <= maxLength) return content;
+    return content.substring(0, maxLength) + '...';
   };
   
   // Check if we have valid selections
@@ -168,7 +188,17 @@ const HumanJudgingForm: React.FC<HumanJudgingFormProps> = ({
               <h3 className="text-lg font-semibold mb-2">{text.title}</h3>
               
               <div className="prose prose-sm max-w-none mb-4">
-                <pre className="whitespace-pre-wrap bg-gray-50 p-4 rounded">{text.content}</pre>
+                <pre className="whitespace-pre-wrap bg-gray-50 p-4 rounded">
+                  {getTextPreview(text.content)}
+                </pre>
+                
+                <button
+                  type="button"
+                  onClick={() => openFullTextModal(text.id)}
+                  className="mt-2 text-sm text-indigo-600 hover:text-indigo-800"
+                >
+                  Show Full Content
+                </button>
               </div>
               
               <div className="mb-4">
@@ -250,6 +280,45 @@ const HumanJudgingForm: React.FC<HumanJudgingFormProps> = ({
           </button>
         </div>
       </form>
+      
+      {/* Full Text Modal */}
+      {fullTextModalId !== null && (
+        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full h-[80vh] flex flex-col">
+            {/* Modal header */}
+            <div className="px-6 py-4 border-b flex justify-between items-center">
+              <h3 className="text-xl font-bold">
+                {texts.find(t => t.id === fullTextModalId)?.title || 'Text Content'}
+              </h3>
+              <button 
+                onClick={closeFullTextModal}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* Modal content */}
+            <div className="px-6 py-4 overflow-y-auto flex-grow">
+              <pre className="whitespace-pre-wrap bg-gray-50 p-4 rounded text-base">
+                {texts.find(t => t.id === fullTextModalId)?.content}
+              </pre>
+            </div>
+            
+            {/* Modal footer */}
+            <div className="px-6 py-4 border-t">
+              <button
+                onClick={closeFullTextModal}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

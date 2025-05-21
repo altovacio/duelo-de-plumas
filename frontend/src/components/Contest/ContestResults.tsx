@@ -12,6 +12,12 @@ interface TextWithScore extends Text {
   votes: Vote[];
 }
 
+interface JudgeInfo {
+  id: number;
+  name: string;
+  isAI: boolean;
+}
+
 const ContestResults: React.FC<ContestResultsProps> = ({
   contestId,
   texts
@@ -20,7 +26,9 @@ const ContestResults: React.FC<ContestResultsProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeJudgeFilter, setActiveJudgeFilter] = useState<number | 'all'>('all');
-  const [judges, setJudges] = useState<{id: number, name: string, isAI: boolean}[]>([]);
+  const [judges, setJudges] = useState<JudgeInfo[]>([]);
+  const [activeJudgeType, setActiveJudgeType] = useState<'all' | 'human' | 'ai'>('all');
+  const [expandedTextId, setExpandedTextId] = useState<number | null>(null);
   
   useEffect(() => {
     const fetchVotes = async () => {
@@ -30,12 +38,12 @@ const ContestResults: React.FC<ContestResultsProps> = ({
         setVotes(votesData);
         
         // Extract unique judges from votes
-        const uniqueJudges = new Map();
+        const uniqueJudges = new Map<number, JudgeInfo>();
         votesData.forEach(vote => {
           if (!uniqueJudges.has(vote.judge_id)) {
             uniqueJudges.set(vote.judge_id, {
               id: vote.judge_id,
-              name: `Judge ${vote.judge_id}`, // Would come from API
+              name: `Judge ${vote.judge_id}`,
               isAI: vote.judge_type === 'ai'
             });
           }
@@ -55,10 +63,20 @@ const ContestResults: React.FC<ContestResultsProps> = ({
   
   // Calculate rankings based on votes
   const calculateRankings = (): TextWithScore[] => {
-    // Filter votes if a specific judge is selected
-    const filteredVotes = activeJudgeFilter === 'all' 
-      ? votes
-      : votes.filter(vote => vote.judge_id === activeJudgeFilter);
+    // Filter votes by judge type
+    let filteredVotes = votes;
+    
+    if (activeJudgeType !== 'all') {
+      filteredVotes = votes.filter(vote => 
+        (activeJudgeType === 'ai' && vote.judge_type === 'ai') ||
+        (activeJudgeType === 'human' && vote.judge_type !== 'ai')
+      );
+    }
+    
+    // Further filter by specific judge if selected
+    if (activeJudgeFilter !== 'all') {
+      filteredVotes = filteredVotes.filter(vote => vote.judge_id === activeJudgeFilter);
+    }
     
     // Map to track scores for each text
     const textScores = new Map<number, { score: number, votes: Vote[] }>();
@@ -88,6 +106,10 @@ const ContestResults: React.FC<ContestResultsProps> = ({
     })).sort((a, b) => b.score - a.score); // Sort by score, highest first
   };
   
+  const toggleExpandedText = (textId: number) => {
+    setExpandedTextId(expandedTextId === textId ? null : textId);
+  };
+  
   const rankedTexts = calculateRankings();
   
   if (isLoading) {
@@ -110,41 +132,86 @@ const ContestResults: React.FC<ContestResultsProps> = ({
     <div className="bg-white rounded-lg shadow p-6">
       <h2 className="text-xl font-bold mb-4">Contest Results</h2>
       
-      {/* Judges filter */}
-      <div className="mb-6">
-        <h3 className="text-md font-medium mb-2">Filter by Judge</h3>
+      {/* Judge type filter */}
+      <div className="mb-4">
+        <h3 className="text-md font-medium mb-2">Judge Type</h3>
         <div className="flex flex-wrap gap-2">
           <button
-            onClick={() => setActiveJudgeFilter('all')}
+            onClick={() => setActiveJudgeType('all')}
             className={`px-3 py-1 rounded-full ${
-              activeJudgeFilter === 'all'
+              activeJudgeType === 'all'
                 ? 'bg-indigo-600 text-white'
                 : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
             }`}
           >
             All Judges
           </button>
-          
-          {judges.map(judge => (
+          <button
+            onClick={() => setActiveJudgeType('human')}
+            className={`px-3 py-1 rounded-full ${
+              activeJudgeType === 'human'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+            }`}
+          >
+            Human Judges
+          </button>
+          <button
+            onClick={() => setActiveJudgeType('ai')}
+            className={`px-3 py-1 rounded-full ${
+              activeJudgeType === 'ai'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+            }`}
+          >
+            AI Judges
+          </button>
+        </div>
+      </div>
+      
+      {/* Specific judge filter */}
+      {judges.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-md font-medium mb-2">Filter by Judge</h3>
+          <div className="flex flex-wrap gap-2">
             <button
-              key={judge.id}
-              onClick={() => setActiveJudgeFilter(judge.id)}
-              className={`px-3 py-1 rounded-full flex items-center ${
-                activeJudgeFilter === judge.id
+              onClick={() => setActiveJudgeFilter('all')}
+              className={`px-3 py-1 rounded-full ${
+                activeJudgeFilter === 'all'
                   ? 'bg-indigo-600 text-white'
                   : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
               }`}
             >
-              {judge.name}
-              {judge.isAI && (
-                <span className="ml-1 text-xs bg-blue-200 text-blue-800 rounded px-1">
-                  AI
-                </span>
-              )}
+              All Judges
             </button>
-          ))}
+            
+            {judges
+              .filter(judge => 
+                activeJudgeType === 'all' || 
+                (activeJudgeType === 'ai' && judge.isAI) || 
+                (activeJudgeType === 'human' && !judge.isAI)
+              )
+              .map(judge => (
+                <button
+                  key={judge.id}
+                  onClick={() => setActiveJudgeFilter(judge.id)}
+                  className={`px-3 py-1 rounded-full flex items-center ${
+                    activeJudgeFilter === judge.id
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                  }`}
+                >
+                  {judge.name}
+                  {judge.isAI && (
+                    <span className={`ml-1 text-xs ${activeJudgeFilter === judge.id ? 'bg-indigo-500 text-white' : 'bg-blue-200 text-blue-800'} rounded px-1`}>
+                      AI
+                    </span>
+                  )}
+                </button>
+              ))}
+          </div>
         </div>
-      </div>
+      )}
       
       {/* Results podium for top 3 */}
       {rankedTexts.length > 0 && (
@@ -239,27 +306,54 @@ const ContestResults: React.FC<ContestResultsProps> = ({
                 </div>
                 
                 <div className="prose prose-sm max-w-none mb-4">
-                  <pre className="whitespace-pre-wrap bg-gray-50 p-3 rounded-md">{text.content}</pre>
+                  {text.content === 'TEXTO RETIRADO' ? (
+                    <div className="p-4 bg-gray-100 text-gray-500 italic rounded">
+                      This text has been withdrawn by the author.
+                    </div>
+                  ) : (
+                    <pre className="whitespace-pre-wrap bg-gray-50 p-3 rounded-md">{text.content}</pre>
+                  )}
                 </div>
                 
-                {text.votes.length > 0 && (
-                  <div className="bg-gray-50 p-4 rounded-lg">
+                <div className="mb-2">
+                  <button
+                    onClick={() => toggleExpandedText(text.id)}
+                    className="text-indigo-600 hover:text-indigo-800 text-sm font-medium flex items-center"
+                  >
+                    <span>{expandedTextId === text.id ? 'Hide Comments' : 'Show Judge Comments'}</span>
+                    <svg 
+                      className={`ml-1 w-4 h-4 transform transition-transform ${expandedTextId === text.id ? 'rotate-180' : ''}`} 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                  </button>
+                </div>
+                
+                {expandedTextId === text.id && text.votes.length > 0 && (
+                  <div className="bg-gray-50 p-4 rounded-lg mt-2">
                     <h4 className="font-medium mb-2">Judge Comments</h4>
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {text.votes.map((vote, vIndex) => (
-                        <div key={vIndex} className="text-sm">
-                          <span className="font-medium">
-                            Judge {vote.judge_id}
-                            {vote.judge_type === 'ai' && 
-                              <span className="ml-1 text-xs bg-blue-200 text-blue-800 rounded px-1">
-                                AI
-                              </span>
-                            }
-                          </span>
-                          <span className="text-gray-500 ml-1">
-                            (Ranked #{vote.place})
-                          </span>
-                          <p className="mt-1">{vote.comment}</p>
+                        <div key={vIndex} className="bg-white p-3 rounded border border-gray-200">
+                          <div className="flex justify-between items-center mb-1">
+                            <div className="font-medium flex items-center">
+                              Judge {vote.judge_id}
+                              {vote.judge_type === 'ai' && (
+                                <span className="ml-1 text-xs bg-blue-100 text-blue-800 rounded px-1">
+                                  AI
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              {vote.place ? `Ranked #${vote.place}` : 'Unranked'}
+                            </div>
+                          </div>
+                          <div className="text-sm text-gray-700 whitespace-pre-line">
+                            {vote.comment || 'No comment provided.'}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -274,4 +368,4 @@ const ContestResults: React.FC<ContestResultsProps> = ({
   );
 };
 
-export default ContestResults; 
+export default ContestResults;

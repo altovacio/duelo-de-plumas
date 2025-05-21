@@ -42,17 +42,21 @@ export interface ContestText {
 }
 
 
-// Define JudgeAssignment structure (align with backend's JudgeAssignmentResponse)
+// Update the ContestJudge interface to match the actual database structure
 export interface ContestJudge {
-  id: number; // This is the ContestJudge entry ID (assignment ID)
+  id: number;
   contest_id: number;
-  user_id?: number | null; // User ID of the judge
-  agent_id?: number | null; // Agent ID of the judge
+  user_judge_id?: number;  // For human judges
+  agent_judge_id?: number; // For AI judges
   assignment_date: string;
   has_voted?: boolean;
-  // Add judge_details like username or agent_name if fetched and needed
-  user_judge_username?: string; 
-  agent_judge_name?: string;
+
+  // Additional fields for display purposes
+  user_name?: string;      // Username for human judges  
+  user_email?: string;     // Email for human judges
+  agent_name?: string;     // Name for AI judges
+  ai_model?: string;       // Model info for AI judges
+  ai_judge?: boolean;      // Helper to identify AI judges
 }
 
 // Get all contests
@@ -121,16 +125,69 @@ export const removeSubmissionFromContest = async (contestId: number, submissionI
 // Get judges for a specific contest
 export const getContestJudges = async (id: number): Promise<ContestJudge[]> => {
   const response = await apiClient.get(`/contests/${id}/judges`);
-  return response.data;
+  
+  // Transform the response to match our frontend model
+  // The backend might be returning a different structure 
+  return response.data.map((judge: any) => ({
+    id: judge.id || 0,
+    contest_id: judge.contest_id,
+    user_judge_id: judge.user_judge_id,
+    agent_judge_id: judge.agent_judge_id,
+    assignment_date: judge.assignment_date,
+    has_voted: judge.has_voted,
+    // Derived properties for UI
+    user_name: judge.user_judge_name,
+    user_email: judge.user_judge_email,
+    agent_name: judge.agent_judge_name,
+    ai_model: judge.agent_judge_model,
+    ai_judge: judge.agent_judge_id ? true : false
+  }));
 };
 
 // Assign a judge to a contest
-export const assignJudgeToContest = async (contestId: number, judgeData: { user_id?: number, agent_id?: number }): Promise<ContestJudge> => {
-  const response = await apiClient.post(`/contests/${contestId}/judges`, judgeData);
-  return response.data;
+export const assignJudgeToContest = async (
+  contestId: number, 
+  judgeData: { user_id: number } | { agent_id: number }
+): Promise<ContestJudge> => {
+  // Map the frontend's user_id/agent_id to the backend's expected structure
+  const backendData = 'user_id' in judgeData 
+    ? { user_judge_id: judgeData.user_id }
+    : { agent_judge_id: judgeData.agent_id };
+
+  const response = await apiClient.post(`/contests/${contestId}/judges`, backendData);
+  
+  // Transform the response to match our frontend model
+  return {
+    id: response.data.id || 0,
+    contest_id: response.data.contest_id,
+    user_judge_id: response.data.user_judge_id,
+    agent_judge_id: response.data.agent_judge_id,
+    assignment_date: response.data.assignment_date,
+    has_voted: response.data.has_voted,
+    // Derived fields
+    user_name: response.data.user_judge_name,
+    user_email: response.data.user_judge_email,
+    agent_name: response.data.agent_judge_name,
+    ai_model: response.data.agent_judge_model,
+    ai_judge: response.data.agent_judge_id ? true : false
+  };
 };
 
 // Remove a judge from a contest (using the ContestJudge entry ID)
 export const removeJudgeFromContest = async (contestId: number, judgeAssignmentId: number): Promise<void> => {
   await apiClient.delete(`/contests/${contestId}/judges/${judgeAssignmentId}`);
+};
+
+// Get contests where the current user is participating (as author)
+export const getAuthorParticipation = async (): Promise<Contest[]> => {
+  // This endpoint should return all contests where the user has submitted texts
+  const response = await apiClient.get('/contests/my-submissions/');
+  return response.data;
+};
+
+// Get contests where the current user is a judge (human or through AI)
+export const getJudgeParticipation = async (): Promise<Contest[]> => {
+  // Get contests where user is assigned as a judge
+  const response = await apiClient.get('/contests/', { params: { judge: 'me' } });
+  return response.data;
 }; 

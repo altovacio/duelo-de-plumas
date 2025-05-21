@@ -4,10 +4,13 @@ import TextFormModal from '../../components/TextEditor/TextFormModal';
 import ContestFormModal from '../../components/Contest/ContestFormModal';
 import AgentFormModal from '../../components/Agent/AgentFormModal';
 import { getUserTexts, createText, updateText, deleteText, Text as TextType } from '../../services/textService';
-import { getUserContests, createContest, updateContest, deleteContest, Contest as ContestType, getContestSubmissions, ContestText as ContestSubmissionType, removeSubmissionFromContest } from '../../services/contestService';
+import { getUserContests, createContest, updateContest, deleteContest, Contest as ContestType, getContestSubmissions, ContestText as ContestSubmissionType, removeSubmissionFromContest, getAuthorParticipation, getJudgeParticipation } from '../../services/contestService';
 import { getAgents, createAgent, updateAgent, deleteAgent, cloneAgent, Agent as AgentType } from '../../services/agentService';
 import { getDashboardData } from '../../services/dashboardService';
 import { toast } from 'react-hot-toast';
+import { Link } from 'react-router-dom';
+import apiClient from '../../utils/apiClient';
+import JudgeManagementModal from '../../components/Contest/JudgeManagementModal';
 
 type TabType = 'overview' | 'contests' | 'texts' | 'agents' | 'participation' | 'credits';
 
@@ -53,6 +56,17 @@ const DashboardPage: React.FC = () => {
   // Editing flags
   const [isEditing, setIsEditing] = useState(false);
 
+  // Add at the top with other state definitions:
+  const [participationContests, setParticipationContests] = useState<{
+    asAuthor: ContestType[];
+    asJudge: ContestType[];
+  }>({ asAuthor: [], asJudge: [] });
+  const [isLoadingParticipation, setIsLoadingParticipation] = useState(false);
+
+  // Add the following state variables in the component after other state definitions
+  const [isJudgeModalOpen, setIsJudgeModalOpen] = useState(false);
+  const [selectedContestForJudges, setSelectedContestForJudges] = useState<ContestType | null>(null);
+
   // Fetch data based on active tab
   useEffect(() => {
     if (activeTab === 'texts') {
@@ -64,6 +78,8 @@ const DashboardPage: React.FC = () => {
     } else if (activeTab === 'overview') {
       // For overview, fetch summary data
       fetchOverviewData();
+    } else if (activeTab === 'participation') {
+      fetchParticipation();
     }
   }, [activeTab]);
 
@@ -266,27 +282,43 @@ const DashboardPage: React.FC = () => {
     description: string;
     type: 'writer' | 'judge';
     prompt: string;
-    model: string;
     is_public?: boolean;
   }) => {
     try {
-      setIsLoading(true);
+      // Remember current form submission state for UI message
+      const isCreatingNew = !isEditing;
+      
+      // Create agent data object that includes all required fields
+      // This addresses the model type issue by handling it separately
+      const apiAgentData = {
+        name: agentData.name,
+        description: agentData.description,
+        type: agentData.type,
+        prompt: agentData.prompt,
+        model: "gpt-3.5-turbo", // Default model - the backend will override this if needed
+        is_public: agentData.is_public
+      };
+      
       if (isEditing && selectedAgent) {
         // Update existing agent
-        const updatedAgent = await updateAgent(selectedAgent.id, agentData);
-        setOwnedAgentsData(ownedAgentsData.map(agent => 
-          agent.id === updatedAgent.id ? updatedAgent : agent
-        ));
+        await updateAgent(selectedAgent.id, apiAgentData);
+        toast.success(`Agent "${agentData.name}" updated successfully!`);
       } else {
         // Create new agent
-        const newAgent = await createAgent(agentData);
-        setOwnedAgentsData([...ownedAgentsData, newAgent]);
+        await createAgent(apiAgentData);
+        toast.success(`Agent "${agentData.name}" created successfully!`);
       }
-      setIsLoading(false);
+      
+      // Reset UI state
+      setIsEditing(false);
+      setSelectedAgent(null);
+      setIsAgentModalOpen(false);
+      
+      // Refresh agent data
+      fetchAgents();
     } catch (err) {
-      console.error('Error with agent operation:', err);
-      setError(`Failed to ${isEditing ? 'update' : 'create'} agent. Please try again later.`);
-      setIsLoading(false);
+      console.error('Error submitting agent:', err);
+      setError('Failed to save agent. Please try again.');
     }
   };
 
@@ -405,6 +437,37 @@ const DashboardPage: React.FC = () => {
     `px-4 py-2 ${activeTab === tab 
       ? 'font-semibold text-indigo-700 border-b-2 border-indigo-700' 
       : 'text-gray-600 hover:text-indigo-700'}`;
+
+  // Add this function to fetch participation data
+  const fetchParticipation = async () => {
+    try {
+      setIsLoadingParticipation(true);
+      setError(null);
+      
+      // Use the correct API endpoints from contestService
+      const [authorData, judgeData] = await Promise.all([
+        getAuthorParticipation(),
+        getJudgeParticipation()
+      ]);
+      
+      setParticipationContests({
+        asAuthor: authorData,
+        asJudge: judgeData
+      });
+      
+      setIsLoadingParticipation(false);
+    } catch (err) {
+      console.error('Error fetching participation data:', err);
+      setError('Failed to load participation data');
+      setIsLoadingParticipation(false);
+    }
+  };
+
+  // Add function to handle opening the judge management modal
+  const handleOpenJudgeManagementModal = (contest: ContestType) => {
+    setSelectedContestForJudges(contest);
+    setIsJudgeModalOpen(true);
+  };
 
   return (
     <div className="bg-white rounded-lg shadow-md">
@@ -583,6 +646,12 @@ const DashboardPage: React.FC = () => {
                               className="text-green-600 hover:text-green-900 mr-3"
                             >
                               View Submissions
+                            </button>
+                            <button 
+                              onClick={() => handleOpenJudgeManagementModal(contest)}
+                              className="text-blue-600 hover:text-blue-900 mr-3"
+                            >
+                              Manage Judges
                             </button>
                             <button 
                               onClick={() => handleDeleteContest(contest.id)}
@@ -815,16 +884,119 @@ const DashboardPage: React.FC = () => {
           {activeTab === 'participation' && (
             <div>
               <h2 className="text-xl font-medium mb-4">My Participation</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h3 className="font-medium text-gray-700 mb-2">Contests where I'm an author</h3>
-                  <p className="text-gray-500 italic">Not participating in any contests as an author.</p>
+              
+              {error && (
+                <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <p className="text-sm text-red-700">{error}</p>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-medium text-gray-700 mb-2">Contests where I'm a judge</h3>
-                  <p className="text-gray-500 italic">Not participating in any contests as a judge.</p>
+              )}
+              
+              {isLoadingParticipation ? (
+                <div className="flex justify-center items-center h-32">
+                  <svg className="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
                 </div>
-              </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <h3 className="font-medium text-gray-700 mb-2">Contests where I'm an author</h3>
+                    {participationContests.asAuthor.length > 0 ? (
+                      <div className="bg-white shadow rounded-md overflow-hidden">
+                        <ul className="divide-y divide-gray-200">
+                          {participationContests.asAuthor.map(contest => (
+                            <li key={contest.id} className="px-4 py-3 hover:bg-gray-50">
+                              <div className="flex justify-between">
+                                <div>
+                                  <Link to={`/contests/${contest.id}`} className="text-indigo-600 hover:text-indigo-900 font-medium">
+                                    {contest.title}
+                                  </Link>
+                                  <div className="flex mt-1 space-x-2">
+                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                      contest.status === 'open' ? 'bg-green-100 text-green-800' :
+                                      contest.status === 'evaluation' ? 'bg-yellow-100 text-yellow-800' :
+                                       'bg-blue-100 text-blue-800'
+                                    }`}>
+                                      {contest.status && typeof contest.status === 'string' 
+                                        ? contest.status.charAt(0).toUpperCase() + contest.status.slice(1) 
+                                        : 'Unknown'}
+                                    </span>
+                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                      contest.is_private ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'
+                                    }`}>
+                                      {contest.is_private ? 'Private' : 'Public'}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                  {contest.created_at ? new Date(contest.created_at).toLocaleDateString() : ''}
+                                </div>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 italic">Not participating in any contests as an author.</p>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <h3 className="font-medium text-gray-700 mb-2">Contests where I'm a judge</h3>
+                    {participationContests.asJudge.length > 0 ? (
+                      <div className="bg-white shadow rounded-md overflow-hidden">
+                        <ul className="divide-y divide-gray-200">
+                          {participationContests.asJudge.map(contest => (
+                            <li key={contest.id} className="px-4 py-3 hover:bg-gray-50">
+                              <div className="flex justify-between">
+                                <div>
+                                  <Link to={`/contests/${contest.id}`} className="text-indigo-600 hover:text-indigo-900 font-medium">
+                                    {contest.title}
+                                  </Link>
+                                  <div className="flex mt-1 space-x-2">
+                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                      contest.status === 'open' ? 'bg-green-100 text-green-800' :
+                                      contest.status === 'evaluation' ? 'bg-yellow-100 text-yellow-800' :
+                                       'bg-blue-100 text-blue-800'
+                                    }`}>
+                                      {contest.status && typeof contest.status === 'string' 
+                                        ? contest.status.charAt(0).toUpperCase() + contest.status.slice(1) 
+                                        : 'Unknown'}
+                                    </span>
+                                    {contest.status === 'evaluation' && (
+                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                        Needs Judging
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <Link 
+                                  to={`/contests/${contest.id}`} 
+                                  className={`text-sm font-medium ${contest.status === 'evaluation' ? 'text-red-600 hover:text-red-900' : 'text-gray-500'}`}
+                                >
+                                  {contest.status === 'evaluation' ? 'Judge Now' : 'View'}
+                                </Link>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 italic">Not participating in any contests as a judge.</p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -884,7 +1056,6 @@ const DashboardPage: React.FC = () => {
           description: selectedAgent.description,
           type: selectedAgent.type,
           prompt: selectedAgent.prompt,
-          model: selectedAgent.model,
           is_public: selectedAgent.is_public
         } : undefined}
         isEditing={isEditing}
@@ -983,6 +1154,20 @@ const DashboardPage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Judge Management Modal */}
+      {isJudgeModalOpen && selectedContestForJudges && (
+        <JudgeManagementModal
+          isOpen={isJudgeModalOpen}
+          onClose={() => {
+            setIsJudgeModalOpen(false);
+            setSelectedContestForJudges(null);
+          }}
+          contestId={selectedContestForJudges.id}
+          contestTitle={selectedContestForJudges.title}
+          judgeRestrictions={selectedContestForJudges.judge_restrictions}
+        />
       )}
     </div>
   );

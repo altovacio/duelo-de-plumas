@@ -95,7 +95,7 @@ async def test_06_04_user2_judge_views_contest1_submissions_masked(client: Async
     assert contest_check_response.status_code == 200
     contest_details = ContestDetailResponse(**contest_check_response.json())
     assert contest_details.status.lower() == "evaluation", f"Contest1 not in Evaluation. Current: {contest_details.status}"
-    is_judge = any(str(judge.user_id) == str(test_data["user2_id"]) for judge in contest_details.judges if judge.user_id)
+    is_judge = any(str(judge.user_judge_id) == str(test_data["user2_id"]) for judge in contest_details.judges if judge.user_judge_id)
     assert is_judge, "User 2 is not listed as a judge for contest1."
 
     response = await client.get(f"/contests/{test_data['contest1_id']}/submissions/", headers=test_data["user2_headers"]) 
@@ -152,7 +152,7 @@ async def test_06_06_user2_votes_in_contest1_succeeds(client: AsyncClient): # MO
     assert contest_details.status.lower() == "evaluation", f"Contest1 not in Evaluation. Current: {contest_details.status}"
     
     # Verify User 2 is indeed a judge for contest1
-    is_judge = any(str(judge.user_id) == str(test_data["user2_id"]) for judge in contest_details.judges if judge.user_id)
+    is_judge = any(str(judge.user_judge_id) == str(test_data["user2_id"]) for judge in contest_details.judges if judge.user_judge_id)
     assert is_judge, "User 2 is not configured as a judge for contest1 for this test."
 
     vote_payload = {
@@ -250,14 +250,13 @@ async def test_06_07a_admin_assigns_self_as_human_judge_for_contest1(client: Asy
     assert contest_details.status.lower() == "evaluation", "Contest1 is not in Evaluation phase for admin judge assignment."
 
     admin_is_judge = any(
-        str(judge.user_id) == str(test_data["admin_user_id"]) and judge.judge_type == "human"
-        for judge in contest_details.judges if judge.user_id
+        str(judge.user_judge_id) == str(test_data["admin_user_id"])
+        for judge in contest_details.judges if judge.user_judge_id
     )
 
     if not admin_is_judge:
         assign_judge_payload = {
-            "user_id": test_data["admin_user_id"],
-            "judge_type": "human"
+            "user_judge_id": test_data["admin_user_id"]
         }
         assign_response = await client.post(
             f"/contests/{test_data['contest1_id']}/judges",
@@ -456,14 +455,14 @@ async def test_06_13_admin_assigns_user1_as_judge_for_contest3(client: AsyncClie
     assert contest_details_resp.status_code == 200
     contest_details = ContestDetailResponse(**contest_details_resp.json())
     
-    existing_judge_ids = [str(judge.user_id) for judge in contest_details.judges if judge.user_id]
+    existing_judge_ids = [str(judge.user_judge_id) for judge in contest_details.judges if judge.user_judge_id]
     if str(test_data["user1_id"]) in existing_judge_ids:
         print(f"User 1 (ID: {test_data['user1_id']}) is already a judge for contest3 (ID: {test_data['contest3_id']}). No action needed.")
         test_data["user1_is_judge_for_contest3"] = True # Mark for next test
         return
 
     # Assign User 1 using the POST /contests/{id}/judges endpoint (assuming this is how it works)
-    assign_judge_payload = {"user_id": test_data["user1_id"]}
+    assign_judge_payload = {"user_judge_id": test_data["user1_id"]}
     # Note: Assuming the endpoint determines judge type or defaults to Human
     response = await client.post(
         f"/contests/{test_data['contest3_id']}/judges", 
@@ -477,7 +476,7 @@ async def test_06_13_admin_assigns_user1_as_judge_for_contest3(client: AsyncClie
     contest_details_after_resp = await client.get(f"/contests/{test_data['contest3_id']}", headers=test_data["admin_headers"]) 
     assert contest_details_after_resp.status_code == 200
     contest_details_after = ContestDetailResponse(**contest_details_after_resp.json())
-    is_now_judge = any(str(judge.user_id) == str(test_data["user1_id"]) for judge in contest_details_after.judges if judge.user_id)
+    is_now_judge = any(str(judge.user_judge_id) == str(test_data["user1_id"]) for judge in contest_details_after.judges if judge.user_judge_id)
     assert is_now_judge, f"User 1 (ID: {test_data['user1_id']}) was not successfully assigned as a judge for contest3."
     test_data["user1_is_judge_for_contest3"] = True # Mark for next test
     print(f"Admin successfully assigned User 1 (ID: {test_data['user1_id']}) as a human judge for contest3 (ID: {test_data['contest3_id']}).")
@@ -497,7 +496,7 @@ async def test_06_14_user1_submits_votes_for_contest3(client: AsyncClient):
     assert contest_details.status.lower() == "evaluation", f"Contest3 not in Evaluation. Current: {contest_details.status}"
     
     # Verify User 1 is listed as a judge for contest3 (redundant check, but good practice)
-    is_judge = any(str(judge.user_id) == str(test_data["user1_id"]) for judge in contest_details.judges if judge.user_id)
+    is_judge = any(str(judge.user_judge_id) == str(test_data["user1_id"]) for judge in contest_details.judges if judge.user_judge_id)
     assert is_judge, "User 1 is not listed as a judge for contest3 for this test, despite previous step."
 
     text_id_to_vote_on = test_data["text1_1_id"]

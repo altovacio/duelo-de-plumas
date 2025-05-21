@@ -35,7 +35,7 @@ async def test_03_01_user1_creates_public_contest1_and_assigns_judge(client: Asy
     test_data["contest1_id"] = contest1_data.id
     print(f"User 1 created public contest1 (ID: {test_data['contest1_id']}) successfully.")
 
-    assign_judge_payload = {"agent_id": test_data["judge_global_id"]}
+    assign_judge_payload = {"agent_judge_id": test_data["judge_global_id"]}
     response_assign_judge = await client.post( # Changed
         f"/contests/{test_data['contest1_id']}/judges", # Path was already correct relative to /contests/
         json=assign_judge_payload,
@@ -76,9 +76,9 @@ async def test_03_02_admin_creates_private_contest2_and_assigns_judges(client: A
     print(f"Admin created private contest2 (ID: {test_data['contest2_id']}) successfully.")
 
     judges_to_assign = [
-        {"user_id": test_data["user2_id"]},
-        {"agent_id": test_data["judge1_id"]},
-        {"agent_id": test_data["judge_global_id"]}
+        {"user_judge_id": test_data["user2_id"]},
+        {"agent_judge_id": test_data["judge1_id"]},
+        {"agent_judge_id": test_data["judge_global_id"]}
     ]
     for judge_payload in judges_to_assign:
         assign_judge_response = await client.post( # Changed
@@ -86,10 +86,10 @@ async def test_03_02_admin_creates_private_contest2_and_assigns_judges(client: A
             json=judge_payload,
             headers=test_data["admin_headers"]
         )
-        judge_id_key = "user_id" if "user_id" in judge_payload else "agent_id"
+        judge_id_key = "user_judge_id" if "user_judge_id" in judge_payload else "agent_judge_id"
         judge_id_value = judge_payload[judge_id_key]
 
-        if judge_id_key == "agent_id" and judge_id_value == test_data["judge1_id"]:
+        if judge_id_key == "agent_judge_id" and judge_id_value == test_data["judge1_id"]:
             assert assign_judge_response.status_code == 403, \
                 f"Admin assigning user1's private judge1 (ID: {judge_id_value}) should fail (403), but got {assign_judge_response.status_code}: {assign_judge_response.text}"
             print(f"Admin failed to assign user1's private judge1 (ID: {judge_id_value}) to contest2 as expected (403).")
@@ -174,7 +174,7 @@ async def test_03_07_user2_assign_judge1_to_contest3_fails(client: AsyncClient):
     assert "contest3_id" in test_data, "Contest 3 ID not found."
     assert "judge1_id" in test_data, "Judge 1 ID not found."
     
-    assign_payload = {"agent_id": test_data["judge1_id"]}
+    assign_payload = {"agent_judge_id": test_data["judge1_id"]}
     response = await client.post( # Changed
         f"/contests/{test_data['contest3_id']}/judges", # Path was already correct
         json=assign_payload,
@@ -191,7 +191,7 @@ async def test_03_08_user1_assign_judge1_to_contest3_fails(client: AsyncClient):
     assert "contest3_id" in test_data, "Contest 3 ID not found."
     assert "judge1_id" in test_data, "Judge 1 ID not found."
 
-    assign_payload = {"agent_id": test_data["judge1_id"]}
+    assign_payload = {"agent_judge_id": test_data["judge1_id"]}
     response = await client.post( # Changed
         f"/contests/{test_data['contest3_id']}/judges", # Path was already correct
         json=assign_payload,
@@ -207,7 +207,7 @@ async def test_03_09_user1_assign_self_as_judge_to_contest3_fails(client: AsyncC
     assert "user1_headers" in test_data and "user1_id" in test_data, "User 1 token/ID not found."
     assert "contest3_id" in test_data, "Contest 3 ID not found."
 
-    assign_payload = {"user_id": test_data["user1_id"]}
+    assign_payload = {"user_judge_id": test_data["user1_id"]}
     response = await client.post( # Changed
         f"/contests/{test_data['contest3_id']}/judges", # Path was already correct
         json=assign_payload,
@@ -225,7 +225,7 @@ async def test_03_10_user1_assigns_judges_to_contest1_succeeds(client: AsyncClie
     assert "judge1_id" in test_data, "Judge 1 ID not found."
     assert "user2_id" in test_data, "User 2 ID not found."
 
-    payload_ai = {"agent_id": test_data["judge1_id"]}
+    payload_ai = {"agent_judge_id": test_data["judge1_id"]}
     response_ai = await client.post( # Changed
         f"/contests/{test_data['contest1_id']}/judges", # Path was already correct
         json=payload_ai,
@@ -234,7 +234,7 @@ async def test_03_10_user1_assigns_judges_to_contest1_succeeds(client: AsyncClie
     assert response_ai.status_code in [200, 201], f"User 1 assigning own judge1 to contest1 failed: {response_ai.text}"
     print(f"User 1 assigned own AI judge1 (ID: {test_data['judge1_id']}) to contest1 successfully.")
 
-    payload_human = {"user_id": test_data["user2_id"]}
+    payload_human = {"user_judge_id": test_data["user2_id"]}
     response_human = await client.post( # Changed
         f"/contests/{test_data['contest1_id']}/judges", # Path was already correct
         json=payload_human,
@@ -249,7 +249,7 @@ async def test_03_11_user2_assigns_self_as_judge_to_contest3_succeeds(client: As
     assert "user2_headers" in test_data and "user2_id" in test_data, "User 2 token/ID not found."
     assert "contest3_id" in test_data, "Contest 3 ID not found."
 
-    assign_payload = {"user_id": test_data["user2_id"]}
+    assign_payload = {"user_judge_id": test_data["user2_id"]}
     response = await client.post( # Changed
         f"/contests/{test_data['contest3_id']}/judges", # Path was already correct
         json=assign_payload,

@@ -3,9 +3,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
 from app.db.database import get_db
-from app.schemas.user import UserResponse, UserUpdate, UserCredit
+from app.schemas.user import UserResponse, UserUpdate, UserCredit, UserPublicResponse
 from app.services.user_service import UserService
-from app.api.routes.auth import get_current_user, get_current_admin_user
+from app.api.routes.auth import get_current_user, get_current_admin_user, get_optional_current_user
 from app.db.models.user import User as UserModel
 
 router = APIRouter(tags=["users"])
@@ -34,6 +34,19 @@ async def get_users(
     service = UserService(db)
     users = await service.get_users(skip, limit)
     return users
+
+@router.get("/{user_id}/public", response_model=UserPublicResponse)
+async def get_user_public(
+    user_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get public user information (username only). 
+    This endpoint is public and doesn't require authentication.
+    """
+    service = UserService(db)
+    user = await service.get_user(user_id)
+    return user
 
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(

@@ -114,8 +114,8 @@ class ContestService:
                 transformed_judges_list.append({
                     "id": judge_orm.id,
                     "contest_id": judge_orm.contest_id,
-                    "user_id": judge_orm.user_judge_id, # Map from user_judge_id
-                    "agent_id": judge_orm.agent_judge_id, # Map from agent_judge_id
+                    "user_judge_id": judge_orm.user_judge_id,
+                    "agent_judge_id": judge_orm.agent_judge_id,
                     "assignment_date": judge_orm.assignment_date,
                     "has_voted": judge_orm.has_voted
                 })
@@ -464,34 +464,34 @@ class ContestService:
         user_judge_id_to_assign: Optional[int] = None
         agent_judge_id_to_assign: Optional[int] = None
 
-        if assignment.user_id is not None:
-            judge_user = await user_repo.get_by_id(assignment.user_id)
+        if assignment.user_judge_id is not None:
+            judge_user = await user_repo.get_by_id(assignment.user_judge_id)
             if not judge_user:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"User with id {assignment.user_id} not found to assign as judge."
+                    detail=f"User with id {assignment.user_judge_id} not found to assign as judge."
                 )
             user_judge_id_to_assign = judge_user.id
             # TODO: Consider contest.judge_restrictions for user authors
 
-        elif assignment.agent_id:
+        elif assignment.agent_judge_id:
             # Verify agent exists using the static method and correct name
-            agent_to_assign = await AgentRepository.get_agent_by_id(db, assignment.agent_id)
+            agent_to_assign = await AgentRepository.get_agent_by_id(db, assignment.agent_judge_id)
             if not agent_to_assign:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Agent with id {assignment.agent_id} not found")
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Agent with id {assignment.agent_judge_id} not found")
             # Check if the agent is public OR if it belongs to the current_user_id
             if not agent_to_assign.is_public and agent_to_assign.owner_id != current_user_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="You can only assign your own private agents or public agents"
                 )
-            agent_judge_id_to_assign = assignment.agent_id # Correct variable assignment
+            agent_judge_id_to_assign = assignment.agent_judge_id # Correct variable assignment
             # TODO: Consider contest.judge_restrictions for agent owners
         else:
             # This should ideally be caught by Pydantic validation in the schema itself
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid assignment: Either user_id or agent_id must be provided."
+                detail="Invalid assignment: Either user_judge_id or agent_judge_id must be provided."
             )
 
         # Call updated repository method (to be created/updated in ContestRepository)
@@ -514,8 +514,8 @@ class ContestService:
         response_data = {
             "id": assigned_judge_entry.id,
             "contest_id": assigned_judge_entry.contest_id,
-            "user_id": assigned_judge_entry.user_judge_id,  # Map from user_judge_id
-            "agent_id": assigned_judge_entry.agent_judge_id, # Map from agent_judge_id
+            "user_judge_id": assigned_judge_entry.user_judge_id,
+            "agent_judge_id": assigned_judge_entry.agent_judge_id,
             "assignment_date": assigned_judge_entry.assignment_date,
             "has_voted": assigned_judge_entry.has_voted,
         }

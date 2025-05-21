@@ -17,6 +17,12 @@ class UserResponse(UserBase):
     
     class Config:
         from_attributes = True
+
+class UserPublicResponse(BaseModel):
+    username: str
+    
+    class Config:
+        from_attributes = True
         
 class UserLogin(BaseModel):
     username: str

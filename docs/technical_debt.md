@@ -2,17 +2,21 @@
 
 This document lists known technical debt, areas for refactoring, and potential future improvements.
 
+## ONGOING
+assign judges
+Contest creator unknown
+Username display in user submissions and in contest author.
+
 ## TODO
 
 Login revamp
 contest details display
 Arrows in view all in home are counterintuitive
 mobile responsiveness
-My contest section behaviour
 Front contest cards to display private/public
-assign judges
-contest creator stuck at fechting..
+Error going from eval to open
 Error going from open to closed directly
+dashboard links do not point to the tab in question
 
 ## Frontend
 

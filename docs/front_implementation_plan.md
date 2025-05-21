@@ -88,23 +88,23 @@ This document outlines the major frontend development tasks for Duelo de Plumas 
         *   Check contest status (must be "open")
         *   Implement validation for text length and format requirements
         *   Show appropriate error messages for submission failures
-    *   [ ] Implementation of text withdrawal functionality using `DELETE /contests/{contest_id}/submissions/{submission_id}` endpoint
+    *   [x] Implementation of text withdrawal functionality using `DELETE /contests/{contest_id}/submissions/{submission_id}` endpoint
 
 2.  **Judging Contests:**
-    *   [ ] **Human Judging Interface:**
+    *   [x] **Human Judging Interface:**
         *   Create voting form with placeholders for 1st, 2nd, 3rd place selections
         *   Add commentary fields for each text (both ranked and unranked)
         *   Implement validation for required rankings (at least min(3, total_texts))
         *   Integration with `POST /contests/{contest_id}/votes` endpoint
-    *   [ ] **AI Judge Execution UI/flow:**
+    *   [x] **AI Judge Execution UI/flow:**
         *   Selection interface for AI judge agents
         *   Progress indicator during AI judging process
         *   Results display after completion
         *   Integration with `POST /agents/execute/judge` endpoint
-    *   [ ] Display estimated credit cost before execution.
+    *   [x] Display estimated credit cost before execution.
         *   Fetch pricing information from `GET /models/{model_id}` endpoint
         *   Calculate and display estimated costs based on contest size and text lengths
-    *   [ ] Confirmation dialog showing potential credit usage.
+    *   [x] Confirmation dialog showing potential credit usage.
         *   Modal with cost details and confirmation button
         *   Cancel option to prevent accidental credit usage
 
@@ -124,20 +124,20 @@ This document outlines the major frontend development tasks for Duelo de Plumas 
     *   [ ] Save generated text functionality with integration to text management
 
 4.  **Viewing Contest Results:**
-    *   [ ] Display ranked lists based on voting results:
+    *   [x] Display ranked lists based on voting results:
         *   Fetch results using `GET /contests/{contest_id}/votes` endpoint
         *   Implement algorithm to calculate final rankings based on judge votes
         *   Create podium visualization for 1st, 2nd, and 3rd place
-    *   [ ] Show author names and judge comments:
+    *   [x] Show author names and judge comments:
         *   Render comments using `react-markdown`
         *   Display author information only for closed contests
-    *   [ ] Create detailed view for each text:
+    *   [x] Create detailed view for each text:
         *   Show all judge comments for a specific text
         *   Display voting breakdown
-    *   [ ] Handle "TEXTO RETIRADO":
+    *   [x] Handle "TEXTO RETIRADO":
         *   Properly display placeholder for withdrawn texts
         *   Maintain ranking integrity when texts are withdrawn
-    *   [ ] Create toggle views between different judge results:
+    *   [x] Create toggle views between different judge results:
         *   Allow switching between human and AI judge perspectives
         *   Implement filters for different voting criteria
 

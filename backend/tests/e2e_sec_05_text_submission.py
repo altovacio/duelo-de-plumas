@@ -209,7 +209,7 @@ async def test_05_08_user2_submits_text2_3_to_contest2_fails_judge_restriction(c
     assert contest_details.judge_restrictions is True, "Contest 2 judge_restrictions should be True."
     is_judge = False
     if hasattr(contest_details, 'judges') and contest_details.judges: # Check if attribute exists and is not empty
-        is_judge = any(str(judge.user_id) == str(test_data["user2_id"]) for judge in contest_details.judges if judge.user_id)
+        is_judge = any(str(judge.user_judge_id) == str(test_data["user2_id"]) for judge in contest_details.judges if judge.user_judge_id)
     assert is_judge, "User 2 is not listed as a judge for contest2 for this test (or judges relationship not loaded)." # Updated assertion message
 
     submission_payload = {"text_id": test_data["text2_3_id"]}

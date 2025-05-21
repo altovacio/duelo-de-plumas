@@ -282,7 +282,7 @@ async def assign_judge_to_contest(
 async def get_contest_judges(
     contest_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[UserModel] = Depends(get_current_user)
+    current_user: Optional[UserModel] = Depends(get_optional_current_user)
 ):
     """
     Get all judges assigned to a contest
@@ -301,9 +301,12 @@ async def get_contest_judges(
     
     return [
         JudgeAssignmentResponse(
+            id=cj.id,
             contest_id=cj.contest_id,
-            judge_id=cj.judge_id,
-            assignment_date=cj.assignment_date
+            user_judge_id=cj.user_judge_id,
+            agent_judge_id=cj.agent_judge_id,
+            assignment_date=cj.assignment_date,
+            has_voted=cj.has_voted
         ) for cj in contest_judges
     ]
 

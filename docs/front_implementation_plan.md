@@ -91,53 +91,53 @@ This document outlines the major frontend development tasks for Duelo de Plumas 
     *   [x] Implementation of text withdrawal functionality using `DELETE /contests/{contest_id}/submissions/{submission_id}` endpoint
 
 2.  **Judging Contests:**
-    *   [x] **Human Judging Interface:**
+    *   [t] **Human Judging Interface:**
         *   Create voting form with placeholders for 1st, 2nd, 3rd place selections
         *   Add commentary fields for each text (both ranked and unranked)
         *   Implement validation for required rankings (at least min(3, total_texts))
         *   Integration with `POST /contests/{contest_id}/votes` endpoint
-    *   [x] **AI Judge Execution UI/flow:**
+    *   [t] **AI Judge Execution UI/flow:**
         *   Selection interface for AI judge agents
         *   Progress indicator during AI judging process
         *   Results display after completion
         *   Integration with `POST /agents/execute/judge` endpoint
-    *   [x] Display estimated credit cost before execution.
-        *   Fetch pricing information from `GET /models/{model_id}` endpoint
+    *   [t] Display estimated credit cost before execution.
+        *   Fetch pricing information from a placeholder endpoint (will implement latter. Use a hardcoded value for now)
         *   Calculate and display estimated costs based on contest size and text lengths
-    *   [x] Confirmation dialog showing potential credit usage.
+    *   [t] Confirmation dialog showing potential credit usage.
         *   Modal with cost details and confirmation button
         *   Cancel option to prevent accidental credit usage
 
 3.  **AI Writer Execution:**
-    *   [ ] AI Writer execution UI/flow:
+    *   [t] AI Writer execution UI/flow:
         *   Selection interface for AI writer agents
         *   Form for prompt/contest details input
-        *   Progress indicator during text generation
-        *   Preview of generated text with edit option
+        *   Async call to function, so it can work on the background
+        *   Notification message to the user when the text is done.
         *   Integration with `POST /agents/execute/writer` endpoint
-    *   [ ] Display estimated credit cost before execution:
-        *   Fetch pricing information from `GET /models/{model_id}` endpoint
+    *   [t] Display estimated credit cost before execution:
+        *   Fetch pricing information from a placeholder endpoint (will implement latter. Use a hardcoded value for now)
         *   Calculate and display estimated costs based on input length
-    *   [ ] Confirmation dialog showing potential credit usage:
-        *   Modal with cost details and confirmation button
+    *   [t] Confirmation dialog showing potential credit usage:
+        *   Modal with cost details and confirmation button With warning that writer credits can be very variable.
         *   Cancel option to prevent accidental credit usage
-    *   [ ] Save generated text functionality with integration to text management
+    *   [t] Save generated text functionality with integration to text management
 
 4.  **Viewing Contest Results:**
-    *   [x] Display ranked lists based on voting results:
+    *   [t] Display ranked lists based on voting results:
         *   Fetch results using `GET /contests/{contest_id}/votes` endpoint
         *   Implement algorithm to calculate final rankings based on judge votes
         *   Create podium visualization for 1st, 2nd, and 3rd place
-    *   [x] Show author names and judge comments:
+    *   [t] Show author names and judge comments:
         *   Render comments using `react-markdown`
         *   Display author information only for closed contests
-    *   [x] Create detailed view for each text:
+    *   [t] Create detailed view for each text:
         *   Show all judge comments for a specific text
         *   Display voting breakdown
-    *   [x] Handle "TEXTO RETIRADO":
+    *   [t] Handle "TEXTO RETIRADO":
         *   Properly display placeholder for withdrawn texts
         *   Maintain ranking integrity when texts are withdrawn
-    *   [x] Create toggle views between different judge results:
+    *   [t] Create toggle views between different judge results:
         *   Allow switching between human and AI judge perspectives
         *   Implement filters for different voting criteria
 
@@ -145,13 +145,13 @@ This document outlines the major frontend development tasks for Duelo de Plumas 
 
 1.  **Admin Dashboard (`/admin`).**
 2.  **User Management (`/admin/users`):**
-    *   [ ] Interface for assigning credits to users.
-    *   [ ] Track and display credit allocation history.
+    *   [t] Interface for assigning credits to users.
+    *   [t] Track and display credit allocation history.
 3.  **Global AI Agent Management (`/admin/ai-agents`).**
 4.  **Site & Credit Monitoring (`/admin/monitoring`):**
-    *   [ ] Detailed reports of AI usage costs.
-    *   [ ] Credit consumption analytics by user.
-    *   [ ] Tools to analyze credit consumption patterns.
+    *   [t] Detailed reports of AI usage costs.
+    *   [t] Credit consumption analytics by user.
+    *   [t] Tools to analyze credit consumption patterns.
 5.  **Contest Oversight (`/admin/contests`).**
 
 **Phase 6: Styling, UX Enhancements & Finalization**

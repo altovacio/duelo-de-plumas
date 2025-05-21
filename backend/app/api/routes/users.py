@@ -7,6 +7,10 @@ from app.schemas.user import UserResponse, UserUpdate, UserCredit, UserPublicRes
 from app.services.user_service import UserService
 from app.api.routes.auth import get_current_user, get_current_admin_user, get_optional_current_user
 from app.db.models.user import User as UserModel
+from app.db.models.contest import Contest as ContestModel
+from app.services.contest_service import ContestService
+from app.db.repositories.contest_repository import ContestRepository
+from app.schemas.contest import ContestResponse
 
 router = APIRouter(tags=["users"])
 
@@ -107,4 +111,33 @@ async def update_user_credits(
     """
     service = UserService(db)
     user = await service.update_user_credits(user_id, credit_data, current_user)
-    return user 
+    return user
+
+@router.get("/judge-contests", response_model=List[ContestResponse])
+async def get_user_judge_contests(
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user)
+):
+    """
+    Get all contests where the current user is a judge.
+    """
+    contests = await ContestService.get_contests_where_user_is_judge(
+        db=db,
+        user_id=current_user.id,
+        skip=skip,
+        limit=limit
+    )
+    
+    # Transform the Contest models to ContestResponse
+    response_list = []
+    for contest_orm in contests:
+        # Fetch details including counts for each contest
+        contest_data_with_counts = await ContestRepository.get_contest_with_counts(db=db, contest_id=contest_orm.id)
+        if contest_data_with_counts:
+            # Reflect whether a password is set on each contest
+            contest_data_with_counts['has_password'] = bool(contest_data_with_counts.get('password'))
+            response_list.append(ContestResponse.model_validate(contest_data_with_counts))
+    
+    return response_list 

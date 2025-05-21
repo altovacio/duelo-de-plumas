@@ -67,6 +67,11 @@ const DashboardPage: React.FC = () => {
   const [isJudgeModalOpen, setIsJudgeModalOpen] = useState(false);
   const [selectedContestForJudges, setSelectedContestForJudges] = useState<ContestType | null>(null);
 
+  // Add the following state variables for text search
+  const [textSearchQuery, setTextSearchQuery] = useState('');
+  const [filteredTexts, setFilteredTexts] = useState<TextType[]>([]);
+  const [isCreateTextDropdownOpen, setIsCreateTextDropdownOpen] = useState(false);
+
   // Fetch data based on active tab
   useEffect(() => {
     if (activeTab === 'texts') {
@@ -90,6 +95,7 @@ const DashboardPage: React.FC = () => {
       setError(null);
       const texts = await getUserTexts();
       setTextsData(texts);
+      setFilteredTexts(texts);
     } catch (err) {
       console.error('Error fetching texts:', err);
       setError('Failed to load texts. Please try again later.');
@@ -469,6 +475,31 @@ const DashboardPage: React.FC = () => {
     setIsJudgeModalOpen(true);
   };
 
+  // Add this function to handle status change
+  const handleStatusChange = async (contestId: number, newStatus: 'open' | 'evaluation' | 'closed') => {
+    try {
+      await updateContest(contestId, { status: newStatus });
+      // Refresh contests list
+      fetchContests();
+      toast.success('Contest status updated successfully');
+    } catch (error) {
+      console.error('Error updating contest status:', error);
+      toast.error('Failed to update contest status');
+    }
+  };
+
+  // Add this useEffect to update filtered texts when search query changes
+  useEffect(() => {
+    if (textsData.length > 0) {
+      const filtered = textsData.filter(text => 
+        text.title.toLowerCase().includes(textSearchQuery.toLowerCase()) ||
+        text.content.toLowerCase().includes(textSearchQuery.toLowerCase()) ||
+        text.author.toLowerCase().includes(textSearchQuery.toLowerCase())
+      );
+      setFilteredTexts(filtered);
+    }
+  }, [textSearchQuery, textsData]);
+
   return (
     <div className="bg-white rounded-lg shadow-md">
       <div className="p-6">
@@ -610,16 +641,27 @@ const DashboardPage: React.FC = () => {
                       {contestsData.map((contest) => (
                         <tr key={contest.id}>
                           <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900">
-                            {contest.title}
+                            <Link 
+                              to={`/contests/${contest.id}`}
+                              className="text-indigo-600 hover:text-indigo-900 hover:underline"
+                            >
+                              {contest.title}
+                            </Link>
                           </td>
                           <td className="px-3 py-4 text-sm">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              contest.status === 'open' ? 'bg-green-100 text-green-800' :
-                              contest.status === 'evaluation' ? 'bg-yellow-100 text-yellow-800' :
-                               'bg-blue-100 text-blue-800'
-                            }`}>
-                              {contest.status.charAt(0).toUpperCase() + contest.status.slice(1)}
-                            </span>
+                            <select
+                              value={contest.status}
+                              onChange={(e) => handleStatusChange(contest.id, e.target.value as 'open' | 'evaluation' | 'closed')}
+                              className={`px-2.5 py-1 rounded text-xs font-medium border-0 ${
+                                contest.status === 'open' ? 'bg-green-100 text-green-800' :
+                                contest.status === 'evaluation' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-blue-100 text-blue-800'
+                              }`}
+                            >
+                              <option value="open">Open</option>
+                              <option value="evaluation">Evaluation</option>
+                              <option value="closed">Closed</option>
+                            </select>
                           </td>
                           <td className="px-3 py-4 text-sm">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -675,12 +717,70 @@ const DashboardPage: React.FC = () => {
             <div>
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-medium">My Texts</h2>
-                <button 
-                  className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
-                  onClick={handleOpenCreateTextModal}
-                >
-                  Create New Text
-                </button>
+                <div className="flex space-x-2">
+                  <div className="relative">
+                    <button
+                      className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 flex items-center"
+                      onClick={() => setIsCreateTextDropdownOpen(!isCreateTextDropdownOpen)}
+                    >
+                      <span>Create New Text</span>
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-1" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                    {isCreateTextDropdownOpen && (
+                      <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg z-10">
+                        <div className="py-1">
+                          <button
+                            onClick={() => {
+                              setIsCreateTextDropdownOpen(false);
+                              handleOpenCreateTextModal();
+                            }}
+                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          >
+                            Write in Markdown
+                          </button>
+                          <Link 
+                            to="/editor"
+                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                            onClick={() => setIsCreateTextDropdownOpen(false)}
+                          >
+                            Full Page Editor
+                          </Link>
+                          <button
+                            onClick={() => {
+                              setIsCreateTextDropdownOpen(false);
+                              // Handle PDF upload option
+                              toast("PDF upload feature coming soon!");
+                            }}
+                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          >
+                            Upload PDF
+                          </button>
+                          <Link
+                            to="/ai-writer"
+                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                            onClick={() => setIsCreateTextDropdownOpen(false)}
+                          >
+                            Use AI Writer
+                          </Link>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="mb-6">
+                <input
+                  type="text"
+                  placeholder="Search texts by title, content, or author..."
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  value={textSearchQuery}
+                  onChange={(e) => {
+                    setTextSearchQuery(e.target.value);
+                  }}
+                />
               </div>
               
               {error && (
@@ -705,7 +805,7 @@ const DashboardPage: React.FC = () => {
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
                 </div>
-              ) : textsData.length > 0 ? (
+              ) : filteredTexts.length > 0 ? (
                 <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
                   <table className="min-w-full divide-y divide-gray-300">
                     <thead className="bg-gray-50">
@@ -720,7 +820,7 @@ const DashboardPage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200 bg-white">
-                      {textsData.map((text) => (
+                      {filteredTexts.map((text) => (
                         <tr key={text.id}>
                           <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900">
                             {text.title}
@@ -756,7 +856,7 @@ const DashboardPage: React.FC = () => {
                   </table>
                 </div>
               ) : (
-                <p className="text-gray-500 italic">No texts yet. Create your first text!</p>
+                <p className="text-gray-500 italic">No texts found matching your search. Create a new text to get started!</p>
               )}
             </div>
           )}

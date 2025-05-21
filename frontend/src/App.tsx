@@ -11,9 +11,15 @@ import HomePage from './pages/Home/HomePage';
 import ContestListPage from './pages/ContestList/ContestListPage';
 import ContestDetailPage from './pages/ContestDetail/ContestDetailPage';
 import DashboardPage from './pages/Dashboard/DashboardPage';
+import AIWriterPage from './pages/Dashboard/AIWriterPage';
+import MarkdownEditorPage from './pages/Dashboard/MarkdownEditorPage';
 
-// Placeholder components - these will be implemented later
-const AdminDashboard = () => <div>Admin Dashboard</div>;
+// Import admin components
+import AdminDashboardPage from './pages/Admin/AdminDashboardPage';
+import AdminUsersPage from './pages/Admin/AdminUsersPage';
+import AdminAgentsPage from './pages/Admin/AdminAgentsPage';
+import AdminMonitoringPage from './pages/Admin/AdminMonitoringPage';
+import AdminContestsPage from './pages/Admin/AdminContestsPage';
 
 function App() {
   const loadUser = useAuthStore((state) => state.loadUser);
@@ -43,11 +49,17 @@ function App() {
         {/* Protected routes - require authentication */}
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<MainLayout><DashboardPage /></MainLayout>} />
+          <Route path="/ai-writer" element={<MainLayout><AIWriterPage /></MainLayout>} />
+          <Route path="/editor" element={<MainLayout><MarkdownEditorPage /></MainLayout>} />
         </Route>
 
         {/* Admin routes - require admin role */}
         <Route element={<ProtectedRoute requireAdmin={true} />}>
-          <Route path="/admin" element={<MainLayout><AdminDashboard /></MainLayout>} />
+          <Route path="/admin" element={<MainLayout><AdminDashboardPage /></MainLayout>} />
+          <Route path="/admin/users" element={<MainLayout><AdminUsersPage /></MainLayout>} />
+          <Route path="/admin/agents" element={<MainLayout><AdminAgentsPage /></MainLayout>} />
+          <Route path="/admin/monitoring" element={<MainLayout><AdminMonitoringPage /></MainLayout>} />
+          <Route path="/admin/contests" element={<MainLayout><AdminContestsPage /></MainLayout>} />
         </Route>
 
         {/* Fallback route */}

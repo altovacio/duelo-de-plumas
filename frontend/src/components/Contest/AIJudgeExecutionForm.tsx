@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Agent, executeJudgeAgent } from '../../services/agentService';
 import { getAgents } from '../../services/agentService';
 import { getModels, LLMModel, estimateCost } from '../../services/modelService';
+import { useAuthStore } from '../../store/authStore';
+import { useForm, Controller } from 'react-hook-form';
 
 interface AIJudgeExecutionFormProps {
   contestId: number;
@@ -9,6 +11,11 @@ interface AIJudgeExecutionFormProps {
   averageTextLength: number;
   onSuccess: () => void;
   onCancel: () => void;
+  availableAgents: Agent[];
+}
+
+interface FormData {
+  agentId: number;
 }
 
 const AIJudgeExecutionForm: React.FC<AIJudgeExecutionFormProps> = ({
@@ -16,7 +23,8 @@ const AIJudgeExecutionForm: React.FC<AIJudgeExecutionFormProps> = ({
   contestTextCount,
   averageTextLength,
   onSuccess,
-  onCancel
+  onCancel,
+  availableAgents
 }) => {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [models, setModels] = useState<LLMModel[]>([]);
@@ -31,6 +39,16 @@ const AIJudgeExecutionForm: React.FC<AIJudgeExecutionFormProps> = ({
   
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<number>(0);
+  
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const { user } = useAuthStore();
+  const credits = user?.credit_balance || 0;
+  
+  const { control, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
+    defaultValues: {
+      agentId: availableAgents.length > 0 ? availableAgents[0].id : 0
+    }
+  });
   
   // Load judge agents and models
   useEffect(() => {
@@ -100,28 +118,25 @@ const AIJudgeExecutionForm: React.FC<AIJudgeExecutionFormProps> = ({
     };
   }, [isExecuting]);
   
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!selectedAgentId) {
-      setError('Please select an AI judge.');
-      return;
-    }
-    
-    if (!selectedModelId) {
-      setError('Please select a model.');
-      return;
-    }
+  const onSubmit = async (data: FormData) => {
+    setShowConfirmation(true);
+  };
+  
+  const executeJudge = async (data: FormData) => {
+    setIsExecuting(true);
+    setError(null);
+    setProgress(0);
     
     try {
-      setIsExecuting(true);
-      setError(null);
-      setProgress(0);
+      const selectedAgent = availableAgents.find(agent => agent.id === data.agentId);
       
-      // Execute the AI judge
+      if (!selectedAgent) {
+        throw new Error('Selected agent not found');
+      }
+      
       await executeJudgeAgent({
-        agent_id: Number(selectedAgentId),
-        model: selectedModelId,
+        agent_id: data.agentId,
+        model: selectedAgent.model,
         contest_id: contestId
       });
       
@@ -135,116 +150,125 @@ const AIJudgeExecutionForm: React.FC<AIJudgeExecutionFormProps> = ({
       }, 1000);
     } catch (err: any) {
       console.error('Error executing AI judge:', err);
-      setError(err.response?.data?.message || 'Failed to execute AI judge. Please try again.');
+      setError(err.message || 'Failed to execute AI judge. Please try again.');
       setIsExecuting(false);
     }
   };
   
   return (
-    <div className="bg-white rounded-lg shadow p-6 max-w-lg mx-auto">
+    <div className="bg-white p-6 rounded-lg shadow">
       <h2 className="text-xl font-bold mb-4">Execute AI Judge</h2>
       
       {error && (
-        <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-md">
+        <div className="bg-red-50 text-red-700 p-3 rounded mb-4">
           {error}
         </div>
       )}
       
-      {isExecuting ? (
-        <div>
-          <p className="text-gray-700 mb-2">Executing AI Judge...</p>
-          <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
-            <div 
-              className="bg-indigo-600 h-2.5 rounded-full" 
-              style={{ width: `${progress}%` }}
-            ></div>
-          </div>
-          <p className="text-sm text-gray-500">
-            This may take several minutes depending on the size of the contest.
-          </p>
-        </div>
-      ) : (
-        <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <label htmlFor="agent-select" className="block text-sm font-medium text-gray-700 mb-1">
-              Select AI Judge
-            </label>
-            
-            {loadingAgents ? (
-              <p className="text-gray-500">Loading AI judges...</p>
-            ) : agents.length === 0 ? (
-              <p className="text-gray-500 mb-2">No judge agents available. Please create one first.</p>
-            ) : (
-              <select
-                id="agent-select"
-                className="w-full p-2 border rounded-md"
-                value={selectedAgentId}
-                onChange={(e) => setSelectedAgentId(Number(e.target.value))}
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Select AI Judge
+          </label>
+          <Controller
+            name="agentId"
+            control={control}
+            rules={{ required: "Please select an AI judge" }}
+            render={({ field }) => (
+              <select 
+                {...field} 
+                disabled={isExecuting}
+                onChange={e => field.onChange(Number(e.target.value))}
+                className="w-full px-3 py-2 border rounded-lg"
               >
-                <option value="">-- Select an AI judge --</option>
-                {agents.map((agent) => (
+                {availableAgents.map(agent => (
                   <option key={agent.id} value={agent.id}>
-                    {agent.name}
+                    {agent.name} ({agent.model})
                   </option>
                 ))}
+                {availableAgents.length === 0 && (
+                  <option disabled value={0}>No AI judges available</option>
+                )}
               </select>
             )}
-          </div>
-          
-          <div className="mb-6">
-            <label htmlFor="model-select" className="block text-sm font-medium text-gray-700 mb-1">
-              Select Model
-            </label>
-            
-            {loadingModels ? (
-              <p className="text-gray-500">Loading models...</p>
-            ) : models.length === 0 ? (
-              <p className="text-gray-500 mb-2">No models available.</p>
-            ) : (
-              <select
-                id="model-select"
-                className="w-full p-2 border rounded-md"
-                value={selectedModelId}
-                onChange={(e) => setSelectedModelId(e.target.value)}
-              >
-                {models.map((model) => (
-                  <option key={model.id} value={model.id}>
-                    {model.name} ({model.provider})
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-          
-          {estimatedCost !== null && (
-            <div className="mb-6 p-4 bg-blue-50 rounded-md">
-              <h3 className="font-medium text-blue-800 mb-1">Cost Estimate</h3>
-              <p className="text-blue-700">
-                This operation will use approximately{' '}
-                <span className="font-bold">${estimatedCost.toFixed(4)}</span> credits
-                to judge {contestTextCount} texts.
+          />
+          {errors.agentId && (
+            <p className="text-red-600 text-sm mt-1">{errors.agentId.message}</p>
+          )}
+        </div>
+        
+        <div className="bg-blue-50 p-4 rounded-lg mb-4">
+          <div className="flex justify-between items-center">
+            <div>
+              <p className="text-blue-800 font-medium">Estimated Credit Cost:</p>
+              <p className="text-xs text-blue-600">
+                Fixed cost per contest evaluation
               </p>
             </div>
-          )}
-          
-          <div className="flex justify-end space-x-3">
+            <div className="text-blue-800 font-bold text-xl">
+              {estimatedCost !== null ? estimatedCost : 10} credits
+            </div>
+          </div>
+          <p className="text-xs text-blue-700 mt-2">
+            <strong>Note:</strong> The AI judge will evaluate all submissions in the contest.
+            This operation cannot be undone once started.
+          </p>
+        </div>
+        
+        <div className="flex justify-between items-center">
+          <div className="text-sm text-gray-600">
+            Available Credits: <span className="font-medium">{credits}</span>
+          </div>
+          <div className="flex space-x-3">
             <button
               type="button"
-              className="py-2 px-4 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
               onClick={onCancel}
+              className="px-4 py-2 border rounded-lg hover:bg-gray-100"
             >
               Cancel
             </button>
-            
             <button
               type="submit"
-              className="py-2 px-4 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:bg-indigo-300"
-              disabled={!selectedAgentId || !selectedModelId || loadingAgents || loadingModels}
+              disabled={isExecuting || availableAgents.length === 0 || credits < (estimatedCost || 0)}
+              className={`px-4 py-2 rounded-lg font-medium ${
+                isExecuting || availableAgents.length === 0 || credits < (estimatedCost || 0)
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-indigo-600 text-white hover:bg-indigo-700'
+              }`}
             >
-              Execute AI Judge
+              {isExecuting ? 'Processing...' : 'Execute Judge'}
             </button>
           </div>
-        </form>
+        </div>
+      </form>
+      
+      {/* Confirmation Modal */}
+      {showConfirmation && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h3 className="text-lg font-bold mb-4">Confirm AI Judge Execution</h3>
+            <p className="mb-4">
+              You are about to use <span className="font-bold">{estimatedCost !== null ? estimatedCost : 10} credits</span> to evaluate all submissions in this contest using an AI judge.
+            </p>
+            <p className="text-amber-600 text-sm mb-4">
+              <strong>Warning:</strong> This action cannot be undone. The AI judge will evaluate all submissions and the results will be immediately visible to participants.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowConfirmation(false)}
+                className="px-4 py-2 border rounded-lg hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => executeJudge(watch())}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+              >
+                Confirm & Execute
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

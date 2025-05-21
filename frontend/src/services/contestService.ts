@@ -180,14 +180,26 @@ export const removeJudgeFromContest = async (contestId: number, judgeAssignmentI
 
 // Get contests where the current user is participating (as author)
 export const getAuthorParticipation = async (): Promise<Contest[]> => {
-  // This endpoint should return all contests where the user has submitted texts
-  const response = await apiClient.get('/contests/my-submissions/');
-  return response.data;
+  try {
+    // This should get contests where user has submitted as an author
+    const response = await apiClient.get('/contests', { params: { author: 'me' } });
+    return response.data;
+  } catch (error) {
+    // If there's an error, return empty array to avoid breaking the UI
+    console.error("Error fetching author participation:", error);
+    return [];
+  }
 };
 
 // Get contests where the current user is a judge (human or through AI)
 export const getJudgeParticipation = async (): Promise<Contest[]> => {
-  // Get contests where user is assigned as a judge
-  const response = await apiClient.get('/contests/', { params: { judge: 'me' } });
-  return response.data;
+  try {
+    // This should get contests where user is assigned as a judge
+    const response = await apiClient.get('/contests', { params: { judge: 'me' } });
+    return response.data;
+  } catch (error) {
+    // If there's an error, return empty array to avoid breaking the UI
+    console.error("Error fetching judge participation:", error);
+    return [];
+  }
 }; 

@@ -29,6 +29,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             {isAuthenticated ? (
               <>
                 <Link to="/dashboard" className="px-2 py-1 rounded hover:bg-indigo-500">Dashboard</Link>
+                <Link to="/ai-writer" className="px-2 py-1 rounded hover:bg-indigo-500">AI Writer</Link>
                 {isAdmin() && (
                   <Link to="/admin" className="px-2 py-1 rounded hover:bg-indigo-500">Admin</Link>
                 )}

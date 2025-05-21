@@ -1,0 +1,142 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+-Read [project_description.md](mdc:docs/project_description.md) and [project_structure.md](mdc:docs/project_structure.md)
+Key Principles:
+
+- Write concise, technical responses with accurate TypeScript examples
+- Use functional, declarative programming. Avoid classes
+- Prefer iteration and modularization over duplication
+- Use descriptive variable names with auxiliary verbs (e.g., isLoading)
+- Use lowercase with dashes for directories (e.g., components/auth-wizard)
+- Favor named exports for components
+- Use the Receive an Object, Return an Object (RORO) pattern
+- Follow the component folder structure pattern: main component, interface, styles, and index export
+- Maintain clear separation between UI components and business logic
+- Document complex logic with inline comments and JSDoc when appropriate
+- Prioritize accessibility in all UI components
+
+JavaScript/TypeScript:
+
+- Use "function" keyword for pure functions. Omit semicolons
+- Use TypeScript for all code. Prefer interfaces over types. Avoid enums, use maps
+- File structure: Exported component, subcomponents, helpers, static content, types
+- Prioritize error handling and edge cases:
+  - Handle errors and edge cases at the beginning of functions
+  - Use early returns for error conditions to avoid deeply nested if statements
+  - Place the happy path last in the function for improved readability
+  - Avoid unnecessary else statements; use if-return pattern instead
+  - Use guard clauses to handle preconditions and invalid states early
+  - Implement proper error logging and user-friendly error messages
+  - Consider using custom error types or error factories for consistent error handling
+
+React/Next.js:
+
+- Use functional components and TypeScript interfaces
+- Use declarative JSX
+- Use function, not const, for components
+- Use Kavak's UKI components for consistent UI
+- Implement responsive design with SASS modules
+- Place static content and interfaces at file end
+- Use content variables for static content outside render functions
+- Minimize 'use client', 'useEffect', and 'setState'. Favor RSC
+- Use React Hook Form for form validation
+- Wrap client components in Suspense with fallback
+- Use dynamic loading for non-critical components
+- Optimize images with Sharp: WebP format, size data, lazy loading
+- Model expected errors as return values
+- Use error boundaries for unexpected errors
+- Use React Hook Form with proper validation
+- Code in services/ dir should always throw user-friendly errors
+
+Testing:
+
+- Use Jest with React Testing Library
+- Write unit tests for utility functions and hooks
+- Write integration tests for complex components
+- Use proper mocking for external dependencies
+- Test error cases and edge conditions
+- Use snapshot testing sparingly
+
+Key Conventions:
+
+1. Rely on Next.js App Router for state changes
+2. Prioritize Web Vitals (LCP, CLS, FID)
+3. Minimize 'use client' usage:
+
+- Prefer server components and Next.js SSR features
+- Use 'use client' only for Web API access in small components
+- Avoid using 'use client' for data fetching or state management
+
+Refer to Next.js documentation for Data Fetching, Rendering, and Routing best practices.
+
+Performance Optimization:
+
+- Implement proper code-splitting with dynamic imports for large components
+- Use React.memo() sparingly and only when there's a measurable performance benefit
+- Optimize images using next/image with proper sizing and WebP format
+- Implement proper loading states and skeleton screens
+- Use Intersection Observer for lazy-loading non-critical content
+- Monitor and optimize Core Web Vitals (LCP, FID, CLS, INP)
+- Implement proper caching strategies for API responses
+- Use Server Components whenever possible to reduce client-side JavaScript
+
+API and Data Fetching:
+
+- Implement proper error handling and retry logic
+- Type all API responses using TypeScript interfaces
+- Use React Query/SWR for client-side data fetching with caching
+- Prefer Server Components for initial data loading
+- Implement proper loading and error states for all data fetching operations
+- Use Next.js API routes for backend functionality when appropriate
+- Document API integration patterns and authentication requirements
+
+Security:
+
+- Implement proper Content Security Policy (CSP) headers
+- Sanitize all user inputs to prevent XSS attacks
+- Use HttpOnly cookies for sensitive data
+- Implement proper CSRF protection
+- Never expose API keys or secrets in client-side code
+- Use environment variables for configuration with proper validation
+- Follow OWASP security best practices
+- Implement proper authentication and authorization checks
+
+Accessibility (a11y):
+
+- Ensure all interactive elements are keyboard accessible
+- Use semantic HTML elements appropriately
+- Implement proper ARIA attributes when necessary
+- Ensure sufficient color contrast for all text
+- Provide alternative text for images and icons
+- Test with screen readers and keyboard navigation
+- Follow WCAG 2.1 AA standards
+- Document accessibility patterns for complex interactive components
+
+Documentation:
+
+- Use JSDoc comments for functions, hooks, and components
+- Document complex business logic with inline comments
+- Maintain up-to-date README files for major directories
+- Document API integrations and authentication requirements
+- Create and maintain Storybook stories for UI components
+- Document state management patterns and data flow
+- Use TypeScript interfaces to self-document component props and data structures
+- Document environment variables and configuration options
+
+Folder Structure:
+
+- Follow the established pattern for component organization:
+  - Main component file (component-name.tsx)
+  - Interface file (component-name.interface.ts)
+  - Styles file (component-name.module.scss)
+  - Index file for re-exports
+- Keep business logic in services/ directory
+- Use helpers/ for utility functions
+- Organize components by domain and function
+- Group related routes in the app/ directory
+- Use consistent naming conventions across the codebase
+
+- Document the purpose of each directory with a README.md file

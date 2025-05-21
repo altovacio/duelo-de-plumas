@@ -4,8 +4,7 @@ This document lists known technical debt, areas for refactoring, and potential f
 
 ## ONGOING
 assign judges
-Contest creator unknown
-Username display in user submissions and in contest author.
+
 
 ## TODO
 
@@ -17,6 +16,26 @@ Front contest cards to display private/public
 Error going from eval to open
 Error going from open to closed directly
 dashboard links do not point to the tab in question
+Submitting texts, grey out or at least return the already submitted error.
+Change defaults for contest creations. 
+Make easier change contest status
+Contest creator unknown
+Username display in user submissions and in contest author.
+
+## Admin Backend Endpoints Needed
+
+* **User Management**:
+  * Endpoint to fetch user's created contest count
+  * Endpoint to track last user activity
+  * Endpoint to delete a user
+
+* **Credit Monitoring**:
+  * Endpoint to track real USD cost per AI execution
+  * Additional date filtering capabilities for credit usage (yearly)
+
+* **Contests Management**:
+  * Dedicated admin endpoints for contest management (delete, edit)
+  * Contest text submissions count tracking
 
 ## Frontend
 

@@ -4,9 +4,10 @@ import TextFormModal from '../../components/TextEditor/TextFormModal';
 import ContestFormModal from '../../components/Contest/ContestFormModal';
 import AgentFormModal from '../../components/Agent/AgentFormModal';
 import { getUserTexts, createText, updateText, deleteText, Text as TextType } from '../../services/textService';
-import { getUserContests, createContest, updateContest, deleteContest, Contest as ContestType } from '../../services/contestService';
+import { getUserContests, createContest, updateContest, deleteContest, Contest as ContestType, getContestSubmissions, ContestText as ContestSubmissionType, removeSubmissionFromContest } from '../../services/contestService';
 import { getAgents, createAgent, updateAgent, deleteAgent, cloneAgent, Agent as AgentType } from '../../services/agentService';
 import { getDashboardData } from '../../services/dashboardService';
+import { toast } from 'react-hot-toast';
 
 type TabType = 'overview' | 'contests' | 'texts' | 'agents' | 'participation' | 'credits';
 
@@ -27,6 +28,20 @@ const DashboardPage: React.FC = () => {
   const [isContestModalOpen, setIsContestModalOpen] = useState(false);
   const [selectedContest, setSelectedContest] = useState<ContestType | null>(null);
   const [contestsData, setContestsData] = useState<ContestType[]>([]);
+  
+  // State for submissions modal
+  const [isSubmissionsModalOpen, setIsSubmissionsModalOpen] = useState(false);
+  const [selectedContestForSubmissions, setSelectedContestForSubmissions] = useState<ContestType | null>(null);
+  const [submissionsForSelectedContest, setSubmissionsForSelectedContest] = useState<ContestSubmissionType[]>([]);
+  const [isLoadingSubmissions, setIsLoadingSubmissions] = useState(false);
+  const [errorSubmissions, setErrorSubmissions] = useState<string | null>(null);
+  
+  // State for viewing full submission content
+  const [isFullContentModalOpen, setIsFullContentModalOpen] = useState(false);
+  const [selectedSubmissionForContent, setSelectedSubmissionForContent] = useState<ContestSubmissionType | null>(null);
+
+  // State for removing a submission
+  const [isRemovingSubmissionId, setIsRemovingSubmissionId] = useState<number | null>(null);
   
   // Agent state
   const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
@@ -326,6 +341,66 @@ const DashboardPage: React.FC = () => {
     }
   };
 
+  const handleOpenSubmissionsModal = async (contest: ContestType) => {
+    setSelectedContestForSubmissions(contest);
+    setIsSubmissionsModalOpen(true);
+    setIsLoadingSubmissions(true);
+    setErrorSubmissions(null);
+    try {
+      const submissions = await getContestSubmissions(contest.id);
+      setSubmissionsForSelectedContest(submissions);
+    } catch (err) {
+      console.error('Error fetching submissions:', err);
+      setErrorSubmissions('Failed to load submissions. Please try again later.');
+      setSubmissionsForSelectedContest([]); // Clear previous submissions on error
+    } finally {
+      setIsLoadingSubmissions(false);
+    }
+  };
+
+  const handleCloseSubmissionsModal = () => {
+    setIsSubmissionsModalOpen(false);
+    setSelectedContestForSubmissions(null);
+    setSubmissionsForSelectedContest([]);
+    setIsLoadingSubmissions(false);
+    setErrorSubmissions(null);
+  };
+
+  const handleOpenFullContentModal = (submission: ContestSubmissionType) => {
+    setSelectedSubmissionForContent(submission);
+    setIsFullContentModalOpen(true);
+  };
+
+  const handleCloseFullContentModal = () => {
+    setIsFullContentModalOpen(false);
+    setSelectedSubmissionForContent(null);
+  };
+
+  const handleRemoveSubmission = async (submissionId: number) => {
+    if (!selectedContestForSubmissions) return;
+
+    const submissionToRemove = submissionsForSelectedContest.find(s => s.id === submissionId);
+    if (!submissionToRemove) return;
+
+    if (!window.confirm(`Are you sure you want to remove the submission "${submissionToRemove.title || 'Untitled Submission'}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    setIsRemovingSubmissionId(submissionId);
+    try {
+      await removeSubmissionFromContest(selectedContestForSubmissions.id, submissionId);
+      // Refresh the list
+      const updatedSubmissions = await getContestSubmissions(selectedContestForSubmissions.id);
+      setSubmissionsForSelectedContest(updatedSubmissions);
+      toast.success(`Submission "${submissionToRemove.title || 'Untitled Submission'}" removed successfully.`);
+    } catch (err) {
+      console.error('Error removing submission:', err);
+      toast.error('Failed to remove submission. Please try again.');
+    } finally {
+      setIsRemovingSubmissionId(null);
+    }
+  };
+
   const tabClasses = (tab: TabType) => 
     `px-4 py-2 ${activeTab === tab 
       ? 'font-semibold text-indigo-700 border-b-2 border-indigo-700' 
@@ -504,10 +579,7 @@ const DashboardPage: React.FC = () => {
                               Edit
                             </button>
                             <button 
-                              onClick={() => {
-                                console.log(`Placeholder: View submissions for contest ID: ${contest.id}, Title: ${contest.title}`);
-                                // Later, this will navigate to: navigate(`/dashboard/contests/${contest.id}/submissions`);
-                              }}
+                              onClick={() => handleOpenSubmissionsModal(contest)}
                               className="text-green-600 hover:text-green-900 mr-3"
                             >
                               View Submissions
@@ -802,22 +874,116 @@ const DashboardPage: React.FC = () => {
         isEditing={isEditing}
       />
 
-      {/* Agent Form Modal - Reverting to original props to avoid cascading errors, AgentFormModal.tsx needs type review separately */}
+      {/* Agent Form Modal */}
       <AgentFormModal
         isOpen={isAgentModalOpen}
         onClose={() => setIsAgentModalOpen(false)}
-        onSubmit={handleAgentSubmit} // Reverted
+        onSubmit={handleAgentSubmit}
         initialAgent={selectedAgent ? {
           name: selectedAgent.name,
           description: selectedAgent.description,
           type: selectedAgent.type,
           prompt: selectedAgent.prompt,
-          model: selectedAgent.model, // Reverted - will cause original linter error, but less disruptive now
+          model: selectedAgent.model,
           is_public: selectedAgent.is_public
         } : undefined}
         isEditing={isEditing}
         isAdmin={user?.is_admin}
       />
+
+      {/* Submissions Modal */}
+      {isSubmissionsModalOpen && selectedContestForSubmissions && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl transform transition-all sm:max-w-4xl sm:w-full max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-xl font-semibold text-gray-800">
+                Submissions for: {typeof selectedContestForSubmissions.title === 'string' ? selectedContestForSubmissions.title : 'Selected Contest'}
+              </h3>
+            </div>
+            
+            <div className="px-6 py-4 overflow-y-auto flex-grow">
+              {isLoadingSubmissions ? (
+                <div className="flex justify-center items-center h-32">
+                  <svg className="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                </div>
+              ) : submissionsForSelectedContest.length === 0 ? (
+                <p className="text-gray-500 text-center py-10">No submissions found for this contest.</p>
+              ) : (
+                <div className="space-y-4">
+                  {submissionsForSelectedContest.map((submission) => (
+                    <div key={submission.id} className="p-4 border border-gray-200 rounded-md shadow-sm bg-white">
+                      <h4 className="text-md font-semibold text-indigo-700 mb-1">{submission.title || 'Untitled Submission'}</h4>
+                      <p className="text-xs text-gray-500 mb-1">
+                        Author: <span className="font-medium text-gray-700">
+                          {typeof submission.author === 'string' ? submission.author : (submission.author?.username || 'N/A')}
+                        </span>
+                        {/* Backend needs to provide owner username if different and required */}
+                        {/* <span className="ml-2">Owner ID: {submission.owner_id || 'N/A'}</span> */}
+                      </p>
+                      <p className="text-xs text-gray-500 mb-2">
+                        Submitted: {new Date(submission.submission_date).toLocaleString()}
+                      </p>
+                      <p className="text-sm text-gray-600 line-clamp-3 mb-3">
+                        {submission.content}
+                      </p>
+                      <div className="flex items-center space-x-2">
+                        <button 
+                          onClick={() => handleOpenFullContentModal(submission)}
+                          className="px-3 py-1 text-xs font-medium text-white bg-blue-500 rounded-md hover:bg-blue-600 transition-colors"
+                        >
+                          Read Full Content
+                        </button>
+                        <button 
+                          onClick={() => handleRemoveSubmission(submission.id)}
+                          className="px-3 py-1 text-xs font-medium text-white bg-red-500 rounded-md hover:bg-red-600 disabled:opacity-50 transition-colors"
+                          disabled={isRemovingSubmissionId === submission.id}
+                        >
+                          {isRemovingSubmissionId === submission.id ? 'Removing...' : 'Remove Submission'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex justify-end">
+              <button
+                type="button"
+                onClick={handleCloseSubmissionsModal}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full Submission Content Modal (Nested inside DashboardPage return) */}
+      {isFullContentModalOpen && selectedSubmissionForContent && (
+        <div className="fixed inset-0 z-[60] overflow-y-auto bg-black bg-opacity-60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl transform transition-all sm:max-w-2xl sm:w-full max-h-[80vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-800">{selectedSubmissionForContent.title || 'Full Submission Content'}</h3>
+            </div>
+            <div className="px-6 py-4 overflow-y-auto flex-grow prose prose-sm max-w-none">
+              <pre className="whitespace-pre-wrap">{selectedSubmissionForContent.content}</pre>
+            </div>
+            <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex justify-end">
+              <button
+                type="button"
+                onClick={handleCloseFullContentModal}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

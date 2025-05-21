@@ -80,7 +80,7 @@ This document outlines the major frontend development tasks for Duelo de Plumas 
 **Phase 4: Contest Interaction & AI Execution**
 
 1.  **Submitting Texts to Contests:**
-    *   [ ] Form to submit existing/new text.
+    *   [x] Form to submit existing/new text.
         *   Implement form with text selection (from user's texts) or creation of new text
         *   Integration with `POST /contests/{contest_id}/submissions/` endpoint
         *   Handle password requirement for private contests

@@ -119,10 +119,11 @@ const ContestDetailPage: React.FC = () => {
 
       // Determine if user has access to the contest
       const isCreator = user?.id === contestDataForPage.creator.id;
+      const isAdmin = user?.is_admin;
       let grantAccess = false;
       let showPwModal = false;
 
-      if (isCreator) {
+      if (isCreator || isAdmin) {
         grantAccess = true;
       } else if (!contestDataForPage.is_password_protected) {
         grantAccess = true;

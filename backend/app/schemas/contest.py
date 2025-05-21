@@ -27,6 +27,8 @@ class ContestUpdate(BaseModel):
     min_votes_required: Optional[int] = None
     end_date: Optional[datetime] = None
     status: Optional[str] = None  # "open", "evaluation", "closed"
+    judge_restrictions: Optional[bool] = None  # Whether judges can participate as authors
+    author_restrictions: Optional[bool] = None  # Whether authors can submit multiple texts
 
 
 # For assigning judges to contests

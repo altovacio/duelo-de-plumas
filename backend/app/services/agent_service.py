@@ -1,33 +1,28 @@
-from typing import List, Dict, Optional
+from typing import List, Optional, Tuple
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-import re
 
 from app.db.repositories.agent_repository import AgentRepository
 from app.db.repositories.contest_repository import ContestRepository
 from app.db.repositories.text_repository import TextRepository
 from app.db.models.agent import Agent
-from app.db.models.agent_execution import AgentExecution
 from app.schemas.agent import (
     AgentCreate, 
     AgentUpdate, 
-    AgentResponse, 
     AgentExecuteJudge,
     AgentExecuteWriter,
     AgentExecutionResponse
 )
-from app.schemas.text import TextCreate, TextResponse as TextSchemaResponse
-from app.schemas.vote import VoteCreate, VoteResponse as VoteSchemaResponse
+from app.schemas.text import TextCreate
+from app.schemas.vote import VoteCreate
 from app.services.ai_service import AIService
 from app.services.credit_service import CreditService
 from app.services.text_service import TextService
 from app.services.vote_service import VoteService
 from app.db.repositories.user_repository import UserRepository
 from app.db.models.contest_judge import ContestJudge
-from app.db.models.user import User as UserModel
 from app.db.models.text import Text as TextModel
-from app.db.models.vote import Vote as VoteModel
 from app.utils.ai_models import estimate_credits, estimate_cost_usd
 from app.core.config import settings
 
@@ -241,24 +236,13 @@ class AgentService:
 
         # --- MODIFIED: Enhanced Pre-check Credit Estimation for Judging ---
         # Estimate input tokens using the model-aware estimator
-        prompt_tokens_est = AIService.estimate_token_count(agent.prompt, model_id=request.model) 
-        contest_desc_tokens_est = AIService.estimate_token_count(contest.description, model_id=request.model)
-        texts_tokens_est = 0
-        text_content_for_estimation = ""
-        for text_detail in text_details_for_ai:
-            # Combine title and content for estimation
-            text_content_for_estimation += text_detail.get('title', '') + "\n\n" + text_detail.get('content', '') + "\n\n---\n\n" 
+        estimated_input_tokens, estimated_output_tokens = AgentService.estimate_judge_tokens(
+            agent.prompt, 
+            request.model, 
+            contest.description, 
+            len(text_details_for_ai)
+        )
         
-        # Estimate tokens for all text content together, plus buffer
-        texts_tokens_est = AIService.estimate_token_count(text_content_for_estimation, model_id=request.model) + (len(text_details_for_ai) * 10) # Small buffer per text 
-
-        # Sum of prompt, contest desc, and all text contents. Add buffer for overall structure/instructions.
-        estimated_input_tokens = prompt_tokens_est + contest_desc_tokens_est + texts_tokens_est + 200 
-
-        # Estimate output tokens: Slightly refined heuristic.
-        # Assume ~100 tokens per evaluation (score + brief rationale) + ~200 for final ranking/summary
-        estimated_output_tokens = (len(text_details_for_ai) * 100) + 200
-
         estimated_cost = estimate_credits(request.model, estimated_input_tokens, estimated_output_tokens)
         # --- End of Modified Estimation ---
 
@@ -284,7 +268,18 @@ class AgentService:
 
             # Use estimate_credits for cost calculation based on prompt and completion tokens
             actual_credits_used = estimate_credits(request.model, actual_prompt_tokens, actual_completion_tokens)
-            total_credits_for_run += actual_credits_used
+            real_cost_usd = estimate_cost_usd(request.model, actual_prompt_tokens, actual_completion_tokens)
+            actual_total_tokens_for_deduction = actual_prompt_tokens + actual_completion_tokens
+            await CreditService.deduct_credits(
+                    db=db,
+                    user_id=current_user_id,
+                    amount=actual_credits_used,
+                    description=f"AI Judge Agent execution: {agent.name} on contest {request.contest_id}",
+                    ai_model=request.model,
+                    tokens_used=actual_total_tokens_for_deduction,
+                    real_cost_usd=real_cost_usd
+                )
+
 
             # Ensure contest_judge_id for the AI agent is fetched or available
             # This AI agent (request.agent_id) should be an assigned judge.
@@ -345,22 +340,6 @@ class AgentService:
             )
             execution_responses.append(AgentExecutionResponse.model_validate(exec_record))
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=error_msg)
-        finally:
-            if total_credits_for_run > 0:
-                # Ensure actual_tokens_used for deduction description is the sum of prompt and completion tokens
-                actual_total_tokens_for_deduction = actual_prompt_tokens + actual_completion_tokens
-                # Compute real cost in USD for accurate tracking
-                real_cost_usd = estimate_cost_usd(request.model, actual_prompt_tokens, actual_completion_tokens)
-                await CreditService.deduct_credits(
-                    db=db,
-                    user_id=current_user_id,
-                    amount=total_credits_for_run,
-                    description=f"AI Judge Agent execution: {agent.name} on contest {request.contest_id}",
-                    ai_model=request.model,
-                    tokens_used=actual_total_tokens_for_deduction,
-                    model_cost_rate=real_cost_usd
-                )
-
         return execution_responses
     
     @staticmethod
@@ -385,15 +364,14 @@ class AgentService:
             )
         
         # --- Credit Pre-check for Writer ---
-        prompt_str = agent.prompt
-        if request.title: prompt_str += "\nTitle: " + request.title
-        if request.description: prompt_str += "\nDescription: " + request.description
-        if request.contest_description: prompt_str += "\nContest: " + request.contest_description
+        estimated_input_tokens, estimated_output_tokens = AgentService.estimate_writer_tokens(
+            agent.prompt, 
+            request.model, 
+            request.title, 
+            request.description, 
+            request.contest_description
+        )
         
-        estimated_input_tokens = AIService.estimate_token_count(prompt_str, model_id=request.model)
-        # Estimate output tokens (use default max_tokens, halved as previously requested)
-        estimated_output_tokens = settings.DEFAULT_WRITER_MAX_TOKENS // 2
-
         estimated_cost = estimate_credits(request.model, estimated_input_tokens, estimated_output_tokens)
 
         has_credits = await CreditService.has_sufficient_credits(db, current_user_id, estimated_cost)
@@ -430,6 +408,17 @@ class AgentService:
             )
             
             actual_credits_used = estimate_credits(request.model, actual_prompt_tokens, actual_completion_tokens)
+            real_cost_usd = estimate_cost_usd(request.model, actual_prompt_tokens, actual_completion_tokens)
+            actual_total_tokens_for_deduction = actual_prompt_tokens + actual_completion_tokens
+            await CreditService.deduct_credits(
+                    db=db,
+                    user_id=current_user_id,
+                    amount=actual_credits_used,
+                    description=f"AI Writer Agent: {agent.name}",
+                    ai_model=request.model,
+                    tokens_used=actual_total_tokens_for_deduction,
+                    real_cost_usd=real_cost_usd
+                )
             exec_status = "completed"
 
             if generated_content_text is not None:
@@ -466,41 +455,7 @@ class AgentService:
             exec_status = "failed" # Ensure status is failed
             # Raise a generic 500 for unexpected errors, error_msg_for_exec will be in the log.
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=error_msg_for_exec)
-        finally:
-            # Deduct credits if any were used, regardless of subsequent errors (e.g., text saving)
-            # but only if the AI call itself was made and tokens were consumed.
-            if actual_credits_used > 0:
-                actual_total_tokens = actual_prompt_tokens + actual_completion_tokens
-                description_msg = f"AI Writer Agent: {agent.name}"
-                if request.description:
-                    description_msg += f" - Topic: {request.description[:50]}"
-                elif request.title:
-                    description_msg += f" - Title: {request.title[:50]}"
 
-                # Compute real cost in USD for accurate tracking
-                real_cost_usd = estimate_cost_usd(request.model, actual_prompt_tokens, actual_completion_tokens)
-                await CreditService.deduct_credits(
-                    db=db,
-                    user_id=current_user_id,
-                    amount=actual_credits_used,
-                    description=description_msg,
-                    ai_model=request.model,
-                    tokens_used=actual_total_tokens,
-                    model_cost_rate=real_cost_usd
-                )
-
-            # Create the execution record in all cases (success or failure during AI call/text saving)
-            execution_record = await AgentRepository.create_agent_execution(
-                db=db, agent_id=agent.id, owner_id=current_user_id,
-                execution_type="generate_text", model=request.model, status=exec_status,
-                result_id=result_id_for_exec, # This will be None if text creation failed or AI call failed
-                error_message=error_msg_for_exec,
-                credits_used=actual_credits_used # This reflects cost of AI call if successful
-            )
-
-        # If the process reached here without re-raising an exception from try/except block,
-        # it means either success or an error handled within finally (which is just credit deduction).
-        # The execution_record is guaranteed to exist.
         return AgentExecutionResponse.model_validate(execution_record)
     
     @staticmethod
@@ -538,3 +493,79 @@ class AgentService:
         )
         new_agent = await AgentRepository.create_agent(db, cloned_agent_data, current_user_id)
         return new_agent 
+
+    @staticmethod
+    def estimate_writer_tokens(
+        agent_prompt: str,
+        model: str,
+        title: Optional[str] = None,
+        description: Optional[str] = None,
+        contest_description: Optional[str] = None
+    ) -> Tuple[int, int]:
+        """
+        Estimate the number of input and output tokens for a writer agent execution.
+        
+        Args:
+            agent_prompt: The agent's system prompt
+            model: The AI model to use
+            title: Optional title for the text
+            description: Optional description/prompt for the text
+            contest_description: Optional contest description
+            
+        Returns:
+            Tuple of (estimated_input_tokens, estimated_output_tokens)
+        """
+        # Build prompt string for estimation
+        prompt_str = agent_prompt
+        if title: prompt_str += "\nTitle: " + title
+        if description: prompt_str += "\nDescription: " + description
+        if contest_description: prompt_str += "\nContest: " + contest_description
+        
+        # Estimate input tokens
+        estimated_input_tokens = AIService.estimate_token_count(prompt_str, model_id=model)
+        
+        # Estimate output tokens (use default max_tokens, halved for safer estimation)
+        estimated_output_tokens = settings.DEFAULT_WRITER_MAX_TOKENS // 2
+        
+        return estimated_input_tokens, estimated_output_tokens
+    
+    @staticmethod
+    def estimate_judge_tokens(
+        agent_prompt: str,
+        model: str,
+        contest_description: str,
+        text_count: int,
+        avg_text_length: Optional[int] = None
+    ) -> Tuple[int, int]:
+        """
+        Estimate the number of input and output tokens for a judge agent execution.
+        
+        Args:
+            agent_prompt: The agent's system prompt
+            model: The AI model to use
+            contest_description: The contest description
+            text_count: Number of texts to judge
+            avg_text_length: Optional average text length for more accurate estimation
+            
+        Returns:
+            Tuple of (estimated_input_tokens, estimated_output_tokens)
+        """
+        # Calculate prompt tokens
+        prompt_tokens_est = AIService.estimate_token_count(agent_prompt, model_id=model)
+        contest_desc_tokens_est = AIService.estimate_token_count(contest_description, model_id=model)
+        
+        # Estimate tokens for texts
+        text_tokens_est = 0
+        if avg_text_length:
+            text_tokens_est = text_count * avg_text_length
+        else:
+            # Use a default average if not provided (500 tokens per text)
+            text_tokens_est = text_count * 500
+        
+        # Add buffer for instructions and structure
+        estimated_input_tokens = prompt_tokens_est + contest_desc_tokens_est + text_tokens_est + 200
+        
+        # Estimate output tokens (assume ~100 tokens per evaluation + ~200 for final ranking)
+        estimated_output_tokens = (text_count * 100) + 200
+        
+        return estimated_input_tokens, estimated_output_tokens

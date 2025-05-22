@@ -56,11 +56,23 @@ class CreditService:
         description: str,
         ai_model: Optional[str] = None,
         tokens_used: Optional[int] = None,
-        model_cost_rate: Optional[float] = None
+        real_cost_usd: Optional[float] = None
     ) -> CreditTransaction:
         """
         Deduct credits from a user's account and record the transaction.
         Used when a user consumes credits for AI services.
+        
+        Args:
+            db: Database session
+            user_id: User ID to deduct credits from
+            amount: Number of credits to deduct
+            description: Description of the transaction
+            ai_model: ID of the AI model used (if applicable)
+            tokens_used: Total number of tokens used (if applicable)
+            real_cost_usd: Actual cost in USD calculated using estimate_cost_usd
+        
+        Returns:
+            The created transaction record
         """
         user_repo = UserRepository(db)
         user = await user_repo.get_by_id(user_id)
@@ -88,7 +100,7 @@ class CreditService:
             description=description,
             ai_model=ai_model,
             tokens_used=tokens_used,
-            model_cost_rate=model_cost_rate
+            real_cost_usd=real_cost_usd
         )
         db_transaction = await CreditRepository.create_transaction(db, transaction_create)
         return db_transaction

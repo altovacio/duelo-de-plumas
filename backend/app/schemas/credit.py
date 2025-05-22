@@ -13,7 +13,7 @@ class CreditTransactionCreate(CreditTransactionBase):
     user_id: int
     ai_model: Optional[str] = None
     tokens_used: Optional[int] = None
-    model_cost_rate: Optional[float] = None
+    real_cost_usd: Optional[float] = None
 
 
 class CreditTransactionResponse(CreditTransactionBase):
@@ -22,7 +22,7 @@ class CreditTransactionResponse(CreditTransactionBase):
     created_at: datetime
     ai_model: Optional[str] = None
     tokens_used: Optional[int] = None
-    model_cost_rate: Optional[float] = None
+    real_cost_usd: Optional[float] = None
 
     class Config:
         orm_mode = True

@@ -119,10 +119,10 @@ class CreditRepository:
         total_tokens_used_result = await db.execute(total_tokens_used_stmt)
         total_tokens_used = total_tokens_used_result.scalar_one_or_none() or 0
         
-        # Compute real cost in USD
-        real_cost_stmt = select(func.sum(CreditTransaction.model_cost_rate)).filter(
+        # Compute real cost in USD using the stored real_cost_usd field
+        real_cost_stmt = select(func.sum(CreditTransaction.real_cost_usd)).filter(
             CreditTransaction.transaction_type == "deduction",
-            CreditTransaction.model_cost_rate.is_not(None)
+            CreditTransaction.real_cost_usd.is_not(None)
         )
         real_cost_result = await db.execute(real_cost_stmt)
         total_real_cost_usd = real_cost_result.scalar_one_or_none() or 0.0

@@ -17,7 +17,7 @@ class CreditTransaction(Base):
     description = Column(String, nullable=False)
     ai_model = Column(String, nullable=True)  # If transaction related to AI usage
     tokens_used = Column(Integer, nullable=True)  # If transaction related to AI usage
-    model_cost_rate = Column(Float, nullable=True)  # Cost per 1000 tokens if applicable
+    real_cost_usd = Column(Float, nullable=True)  # Actual cost in USD calculated using estimate_cost_usd
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     # Relationship with User, using foreign_keys and lazy loading to avoid circular issues

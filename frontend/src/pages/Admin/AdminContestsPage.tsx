@@ -1,15 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-import { getContests, Contest } from '../../services/contestService';
+import { getContests, Contest, deleteContest as deleteContestService, updateContest } from '../../services/contestService';
 import BackButton from '../../components/ui/BackButton';
-import ContestEditModal from '../../components/Contest/ContestEditModal';
+import ContestFormModal from '../../components/Contest/ContestFormModal';
 
 // Mock functions for edit and delete
-const deleteContest = async (id: number) => {
-  console.log(`Deleting contest ${id}`);
-  return Promise.resolve({ success: true });
-};
+// const deleteContest = async (id: number) => { ... };
 
 const AdminContestsPage: React.FC = () => {
   const [contests, setContests] = useState<Contest[]>([]);
@@ -44,7 +41,8 @@ const AdminContestsPage: React.FC = () => {
     if (!contestToDelete) return;
 
     try {
-      await deleteContest(contestToDelete.id);
+      // Use the imported service function
+      await deleteContestService(contestToDelete.id);
       
       // Update local state
       setContests(contests.filter(contest => contest.id !== contestToDelete.id));
@@ -54,7 +52,7 @@ const AdminContestsPage: React.FC = () => {
       setContestToDelete(null);
     } catch (error) {
       console.error('Error deleting contest:', error);
-      toast.error('Failed to delete contest');
+      toast.error('Failed to delete contest. Check console for details.');
     }
   };
 
@@ -72,6 +70,18 @@ const AdminContestsPage: React.FC = () => {
     setContests(contests.map(contest => 
       contest.id === updatedContest.id ? updatedContest : contest
     ));
+  };
+
+  const handleContestSubmit = async (contestData: any) => {
+    try {
+      const updatedContest = await updateContest(contestToEdit!.id, contestData);
+      handleContestUpdated(updatedContest);
+      setIsEditModalOpen(false);
+      toast.success('Contest updated successfully');
+    } catch (error) {
+      console.error('Error updating contest:', error);
+      toast.error('Failed to update contest');
+    }
   };
 
   // Filter contests based on search query, status filter, and date filter
@@ -342,11 +352,22 @@ const AdminContestsPage: React.FC = () => {
 
       {/* Edit Contest Modal */}
       {contestToEdit && (
-        <ContestEditModal
-          contest={contestToEdit}
+        <ContestFormModal
           isOpen={isEditModalOpen}
           onClose={() => setIsEditModalOpen(false)}
-          onSuccess={handleContestUpdated}
+          onSubmit={handleContestSubmit}
+          initialContest={{
+            title: contestToEdit.title,
+            description: contestToEdit.description,
+            is_private: contestToEdit.is_private,
+            password: contestToEdit.password || undefined,
+            end_date: contestToEdit.end_date || undefined,
+            judge_restrictions: contestToEdit.judge_restrictions,
+            author_restrictions: contestToEdit.author_restrictions,
+            min_votes_required: contestToEdit.min_votes_required,
+            status: contestToEdit.status,
+          }}
+          isEditing={true}
         />
       )}
     </div>

@@ -33,7 +33,8 @@ class UserUpdate(BaseModel):
     password: Optional[str] = None
     
 class UserCredit(BaseModel):
-    credits: int
+    amount: int
+    description: str
 
 class Token(BaseModel):
     access_token: str

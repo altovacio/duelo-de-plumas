@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Union
 from sqlalchemy.orm import selectinload
 from sqlalchemy import func
 from sqlalchemy.future import select
@@ -38,16 +38,21 @@ class ContestRepository:
         limit: int = 100,
         status: Optional[str] = None,
         current_user_id: Optional[int] = None,
-        creator_id: Optional[int] = None
+        creator_id: Optional[Union[int, str]] = None
     ) -> List[Contest]:
+        """Get a list of contests with optional filtering.
+        If status is provided, filter by status.
+        If creator_id is provided, filter by creator_id.
+        """
         query = select(Contest)
         
-        # Filter by status if provided
         if status:
-            query = query.where(Contest.status == status)
-        
-        # Filter by creator_id if provided
+            query = query.where(Contest.status.ilike(f"%{status}%"))
+            
         if creator_id is not None:
+            # Handle string values for creator_id by casting to int
+            if isinstance(creator_id, str) and creator_id.isdigit():
+                creator_id = int(creator_id)
             query = query.where(Contest.creator_id == creator_id)
             
         # The comment below is for the general case of listing all contests.

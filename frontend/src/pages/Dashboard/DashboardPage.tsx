@@ -731,15 +731,6 @@ const DashboardPage: React.FC = () => {
                     {isCreateTextDropdownOpen && (
                       <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg z-10">
                         <div className="py-1">
-                          <button
-                            onClick={() => {
-                              setIsCreateTextDropdownOpen(false);
-                              handleOpenCreateTextModal();
-                            }}
-                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                          >
-                            Write in Markdown
-                          </button>
                           <Link 
                             to="/editor"
                             className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"

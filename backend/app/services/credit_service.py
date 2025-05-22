@@ -35,7 +35,7 @@ class CreditService:
         
         # Update user's credit balance via UserRepository
         new_credit_value = user.credits + credit_update.credits
-        await user_repo.update_credits(user_id, UserCredit(credits=new_credit_value))
+        await user_repo.update_credits(user_id, UserCredit(amount=new_credit_value, description=credit_update.description))
         # Note: user object in memory might be stale here, but transaction records new balance contextually
         
         # Create a credit transaction record
@@ -76,15 +76,9 @@ class CreditService:
                 detail="Deduction amount must be positive."
             )
         
-        if user.credits < amount:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Insufficient credits. Required: {amount}, Available: {user.credits}"
-            )
-        
         # Update user's credit balance via UserRepository
-        new_credit_value = user.credits - amount
-        await user_repo.update_credits(user_id, UserCredit(credits=new_credit_value))
+        # Pass negative amount for deduction (UserRepository will add this to current credits)
+        await user_repo.update_credits(user_id, UserCredit(amount=-amount, description=description))
         
         # Create a credit transaction record
         transaction_create = CreditTransactionCreate(

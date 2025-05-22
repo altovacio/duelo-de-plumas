@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Union
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import ValidationError
@@ -37,7 +37,7 @@ async def get_contests(
     skip: int = 0,
     limit: int = 100,
     status: Optional[str] = Query(None, description="Filter contests by status (e.g., open, closed, evaluation)"),
-    creator: Optional[str] = Query(None, description="Filter contests by creator. Use 'me' for current user's contests."),
+    creator: Optional[Union[int, str]] = Query(None, description="Filter contests by creator. Use 'me' for current user's contests."),
     db: AsyncSession = Depends(get_db),
     current_user: Optional[UserModel] = Depends(get_optional_current_user)
 ):

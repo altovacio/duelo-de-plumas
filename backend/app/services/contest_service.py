@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -52,11 +52,13 @@ class ContestService:
         limit: int = 100,
         status: Optional[str] = None,
         current_user_id: Optional[int] = None,
-        creator: Optional[str] = None  # New parameter: 'me' or None
+        creator: Optional[Union[int, str]] = None  # Can be 'me', user_id (int), or user_id (str)
     ) -> List[ContestResponse]:
-        creator_id_to_filter: Optional[int] = None
+        creator_id_to_filter: Optional[Union[int, str]] = None
         if creator == "me" and current_user_id is not None:
             creator_id_to_filter = current_user_id
+        elif creator is not None:
+            creator_id_to_filter = creator
         # If creator is something else, or current_user_id is None, no creator filter is applied unless explicitly passed
         # This maintains existing behavior for general contest listing if creator != 'me'
 

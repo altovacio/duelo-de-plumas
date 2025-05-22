@@ -1,5 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 import uvicorn
 
 # Import routers
@@ -21,17 +22,26 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "Accept"],
+    expose_headers=["Content-Length"],
 )
 
 @app.middleware("http")
-async def add_debug_middleware(request, call_next):
+async def add_debug_middleware(request: Request, call_next):
     # For debugging - log any server errors
-    response = await call_next(request)
-    if response.status_code >= 500:
-        print(f"5XX Error occurred: {request.method} {request.url.path} - Status {response.status_code}")
-    return response
+    try:
+        response = await call_next(request)
+        if response.status_code >= 500:
+            print(f"5XX Error occurred: {request.method} {request.url.path} - Status {response.status_code}")
+        return response
+    except Exception as e:
+        print(f"Unhandled exception: {e}")
+        # Return a proper CORS-enabled response for unhandled exceptions
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error"},
+        )
 
 # Include routers
 app.include_router(auth.router, prefix="/auth", tags=["authentication"])

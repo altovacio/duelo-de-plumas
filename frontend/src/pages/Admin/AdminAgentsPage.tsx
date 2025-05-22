@@ -2,143 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { getAgents, Agent, updateAgent, deleteAgent } from '../../services/agentService';
 import BackButton from '../../components/ui/BackButton';
-
-interface AgentEditModalProps {
-  agent: Agent;
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: (updatedAgent: Partial<Agent>) => void;
-}
-
-const AgentEditModal: React.FC<AgentEditModalProps> = ({ agent, isOpen, onClose, onSave }) => {
-  const [name, setName] = useState(agent.name);
-  const [description, setDescription] = useState(agent.description);
-  const [prompt, setPrompt] = useState(agent.prompt);
-  const [isPublic, setIsPublic] = useState(agent.is_public);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (isOpen) {
-      setName(agent.name);
-      setDescription(agent.description);
-      setPrompt(agent.prompt);
-      setIsPublic(agent.is_public);
-    }
-  }, [agent, isOpen]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-
-    try {
-      await onSave({
-        name,
-        description,
-        prompt,
-        is_public: isPublic
-      });
-      onClose();
-    } catch (error) {
-      console.error('Error updating agent:', error);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold">Edit AI Agent</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-              Name
-            </label>
-            <input
-              type="text"
-              id="name"
-              className="w-full px-3 py-2 border rounded-lg"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-          </div>
-
-          <div className="mb-4">
-            <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
-              Description
-            </label>
-            <textarea
-              id="description"
-              className="w-full px-3 py-2 border rounded-lg"
-              rows={3}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              required
-            />
-          </div>
-
-          <div className="mb-4">
-            <label htmlFor="prompt" className="block text-sm font-medium text-gray-700 mb-1">
-              Prompt
-            </label>
-            <textarea
-              id="prompt"
-              className="w-full px-3 py-2 border rounded-lg font-mono text-sm"
-              rows={6}
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              required
-            />
-          </div>
-
-          <div className="mb-4">
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                checked={isPublic}
-                onChange={(e) => setIsPublic(e.target.checked)}
-              />
-              <span className="ml-2 text-sm text-gray-700">Make this agent public</span>
-            </label>
-          </div>
-
-          <div className="flex justify-end space-x-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
-              disabled={isSubmitting}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:bg-indigo-300"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? 'Saving...' : 'Save Changes'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
+import AgentFormModal from '../../components/Agent/AgentFormModal';
 
 const AdminAgentsPage: React.FC = () => {
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -184,18 +48,27 @@ const AdminAgentsPage: React.FC = () => {
     if (!selectedAgent) return;
     
     try {
-      const updatedAgent = await updateAgent(selectedAgent.id, agentData);
+      // Convert the form data format to what the API expects
+      const apiAgentData = {
+        name: agentData.name,
+        description: agentData.description,
+        type: agentData.type,
+        prompt: agentData.prompt,
+        is_public: agentData.is_public
+      };
       
-      // Update the agent in the local state
+      const updatedAgent = await updateAgent(selectedAgent.id, apiAgentData);
+      
+      // Update local state
       setAgents(agents.map(agent => 
-        agent.id === selectedAgent.id ? updatedAgent : agent
+        agent.id === updatedAgent.id ? updatedAgent : agent
       ));
       
       toast.success('Agent updated successfully');
+      setIsEditModalOpen(false);
     } catch (error) {
       console.error('Error updating agent:', error);
       toast.error('Failed to update agent');
-      throw error;
     }
   };
 
@@ -400,11 +273,29 @@ const AdminAgentsPage: React.FC = () => {
 
       {/* Edit Modal */}
       {selectedAgent && (
-        <AgentEditModal
-          agent={selectedAgent}
+        <AgentFormModal
           isOpen={isEditModalOpen}
           onClose={() => setIsEditModalOpen(false)}
-          onSave={handleUpdateAgent}
+          onSubmit={(agentData) => {
+            // Convert AgentFormModal format to updateAgent format
+            handleUpdateAgent({
+              ...selectedAgent,
+              name: agentData.name,
+              description: agentData.description,
+              type: agentData.type,
+              prompt: agentData.prompt,
+              is_public: agentData.is_public
+            });
+          }}
+          initialAgent={{
+            name: selectedAgent.name,
+            description: selectedAgent.description,
+            type: selectedAgent.type as 'writer' | 'judge',
+            prompt: selectedAgent.prompt,
+            is_public: selectedAgent.is_public
+          }}
+          isEditing={true}
+          isAdmin={true}
         />
       )}
 

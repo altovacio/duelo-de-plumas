@@ -82,10 +82,23 @@ class UserRepository:
         
     async def update_credits(self, user_id: int, credit_data: UserCredit) -> User:
         """Update a user's credits."""
+        # First get the current user to access their current credits
+        user = await self.get_by_id(user_id)
+        if not user:
+            return None
+            
+        # Calculate new credit balance by adding the amount to the current balance
+        # The amount can be positive (add credits) or negative (subtract credits)
+        new_credit_balance = user.credits + credit_data.amount
+        
+        # Make sure credits can't go below zero
+        if new_credit_balance < 0:
+            new_credit_balance = 0
+        
         stmt = (
             update(User)
             .where(User.id == user_id)
-            .values(credits=credit_data.credits)
+            .values(credits=new_credit_balance)
             .returning(User)
         )
         

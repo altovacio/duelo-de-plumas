@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import BackButton from '../../components/ui/BackButton';
+import { User, deleteUserByAdmin, getAdminUsers } from '../../services/userService';
+import { updateUserCredits } from '../../services/creditService';
+import { getContests } from '../../services/contestService';
 
-// In a real implementation, these would be imported from service files
-// This is a placeholder until the backend services are fully implemented
+// Local User interface removed, will use the one from userService
+/*
 interface User {
   id: number;
   username: string;
@@ -14,52 +17,25 @@ interface User {
   last_seen?: string;
   contests_created?: number;
 }
+*/
 
-const mockUsers: User[] = [
-  {
-    id: 1,
-    username: 'admin',
-    email: 'admin@example.com',
-    is_admin: true,
-    credit_balance: 1000,
-    created_at: '2023-01-01T00:00:00Z',
-    last_seen: '2023-05-15T14:30:00Z',
-    contests_created: 5
-  },
-  {
-    id: 2,
-    username: 'user1',
-    email: 'user1@example.com',
-    is_admin: false,
-    credit_balance: 50,
-    created_at: '2023-01-02T00:00:00Z',
-    last_seen: '2023-05-14T09:15:00Z',
-    contests_created: 2
-  },
-  {
-    id: 3,
-    username: 'user2',
-    email: 'user2@example.com',
-    is_admin: false,
-    credit_balance: 25,
-    created_at: '2023-01-03T00:00:00Z',
-    last_seen: '2023-05-13T17:45:00Z',
-    contests_created: 0
-  }
-];
+// mockUsers removed
+// const mockUsers: User[] = [ ... ];
 
 // Mock function to assign credits to a user
 const modifyUserCredits = async (userId: number, amount: number) => {
-  // In a real implementation, this would call an API endpoint
-  console.log(`Modifying user ${userId} credits by ${amount}`);
-  return Promise.resolve({ success: true });
-};
-
-// Mock function to delete a user
-const deleteUser = async (userId: number) => {
-  // In a real implementation, this would call an API endpoint
-  console.log(`Deleting user ${userId}`);
-  return Promise.resolve({ success: true });
+  try {
+    // Call the proper API with a descriptive message
+    const description = amount > 0 
+      ? `Admin added ${amount} credits` 
+      : `Admin deducted ${Math.abs(amount)} credits`;
+    
+    await updateUserCredits(userId, amount, description);
+    return { success: true };
+  } catch (error) {
+    console.error("Error modifying user credits:", error);
+    throw error; // Re-throw to be handled by the caller
+  }
 };
 
 const AdminUsersPage: React.FC = () => {
@@ -73,16 +49,36 @@ const AdminUsersPage: React.FC = () => {
   const [creditAmount, setCreditAmount] = useState<number>(0);
 
   useEffect(() => {
-    // In a real implementation, this would fetch users from an API
     const fetchUsers = async () => {
       setIsLoading(true);
       try {
-        // Mock API call
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        setUsers(mockUsers);
+        // Fetch real user data
+        const fetchedUsers = await getAdminUsers();
+        
+        // Process users sequentially to avoid overwhelming the server
+        const processedUsers = [...fetchedUsers];
+        
+        for (let i = 0; i < fetchedUsers.length; i++) {
+          const user = fetchedUsers[i];
+          try {
+            // Add a small delay between requests to avoid overwhelming the server
+            if (i > 0) {
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            
+            // Use contestService to get contests created by this user
+            const userContests = await getContests({ creator: user.id.toString() });
+            processedUsers[i] = { ...user, contests_created: userContests.length };
+          } catch (error) {
+            console.error(`Error fetching contests for user ${user.id}:`, error);
+            processedUsers[i] = { ...user, contests_created: 'N/A' };
+          }
+        }
+        
+        setUsers(processedUsers);
       } catch (error) {
         console.error('Error fetching users:', error);
-        toast.error('Failed to load users');
+        toast.error('Failed to load users. Check console for details.');
       } finally {
         setIsLoading(false);
       }
@@ -95,22 +91,29 @@ const AdminUsersPage: React.FC = () => {
     if (!userToModifyCredits || creditAmount === 0) return;
 
     try {
-      await modifyUserCredits(userToModifyCredits.id, creditAmount);
+      const result = await modifyUserCredits(userToModifyCredits.id, creditAmount);
       
-      // Update local state (in a real app, we'd fetch updated data)
-      setUsers(users.map(user => 
-        user.id === userToModifyCredits.id 
-          ? { ...user, credit_balance: user.credit_balance + creditAmount } 
-          : user
-      ));
+      if (result.success) {
+        // Update local state
+        setUsers(users.map(user => 
+          user.id === userToModifyCredits.id 
+            ? { ...user, credit_balance: (user.credit_balance || 0) + creditAmount } 
+            : user
+        ));
+        
+        toast.success(`Credits ${creditAmount > 0 ? 'added' : 'removed'} successfully`);
+      } else {
+        toast.error('Failed to modify credits. Please try again.');
+      }
       
-      toast.success(`Credits ${creditAmount > 0 ? 'added' : 'removed'} successfully`);
+      // Close modal regardless of success/failure
       setIsCreditModalOpen(false);
       setUserToModifyCredits(null);
       setCreditAmount(0);
     } catch (error) {
       console.error('Error modifying credits:', error);
-      toast.error('Failed to modify credits');
+      toast.error('Failed to modify credits. Please check the server logs.');
+      // Keep modal open to let user try again
     }
   };
 
@@ -118,7 +121,7 @@ const AdminUsersPage: React.FC = () => {
     if (!userToDelete) return;
 
     try {
-      await deleteUser(userToDelete.id);
+      await deleteUserByAdmin(userToDelete.id);
       
       // Update local state
       setUsers(users.filter(user => user.id !== userToDelete.id));
@@ -128,7 +131,7 @@ const AdminUsersPage: React.FC = () => {
       setUserToDelete(null);
     } catch (error) {
       console.error('Error deleting user:', error);
-      toast.error('Failed to delete user');
+      toast.error('Failed to delete user. Check console for details.');
     }
   };
 
@@ -145,7 +148,7 @@ const AdminUsersPage: React.FC = () => {
 
   const filteredUsers = users.filter(user => 
     user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchQuery.toLowerCase())
+    (user.email || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -219,7 +222,7 @@ const AdminUsersPage: React.FC = () => {
                         <div className="font-medium text-gray-900">{user.username}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-gray-500">{user.email}</div>
+                        <div className="text-gray-500">{user.email || 'N/A'}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
@@ -229,16 +232,16 @@ const AdminUsersPage: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {user.credit_balance}
+                        {user.credit_balance || 0}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {user.contests_created || 0}
+                        {typeof user.contests_created === 'number' ? user.contests_created : 'N/A'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(user.created_at).toLocaleDateString()}
+                        {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {user.last_seen ? new Date(user.last_seen).toLocaleDateString() : 'N/A'}
+                        {user.last_seen ? new Date(user.last_seen).toLocaleDateString() : 'To be implemented'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
                         <div className="flex justify-center space-x-2">
@@ -276,7 +279,7 @@ const AdminUsersPage: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg max-w-md w-full p-6">
             <h3 className="text-lg font-bold mb-4">Modify Credits for {userToModifyCredits.username}</h3>
-            <p className="mb-4">Current balance: <span className="font-bold">{userToModifyCredits.credit_balance}</span> credits</p>
+            <p className="mb-4">Current balance: <span className="font-bold">{userToModifyCredits.credit_balance || 0}</span> credits</p>
             
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -289,7 +292,7 @@ const AdminUsersPage: React.FC = () => {
                 onChange={(e) => setCreditAmount(Number(e.target.value))}
               />
               <p className="text-sm text-gray-500 mt-1">
-                New balance will be: {userToModifyCredits.credit_balance + creditAmount}
+                New balance will be: {(userToModifyCredits.credit_balance || 0) + creditAmount}
               </p>
             </div>
             

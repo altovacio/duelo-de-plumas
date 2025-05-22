@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { createText, updateText, Text } from '../../services/textService';
 import BackButton from '../../components/ui/BackButton';
+import MDEditor from '@uiw/react-md-editor';
 
 const MarkdownEditorPage: React.FC = () => {
   const navigate = useNavigate();
@@ -162,19 +163,18 @@ const MarkdownEditorPage: React.FC = () => {
             <div className="flex-1 flex flex-col">
               <label htmlFor="content" className="block text-sm font-medium text-gray-700">Content (Markdown)</label>
               <div className="mt-1 flex-1 flex flex-col">
-                <textarea
-                  id="content"
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  className="flex-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm font-mono"
-                  placeholder="Write your text in Markdown format..."
-                  style={{ minHeight: '500px' }}
-                />
+                <div data-color-mode="light">
+                  <MDEditor
+                    value={content}
+                    onChange={(value) => setContent(value || '')}
+                    height={500}
+                  />
+                </div>
               </div>
             </div>
             
             <div className="text-sm text-gray-500">
-              <p>Markdown syntax: # Heading, ## Subheading, **bold**, *italic*, [link](url), ![image](url)</p>
+              <p>Use the toolbar above to format your text with markdown: headings, bold, italic, links, and more.</p>
             </div>
           </div>
         ) : (

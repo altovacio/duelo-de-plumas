@@ -4,6 +4,7 @@ from typing import List
 
 from app.db.database import get_db
 from app.schemas.user import UserResponse, UserUpdate, UserCredit, UserPublicResponse
+from app.schemas.credit import CreditTransactionResponse
 from app.services.user_service import UserService
 from app.api.routes.auth import get_current_user, get_current_admin_user, get_optional_current_user
 from app.db.models.user import User as UserModel
@@ -99,19 +100,6 @@ async def delete_user(
     await service.delete_user(user_id, current_user)
     return None
 
-@router.patch("/{user_id}/credits", response_model=UserResponse)
-async def update_user_credits(
-    user_id: int,
-    credit_data: UserCredit,
-    db: AsyncSession = Depends(get_db),
-    current_user: UserModel = Depends(get_current_admin_user)
-):
-    """
-    Update a user's credits. Only administrators can update user credits.
-    """
-    service = UserService(db)
-    user = await service.update_user_credits(user_id, credit_data, current_user)
-    return user
 
 @router.get("/judge-contests", response_model=List[ContestResponse])
 async def get_user_judge_contests(

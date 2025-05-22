@@ -152,6 +152,18 @@ Authenticate and login a user.
 
 Authenticate and login a user.
 
+### POST /auth/login/json
+
+**Summary:** Login Json
+
+Authenticate and login a user using JSON payload.
+
+### POST /auth/login/json
+
+**Summary:** Login Json
+
+Authenticate and login a user using JSON payload.
+
 
 ## contests
 
@@ -172,7 +184,8 @@ Create a new contest
 **Summary:** Get Contests
 
 Get list of contests with optional filtering.
-All users (authenticated or visitor) see all contests listed.
+If 'creator=me' is passed, only contests created by the current user are returned.
+Otherwise, all users (authenticated or visitor) see all contests listed (unless other filters apply).
 Access to details of private contests is handled by the GET /{contest_id} endpoint.
 
 ### GET /contests/
@@ -180,9 +193,24 @@ Access to details of private contests is handled by the GET /{contest_id} endpoi
 **Summary:** Get Contests
 
 Get list of contests with optional filtering.
-All users (authenticated or visitor) see all contests listed.
+If 'creator=me' is passed, only contests created by the current user are returned.
+Otherwise, all users (authenticated or visitor) see all contests listed (unless other filters apply).
 Access to details of private contests is handled by the GET /{contest_id} endpoint.
 
+### GET /contests/my-submissions/
+
+**Summary:** Get All My Submissions
+
+Get all text submissions made by the current authenticated user across all contests.
+This endpoint provides a complete view of all the user's contest participation.
+
+### GET /contests/my-submissions/
+
+**Summary:** Get All My Submissions
+
+Get all text submissions made by the current authenticated user across all contests.
+This endpoint provides a complete view of all the user's contest participation.
+
 ### GET /contests/{contest_id}
 
 **Summary:** Get Contest
@@ -268,6 +296,22 @@ Get all text submissions for a contest
 For private contests, provide the password unless you're the creator or admin
 For open contests, only the creator and admins can see submissions
 For evaluation/closed contests, anyone with access can see submissions with full details
+
+### GET /contests/{contest_id}/my-submissions/
+
+**Summary:** Get My Contest Submissions
+
+Get all text submissions made by the current authenticated user for a specific contest.
+This allows users to see their own submissions even in open contests where general
+submission visibility is restricted to creators/admins.
+
+### GET /contests/{contest_id}/my-submissions/
+
+**Summary:** Get My Contest Submissions
+
+Get all text submissions made by the current authenticated user for a specific contest.
+This allows users to see their own submissions even in open contests where general
+submission visibility is restricted to creators/admins.
 
 ### DELETE /contests/{contest_id}/submissions/{submission_id}
 
@@ -483,6 +527,20 @@ Get all users. Only administrators can access this endpoint.
 
 Get all users. Only administrators can access this endpoint.
 
+### GET /users/{user_id}/public
+
+**Summary:** Get User Public
+
+Get public user information (username only). 
+This endpoint is public and doesn't require authentication.
+
+### GET /users/{user_id}/public
+
+**Summary:** Get User Public
+
+Get public user information (username only). 
+This endpoint is public and doesn't require authentication.
+
 ### GET /users/{user_id}
 
 **Summary:** Get User
@@ -530,6 +588,18 @@ Update a user's credits. Only administrators can update user credits.
 **Summary:** Update User Credits
 
 Update a user's credits. Only administrators can update user credits.
+
+### GET /users/judge-contests
+
+**Summary:** Get User Judge Contests
+
+Get all contests where the current user is a judge.
+
+### GET /users/judge-contests
+
+**Summary:** Get User Judge Contests
+
+Get all contests where the current user is a judge.
 
 
 ## votes

@@ -142,7 +142,7 @@ async def test_04_07_admin_assigns_credits(client: AsyncClient): # Changed
     assert "admin_headers" in test_data, "Admin token not found."
     assert "user1_id" in test_data and "user2_id" in test_data, "User IDs not found."
 
-    credits_user1 = UserCreditUpdate(credits=50, description="Admin grant user 1") # MODIFIED schema
+    credits_user1 = UserCreditUpdate(credits=50, description="Admin grant to user 1 for testing") # Explicit description
     response_u1 = await client.patch( # MODIFIED method from POST to PATCH
         f"/admin/users/{test_data['user1_id']}/credits",
         json=credits_user1.model_dump(),
@@ -151,10 +151,10 @@ async def test_04_07_admin_assigns_credits(client: AsyncClient): # Changed
     assert response_u1.status_code == 200, f"Admin assigning credits to User 1 failed: {response_u1.text}"
     tx_resp1 = CreditTransactionResponse(**response_u1.json())
     assert tx_resp1.user_id == test_data["user1_id"]
-    assert tx_resp1.amount == 50 # MODIFIED: Changed 'change' to 'amount'
+    assert tx_resp1.amount == 50  # Check transaction amount matches what we sent
     # We cannot assert new_balance directly from the transaction response
 
-    credits_user2 = UserCreditUpdate(credits=100, description="Admin grant user 2") # MODIFIED schema
+    credits_user2 = UserCreditUpdate(credits=100, description="Admin grant to user 2 for testing") # Explicit description
     response_u2 = await client.patch( # MODIFIED method from POST to PATCH
         f"/admin/users/{test_data['user2_id']}/credits",
         json=credits_user2.model_dump(),
@@ -163,7 +163,7 @@ async def test_04_07_admin_assigns_credits(client: AsyncClient): # Changed
     assert response_u2.status_code == 200, f"Admin assigning credits to User 2 failed: {response_u2.text}"
     tx_resp2 = CreditTransactionResponse(**response_u2.json())
     assert tx_resp2.user_id == test_data["user2_id"]
-    assert tx_resp2.amount == 100 # MODIFIED: Changed 'change' to 'amount'
+    assert tx_resp2.amount == 100  # Check transaction amount matches what we sent
     # We cannot assert new_balance directly from the transaction response
 
     # Verify final balances by querying user data
@@ -215,7 +215,7 @@ async def test_04_08_user1_uses_writer1_with_credits_succeeds(client: AsyncClien
 
     user_response_after = await client.get(f"/users/{test_data['user1_id']}", headers=test_data["user1_headers"]) # Changed
     final_credits_user1 = UserResponse(**user_response_after.json()).credits
-    assert final_credits_user1 == initial_credits_user1 - credits_used_user1, "User 1 credit balance did not decrease correctly."
+    assert final_credits_user1 == initial_credits_user1 - credits_used_user1, f"User 1 credit balance did not decrease correctly. initial: {initial_credits_user1}, final: {final_credits_user1}, credits used: {credits_used_user1}."
     print(f"User 1 credits decreased from {initial_credits_user1} to {final_credits_user1} (cost: {credits_used_user1}).")
 
     user_response_user2 = await client.get(f"/users/{test_data['user2_id']}", headers=test_data["admin_headers"]) # Changed

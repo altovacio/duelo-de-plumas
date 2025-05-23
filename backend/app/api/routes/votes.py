@@ -49,10 +49,23 @@ async def create_vote(
     - For contests with fewer than 3 texts, judges only need to assign all possible places
     - For example, in a contest with 2 texts, only 1st and 2nd places are required
     """
+    # Determine the correct judge_id based on vote type
+    if vote_data.is_ai_vote:
+        # For AI votes, we need the agent_id from the vote_data
+        if not hasattr(vote_data, 'agent_id') or not vote_data.agent_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="AI votes must specify an agent_id"
+            )
+        judge_id = vote_data.agent_id
+    else:
+        # For human votes, use the current user's ID
+        judge_id = current_user.id
+    
     return await VoteService.create_vote(
         db=db,
         vote_data=vote_data,
-        judge_id=current_user.id,
+        judge_id=judge_id,
         contest_id=contest_id
     )
 

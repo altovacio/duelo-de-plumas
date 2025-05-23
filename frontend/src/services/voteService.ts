@@ -5,18 +5,21 @@ export interface Vote {
   contest_id: number;
   text_id: number;
   judge_id: number;
-  judge_type: 'human' | 'ai';
+  is_ai_vote: boolean;
   place: 1 | 2 | 3 | null;
   comment: string;
   created_at: string;
   updated_at: string;
   agent_id?: number;
+  ai_model?: string;
+  ai_version?: string;
 }
 
 export interface CreateVoteRequest {
   text_id: number;
   place: 1 | 2 | 3 | null;
   comment: string;
+  is_ai_vote?: boolean;
   agent_id?: number;
 }
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Text } from '../../services/textService';
-import { submitVote, CreateVoteRequest } from '../../services/voteService';
+import { submitVote, CreateVoteRequest, getJudgeVotes, Vote } from '../../services/voteService';
+import { useAuth } from '../../hooks/useAuth';
 
 interface HumanJudgingFormProps {
   contestId: number;
@@ -15,6 +16,8 @@ const HumanJudgingForm: React.FC<HumanJudgingFormProps> = ({
   onSuccess,
   onCancel
 }) => {
+  console.log('[HumanJudgingForm] Component loaded with new features v2.0');
+  const { user } = useAuth();
   // State for storing place (ranking) selections
   const [firstPlace, setFirstPlace] = useState<number | null>(null);
   const [secondPlace, setSecondPlace] = useState<number | null>(null);
@@ -28,9 +31,60 @@ const HumanJudgingForm: React.FC<HumanJudgingFormProps> = ({
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  
+  // State for existing votes
+  const [existingVotes, setExistingVotes] = useState<Vote[]>([]);
+  const [isLoadingExistingVotes, setIsLoadingExistingVotes] = useState(true);
   
   // Calculate minimum required votes based on texts count
   const minRequiredVotes = Math.min(3, texts.length);
+  
+  // Load existing votes when component mounts
+  useEffect(() => {
+    const loadExistingVotes = async () => {
+      if (!user) return;
+      
+      try {
+        setIsLoadingExistingVotes(true);
+        console.log(`Loading existing votes for user ${user.id} in contest ${contestId}`);
+        const votes = await getJudgeVotes(contestId, user.id);
+        console.log('Loaded existing votes:', votes);
+        setExistingVotes(votes);
+        
+        // Pre-populate the form with existing votes
+        votes.forEach(vote => {
+          if (vote.place === 1) setFirstPlace(vote.text_id);
+          if (vote.place === 2) setSecondPlace(vote.text_id);
+          if (vote.place === 3) setThirdPlace(vote.text_id);
+          if (vote.comment) {
+            setComments(prev => ({ ...prev, [vote.text_id]: vote.comment }));
+          }
+        });
+      } catch (err: any) {
+        console.error('Error loading existing votes:', err);
+        // If it's a 403 error, the user might not be registered as a judge yet
+        if (err.response?.status === 403) {
+          console.log('User not yet registered as judge, continuing without existing votes');
+        } else if (err.response?.status === 404) {
+          console.log('No existing votes found for this user in this contest');
+        } else {
+          console.warn('Unexpected error loading existing votes:', err.message);
+        }
+        // Don't show error for this, as it might be expected if no votes exist yet or user isn't judge
+        setExistingVotes([]);
+      } finally {
+        setIsLoadingExistingVotes(false);
+      }
+    };
+    
+    loadExistingVotes();
+  }, [contestId, user]);
+  
+  // Get existing vote for a text
+  const getExistingVote = (textId: number): Vote | undefined => {
+    return existingVotes.find(vote => vote.text_id === textId);
+  };
   
   // Handle place selection
   const handlePlaceSelection = (place: 1 | 2 | 3, textId: number) => {
@@ -117,7 +171,8 @@ const HumanJudgingForm: React.FC<HumanJudgingFormProps> = ({
         votes.push({
           text_id: firstPlace,
           place: 1, 
-          comment: comments[firstPlace] || ''
+          comment: comments[firstPlace] || '',
+          is_ai_vote: false
         });
       }
       
@@ -125,7 +180,8 @@ const HumanJudgingForm: React.FC<HumanJudgingFormProps> = ({
         votes.push({
           text_id: secondPlace,
           place: 2,
-          comment: comments[secondPlace] || ''
+          comment: comments[secondPlace] || '',
+          is_ai_vote: false
         });
       }
       
@@ -133,7 +189,8 @@ const HumanJudgingForm: React.FC<HumanJudgingFormProps> = ({
         votes.push({
           text_id: thirdPlace,
           place: 3,
-          comment: comments[thirdPlace] || ''
+          comment: comments[thirdPlace] || '',
+          is_ai_vote: false
         });
       }
       
@@ -148,21 +205,29 @@ const HumanJudgingForm: React.FC<HumanJudgingFormProps> = ({
           votes.push({
             text_id: text.id,
             place: null,
-            comment: comments[text.id]
+            comment: comments[text.id],
+            is_ai_vote: false
           });
         }
       });
       
       // Submit each vote
       for (const vote of votes) {
+        console.log('Submitting vote:', vote);
         await submitVote(contestId, vote);
       }
       
       setIsLoading(false);
-      onSuccess();
+      setSuccess('Votes submitted successfully!');
+      
+      // Automatically close the modal after showing success message
+      setTimeout(() => {
+        onSuccess();
+      }, 2000);
     } catch (err: any) {
       console.error('Error submitting votes:', err);
-      setError(err.response?.data?.message || 'Failed to submit votes. Please try again.');
+      const errorMessage = err.response?.data?.detail || err.response?.data?.message || err.message || 'Failed to submit votes. Please try again.';
+      setError(errorMessage);
       setIsLoading(false);
     }
   };
@@ -174,6 +239,28 @@ const HumanJudgingForm: React.FC<HumanJudgingFormProps> = ({
       {error && (
         <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-md">
           {error}
+        </div>
+      )}
+      
+      {success && (
+        <div className="mb-4 p-3 bg-green-50 text-green-700 rounded-md">
+          {success}
+        </div>
+      )}
+      
+      {isLoadingExistingVotes ? (
+        <div className="mb-4 p-3 bg-blue-50 text-blue-700 rounded-md">
+          Loading your existing votes...
+        </div>
+      ) : existingVotes.length > 0 ? (
+        <div className="mb-4 p-3 bg-blue-50 text-blue-700 rounded-md">
+          <p className="font-medium">You have previously voted in this contest.</p>
+          <p className="text-sm">You can modify your votes below. Your previous selections are pre-filled.</p>
+        </div>
+      ) : (
+        <div className="mb-4 p-3 bg-green-50 text-green-700 rounded-md">
+          <p className="font-medium">This is your first time voting in this contest.</p>
+          <p className="text-sm">Please rank your top {minRequiredVotes} choices and provide comments.</p>
         </div>
       )}
       
@@ -205,39 +292,49 @@ const HumanJudgingForm: React.FC<HumanJudgingFormProps> = ({
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Ranking
                 </label>
+                {/* Show existing vote if any */}
+                {getExistingVote(text.id) && (
+                  <div className="mb-2 text-sm text-blue-600 bg-blue-50 p-2 rounded">
+                    {getExistingVote(text.id)?.place ? (
+                      `Previously voted: ${getExistingVote(text.id)?.place === 1 ? '1st' : getExistingVote(text.id)?.place === 2 ? '2nd' : '3rd'} place`
+                    ) : (
+                      'Previously commented on this text'
+                    )}
+                  </div>
+                )}
                 <div className="flex space-x-4">
                   <button
                     type="button"
                     onClick={() => handlePlaceSelection(1, text.id)}
-                    className={`px-3 py-1 rounded-full ${
+                    className={`px-3 py-1 rounded-full transition-colors ${
                       firstPlace === text.id 
                         ? 'bg-indigo-600 text-white' 
                         : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
                     }`}
                   >
-                    1st Place
+                    1st Place {firstPlace === text.id && '✓'}
                   </button>
                   <button
                     type="button"
                     onClick={() => handlePlaceSelection(2, text.id)}
-                    className={`px-3 py-1 rounded-full ${
+                    className={`px-3 py-1 rounded-full transition-colors ${
                       secondPlace === text.id 
                         ? 'bg-indigo-600 text-white' 
                         : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
                     }`}
                   >
-                    2nd Place
+                    2nd Place {secondPlace === text.id && '✓'}
                   </button>
                   <button
                     type="button"
                     onClick={() => handlePlaceSelection(3, text.id)}
-                    className={`px-3 py-1 rounded-full ${
+                    className={`px-3 py-1 rounded-full transition-colors ${
                       thirdPlace === text.id 
                         ? 'bg-indigo-600 text-white' 
                         : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
                     }`}
                   >
-                    3rd Place
+                    3rd Place {thirdPlace === text.id && '✓'}
                   </button>
                 </div>
               </div>

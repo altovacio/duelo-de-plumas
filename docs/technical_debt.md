@@ -11,8 +11,7 @@ credits
 My PArticipation: is broken
 
 
-AI writer: remove from header
-Estimated credit cost is bs.
+AI writer: remove from header??
 
 #### Credit Monitoring Implementation Plan
 

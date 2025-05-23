@@ -27,12 +27,12 @@ const AIJudgeExecutionForm: React.FC<AIJudgeExecutionFormProps> = ({
   onCancel,
   availableAgents
 }) => {
-  const [agents, setAgents] = useState<Agent[]>([]);
+  console.log('[AIJudgeExecutionForm] Component loaded with agent selection fix v2.0');
+  console.log('Available agents on component load:', availableAgents);
   const [models, setModels] = useState<LLMModel[]>([]);
   
   const [estimatedCost, setEstimatedCost] = useState<number | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
-  const [loadingAgents, setLoadingAgents] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
   
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +44,7 @@ const AIJudgeExecutionForm: React.FC<AIJudgeExecutionFormProps> = ({
   
   const { control, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormData>({
     defaultValues: {
-      agentId: availableAgents.length > 0 ? availableAgents[0].id : 0,
+      agentId: 0,
       modelId: ''
     }
   });
@@ -52,17 +52,10 @@ const AIJudgeExecutionForm: React.FC<AIJudgeExecutionFormProps> = ({
   const selectedAgentId = watch('agentId');
   const selectedModelId = watch('modelId');
   
-  // Load judge agents and models
+  // Load models only (agents are provided via props)
   useEffect(() => {
-    const fetchAgentsAndModels = async () => {
+    const fetchModels = async () => {
       try {
-        // Fetch judge agents
-        setLoadingAgents(true);
-        const response = await getAgents();
-        const judgeAgents = response.filter(agent => agent.type === 'judge');
-        setAgents(judgeAgents);
-        setLoadingAgents(false);
-        
         // Fetch available models
         setLoadingModels(true);
         const modelsResponse = await getModels();
@@ -76,15 +69,21 @@ const AIJudgeExecutionForm: React.FC<AIJudgeExecutionFormProps> = ({
         }
         setLoadingModels(false);
       } catch (err) {
-        console.error('Error fetching data:', err);
-        setError('Failed to load agents or models. Please try again.');
-        setLoadingAgents(false);
+        console.error('Error fetching models:', err);
+        setError('Failed to load models. Please try again.');
         setLoadingModels(false);
       }
     };
     
-    fetchAgentsAndModels();
+    fetchModels();
   }, [setValue]);
+  
+  // Set default agent when availableAgents change
+  useEffect(() => {
+    if (availableAgents.length > 0 && selectedAgentId === 0) {
+      setValue('agentId', availableAgents[0].id);
+    }
+  }, [availableAgents, selectedAgentId, setValue]);
   
   // Calculate cost estimate when agent, model, or text stats change
   useEffect(() => {
@@ -132,14 +131,23 @@ const AIJudgeExecutionForm: React.FC<AIJudgeExecutionFormProps> = ({
     setProgress(0);
     
     try {
-      const selectedAgent = availableAgents.find(agent => agent.id === data.agentId);
+      console.log('Available agents:', availableAgents);
+      console.log('Selected agent ID:', data.agentId, 'Type:', typeof data.agentId);
+      
+      // Ensure agentId is a number for comparison
+      const selectedAgentId = Number(data.agentId);
+      const selectedAgent = availableAgents.find(agent => agent.id === selectedAgentId);
+      
+      console.log('Looking for agent with ID:', selectedAgentId);
+      console.log('Found agent:', selectedAgent);
       
       if (!selectedAgent) {
-        throw new Error('Selected agent not found');
+        console.error('Agent not found. Available agent IDs:', availableAgents.map(a => `${a.id} (${typeof a.id})`));
+        throw new Error(`Selected agent not found. Available agents: ${availableAgents.map(a => a.name).join(', ')}`);
       }
       
       await executeJudgeAgent({
-        agent_id: data.agentId,
+        agent_id: selectedAgentId,
         model: data.modelId,
         contest_id: contestId
       });
@@ -182,6 +190,7 @@ const AIJudgeExecutionForm: React.FC<AIJudgeExecutionFormProps> = ({
               <select 
                 {...field} 
                 disabled={isExecuting}
+                value={field.value}
                 onChange={e => field.onChange(Number(e.target.value))}
                 className="w-full px-3 py-2 border rounded-lg"
               >
@@ -220,7 +229,7 @@ const AIJudgeExecutionForm: React.FC<AIJudgeExecutionFormProps> = ({
                 ) : (
                   models.map(model => (
                     <option key={model.id} value={model.id}>
-                      {model.name} (${model.pricing.input_tokens}/1M tokens)
+                      {model.name} (${(model.input_cost_usd_per_1k_tokens * 1000).toFixed(3)}/1M tokens)
                     </option>
                   ))
                 )}

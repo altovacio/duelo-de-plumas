@@ -230,19 +230,32 @@ class VoteService:
         # Check if current_user is any kind of judge for this contest
         # This means either their user_id is in ContestJudge.user_judge_id
         # OR they are the owner of an Agent whose agent_id is in ContestJudge.agent_judge_id
-        is_judge_stmt = select(exists().where(
-            ContestJudge.contest_id == contest_id
-        ).join(ContestJudge.agent_judge, isouter=True).where( # outerjoin to include human judges
-            (ContestJudge.user_judge_id == current_user.id) | 
-            (Agent.owner_id == current_user.id) # Agent.owner_id from the join
+        
+        # Simplified approach: check both conditions separately
+        is_human_judge_stmt = select(exists().where(
+            (ContestJudge.contest_id == contest_id) &
+            (ContestJudge.user_judge_id == current_user.id)
         ))
-        is_judge_result = await db.execute(is_judge_stmt)
-        is_judge = is_judge_result.scalar_one()
+        is_human_judge_result = await db.execute(is_human_judge_stmt)
+        is_human_judge = is_human_judge_result.scalar_one()
+        
+        # Check if user owns any AI agents that are judges in this contest
+        is_ai_owner_judge_stmt = select(exists().where(
+            (ContestJudge.contest_id == contest_id) &
+            (ContestJudge.agent_judge_id.isnot(None)) &
+            (Agent.owner_id == current_user.id)
+        )).select_from(
+            ContestJudge.join(Agent, ContestJudge.agent_judge_id == Agent.id, isouter=False)
+        )
+        is_ai_owner_judge_result = await db.execute(is_ai_owner_judge_stmt)
+        is_ai_owner_judge = is_ai_owner_judge_result.scalar_one()
+        
+        is_judge = is_human_judge or is_ai_owner_judge
         
         if not (is_creator or is_judge or current_user.is_admin):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don\'t have permission to view votes for this contest"
+                detail="You don't have permission to view votes for this contest"
             )
         
         votes = await VoteRepository.get_votes_by_contest(db, contest_id)
@@ -292,7 +305,7 @@ class VoteService:
         # This includes direct human judge assignments (ContestJudge.user_judge_id == judge_id)
         # AND AI agent assignments they own (ContestJudge.agent_judge.has(owner_id=judge_id)).
         contest_judge_entries_stmt = select(ContestJudge)\
-            .outerjoin(ContestJudge.agent_judge)\
+            .outerjoin(Agent, ContestJudge.agent_judge_id == Agent.id)\
             .filter(
                 ContestJudge.contest_id == contest_id,
                 (

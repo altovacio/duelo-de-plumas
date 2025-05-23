@@ -224,9 +224,9 @@ class ContestService:
     def _validate_status_transition(current_status: str, new_status: str) -> None:
         """Validate that the status transition is allowed"""
         valid_transitions = {
-            "open": ["evaluation"],
-            "evaluation": ["closed"],
-            "closed": []  # No transitions allowed from closed state
+            "open": ["evaluation", "closed"],
+            "evaluation": ["closed", "open"],
+            "closed": ["open", "evaluation"]  # No transitions allowed from closed state
         }
         
         processed_new_status = new_status.lower() # Convert to lowercase
@@ -787,6 +787,7 @@ class ContestService:
         
         return response_list
 
+    @staticmethod
     async def _compute_and_store_contest_results(db: AsyncSession, contest_id: int) -> None:
         """Computes scores and rankings for submissions in a contest and stores them."""
         contest_texts = await ContestRepository.get_contest_texts(db, contest_id)

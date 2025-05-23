@@ -36,7 +36,8 @@ export interface ContestText {
   author?: { id: number; username: string; }; // Crucial for identifying user's own submissions
   owner_id?: number; // If distinct from author and relevant
   ranking?: number | null;
-  // evaluations?: any[]; // If evaluations are part of this structure
+  total_points?: number; // Points accumulated from votes
+  evaluations?: { comment: string; judge_identifier: string; }[]; // Judge comments and evaluations
   created_at?: string; // Text original creation (if different from submission_date)
   updated_at?: string; // Text original update
 }

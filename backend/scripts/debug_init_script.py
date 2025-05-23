@@ -37,6 +37,12 @@ def login_user(username, password):
         return data["access_token"]
     return None
 
+def assign_user_credits(token, user_id, credits):
+    headers = {"Authorization": f"Bearer {token}"}
+    payload = {"credits": credits, "description": 'admin_adjustment'}
+    response = requests.post(f"{BASE_URL}/admin/users/{user_id}/credits", headers=headers, json=payload)
+    return print_response(response, f"Assign Credits to User {user_id}")
+
 # --- Generic Resource Creation ---
 def create_contest_api(token, title, description, is_private, password=None):
     headers = {"Authorization": f"Bearer {token}"}
@@ -82,10 +88,13 @@ if __name__ == "__main__":
     ADMIN_USERNAME = "Hefesto"
     ADMIN_PASSWORD = "itaca" # Ensure this matches your actual admin password
 
+
+    user4_token = login_user("user4", "123123")
     # Step a) Create user1 and user2
     print("\n=== Step A: Create Users ===")
     signup_user("user1", "user1@test.plumas.top", "123123")
     signup_user("user2", "user2@test.plumas.top", "321321")
+    signup_user("user3", "user3@test.plumas.top", "123123")
 
     # Login users to get tokens
     print("\n=== Login Users ===")
@@ -236,6 +245,7 @@ if __name__ == "__main__":
             prompt="You can write in any style, any genre.",
             is_public=True
         )
+        assign_user_credits(admin_token, 2, 10)
     else:
         print("\nSkipping Admin actions as admin token was not obtained.")
 

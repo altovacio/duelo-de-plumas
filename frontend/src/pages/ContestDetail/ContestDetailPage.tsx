@@ -8,6 +8,7 @@ import AIJudgeExecutionForm from '../../components/Contest/AIJudgeExecutionForm'
 import ContestResults from '../../components/Contest/ContestResults';
 import { toast } from 'react-hot-toast';
 import { getAgents, Agent } from '../../services/agentService';
+import { getJudgeVotes } from '../../services/voteService';
 // import MarkdownEditor from '../../components/MarkdownEditor'; // Commented out - not yet developed
 // import TextSelectionModal from '../../components/TextSelectionModal'; // Commented out - not yet developed
 // import JudgingForm from '../../components/Contest/JudgingForm'; // Commented out - not yet developed
@@ -94,6 +95,21 @@ const ContestDetailPage: React.FC = () => {
     // Add state for available judge agents
     const [availableJudgeAgents, setAvailableJudgeAgents] = useState<Agent[]>([]);
     const [isLoadingJudgeAgents, setIsLoadingJudgeAgents] = useState(false);
+
+    // Add state for more detailed voting status
+    const [userVotingStatus, setUserVotingStatus] = useState<{
+      hasVoted: boolean;
+      humanVoteCount: number;
+      aiVoteCount: number;
+      totalVoteCount: number;
+      isLoading: boolean;
+    }>({
+      hasVoted: false,
+      humanVoteCount: 0,
+      aiVoteCount: 0,
+      totalVoteCount: 0,
+      isLoading: false
+    });
 
   const fetchContestDetails = async (passwordAttemptFromForm?: string) => {
     console.log('Fetching contest details');
@@ -231,6 +247,11 @@ const ContestDetailPage: React.FC = () => {
       // Add this at the end of the fetchContestDetails function, right before the final setIsLoading(false)
       if (grantAccess && contestDataForPage.status === 'evaluation') {
         await fetchJudgeStatus(parseInt(id));
+        // Check user's voting status for evaluation contests
+        await checkUserVotingStatus(parseInt(id));
+      } else if (grantAccess && contestDataForPage.status === 'closed') {
+        // Also check voting status for closed contests to show final status
+        await checkUserVotingStatus(parseInt(id));
       }
 
     } catch (err: any) {
@@ -364,6 +385,54 @@ const ContestDetailPage: React.FC = () => {
     }
   };
 
+  // Function to check user's voting status with better breakdown
+  const checkUserVotingStatus = async (contestId: number) => {
+    if (!isAuthenticated || !user) {
+      setUserVotingStatus({ 
+        hasVoted: false, 
+        humanVoteCount: 0, 
+        aiVoteCount: 0, 
+        totalVoteCount: 0, 
+        isLoading: false 
+      });
+      return;
+    }
+
+    try {
+      setUserVotingStatus(prev => ({ ...prev, isLoading: true }));
+      const votes = await getJudgeVotes(contestId, user.id);
+      
+      // Separate human votes from AI votes using is_ai_vote instead of judge_type
+      const humanVotes = votes.filter(vote => !vote.is_ai_vote);
+      const aiVotes = votes.filter(vote => vote.is_ai_vote);
+      
+      const humanVoteCount = humanVotes.length;
+      const aiVoteCount = aiVotes.length;
+      const totalVoteCount = votes.length;
+      const hasVoted = totalVoteCount > 0;
+      
+      setUserVotingStatus({
+        hasVoted,
+        humanVoteCount,
+        aiVoteCount,
+        totalVoteCount,
+        isLoading: false
+      });
+      
+      console.log(`User voting status: hasVoted=${hasVoted}, humanVotes=${humanVoteCount}, aiVotes=${aiVoteCount}, total=${totalVoteCount}`);
+    } catch (err: any) {
+      console.error('Error checking voting status:', err);
+      // Don't show error toast for this, just set default state
+      setUserVotingStatus({ 
+        hasVoted: false, 
+        humanVoteCount: 0, 
+        aiVoteCount: 0, 
+        totalVoteCount: 0, 
+        isLoading: false 
+      });
+    }
+  };
+
   const handleAIJudge = () => {
     if (!isAuthenticated) {
       return;
@@ -377,6 +446,14 @@ const ContestDetailPage: React.FC = () => {
   const handleJudgingSuccess = () => {
     setShowJudgeModal(false);
     setShowAIJudgeModal(false);
+    
+    // Show success message
+    toast.success('Votes submitted successfully!');
+    
+    // Refresh voting status to show updated counts
+    if (contest?.id) {
+      checkUserVotingStatus(contest.id);
+    }
   };
 
   // New function to handle text withdrawal
@@ -707,6 +784,36 @@ const ContestDetailPage: React.FC = () => {
                   This contest is currently being evaluated by judges. Results will be available once the evaluation phase is complete.
                 </p>
                 
+                {/* User Voting Status Indicator */}
+                {isAuthenticated && user && (
+                  <div className="mb-4">
+                    {userVotingStatus.isLoading ? (
+                      <div className="p-3 bg-blue-50 text-blue-700 rounded-md">
+                        <p className="text-sm">Checking your voting status...</p>
+                      </div>
+                    ) : userVotingStatus.hasVoted ? (
+                      <div className="p-3 bg-green-50 text-green-700 rounded-md border border-green-200">
+                        <p className="font-medium">✓ You have voted in this contest</p>
+                        <p className="text-sm">
+                          {userVotingStatus.humanVoteCount > 0 && userVotingStatus.aiVoteCount > 0 ? (
+                            `You submitted ${userVotingStatus.humanVoteCount} human vote${userVotingStatus.humanVoteCount !== 1 ? 's' : ''} and ${userVotingStatus.aiVoteCount} AI agent vote${userVotingStatus.aiVoteCount !== 1 ? 's' : ''}.`
+                          ) : userVotingStatus.humanVoteCount > 0 ? (
+                            `You submitted ${userVotingStatus.humanVoteCount} vote${userVotingStatus.humanVoteCount !== 1 ? 's' : ''} as a human judge.`
+                          ) : (
+                            `Your AI agents submitted ${userVotingStatus.aiVoteCount} vote${userVotingStatus.aiVoteCount !== 1 ? 's' : ''}.`
+                          )}
+                          {" "}You can vote again to update your choices.
+                        </p>
+                      </div>
+                    ) : isJudge ? (
+                      <div className="p-3 bg-yellow-50 text-yellow-700 rounded-md border border-yellow-200">
+                        <p className="font-medium">⏳ You haven't voted yet</p>
+                        <p className="text-sm">As a judge, your evaluation is needed to help determine the contest results.</p>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+                
                 {isJudge || (isAuthenticated && user?.id === contest?.creator.id) ? (
                   <div className="mt-6 flex flex-col sm:flex-row sm:space-x-4 space-y-3 sm:space-y-0">
                     <button
@@ -798,13 +905,16 @@ const ContestDetailPage: React.FC = () => {
             <ContestResults 
               contestId={parseInt(id || '1')} 
               texts={texts.map(text => ({
-                id: text.id,
+                id: text.text_id,
                 title: text.title,
                 content: text.content,
                 owner_id: text.owner_id || 0,
                 author: text.author?.username || (typeof text.author === 'string' ? text.author as string : 'Unknown'),
                 created_at: text.created_at || text.submission_date || '',
                 updated_at: text.updated_at || text.submission_date || '',
+                ranking: text.ranking,
+                total_points: text.total_points,
+                evaluations: text.evaluations,
               }))} 
             />
           )}
@@ -831,7 +941,7 @@ const ContestDetailPage: React.FC = () => {
             <HumanJudgingForm
               contestId={parseInt(id || '1')}
               texts={texts.map(text => ({
-                id: text.id,
+                id: text.text_id,
                 title: text.title,
                 content: text.content,
                 owner_id: text.owner_id || 0,

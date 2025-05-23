@@ -1,6 +1,7 @@
 from typing import List, Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Path
 from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel
 
 from app.db.database import get_db
 from app.api.routes.auth import get_current_user
@@ -15,8 +16,32 @@ from app.schemas.agent import (
 )
 from app.schemas.text import TextResponse as TextSchemaResponse
 from app.services.agent_service import AgentService
+from app.services.contest_service import ContestService
+from app.utils.ai_models import estimate_credits
 
 router = APIRouter()
+
+class WriterCostEstimateRequest(BaseModel):
+    agent_id: int
+    model: str
+    title: Optional[str] = None
+    description: Optional[str] = None
+    contest_description: Optional[str] = None
+
+class WriterCostEstimateResponse(BaseModel):
+    estimated_credits: int
+    estimated_input_tokens: int
+    estimated_output_tokens: int
+
+class JudgeCostEstimateRequest(BaseModel):
+    agent_id: int
+    model: str
+    contest_id: int
+
+class JudgeCostEstimateResponse(BaseModel):
+    estimated_credits: int
+    estimated_input_tokens: int
+    estimated_output_tokens: int
 
 # First define all fixed-path routes
 
@@ -168,4 +193,98 @@ async def clone_agent(
     Clone a public agent to the user's account.
     The agent must be public to be cloned.
     """
-    return await AgentService.clone_public_agent(db, agent_id, current_user.id) 
+    return await AgentService.clone_public_agent(db, agent_id, current_user.id)
+
+
+@router.post("/estimate/writer", response_model=WriterCostEstimateResponse)
+async def estimate_writer_cost(
+    request: WriterCostEstimateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user)
+):
+    """
+    Estimate the cost of executing a writer agent without actually executing it.
+    """
+    # Get the agent to access its prompt
+    agent = await AgentService.get_agent_by_id(db, request.agent_id, current_user.id, skip_auth_check=True)
+    
+    if agent.type != "writer":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Agent with id {request.agent_id} is not a writer agent"
+        )
+    
+    # Calculate token estimates using the same method as in execution
+    estimated_input_tokens, estimated_output_tokens = AgentService.estimate_writer_tokens(
+        agent.prompt, 
+        request.model, 
+        request.title, 
+        request.description, 
+        request.contest_description
+    )
+    
+    # Calculate credit estimate
+    estimated_credits = estimate_credits(request.model, estimated_input_tokens, estimated_output_tokens)
+    
+    return WriterCostEstimateResponse(
+        estimated_credits=estimated_credits,
+        estimated_input_tokens=estimated_input_tokens,
+        estimated_output_tokens=estimated_output_tokens
+    )
+
+
+@router.post("/estimate/judge", response_model=JudgeCostEstimateResponse)
+async def estimate_judge_cost(
+    request: JudgeCostEstimateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user)
+):
+    """
+    Estimate the cost of executing a judge agent without actually executing it.
+    """
+    # Get the agent to access its prompt
+    agent = await AgentService.get_agent_by_id(db, request.agent_id, current_user.id, skip_auth_check=True)
+    
+    if agent.type != "judge":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Agent with id {request.agent_id} is not a judge agent"
+        )
+    
+    # Get the contest to access its description and texts
+ 
+    contest = await ContestService.get_contest(db, request.contest_id)
+    
+    if not contest:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Contest with id {request.contest_id} not found"
+        )
+    
+    # Get contest texts to estimate tokens
+    contest_texts = await ContestService.get_contest_submissions(db, request.contest_id, current_user.id)
+    
+    # Calculate average text length for estimation
+    if contest_texts:
+        total_length = sum(len(text.content) for text in contest_texts)
+        avg_text_length = total_length // len(contest_texts)
+    else:
+        avg_text_length = 500  # Default assumption
+    
+    # Calculate token estimates using the same method as in execution
+    estimated_input_tokens, estimated_output_tokens = AgentService.estimate_judge_tokens(
+        agent.prompt, 
+        request.model, 
+        contest.description,
+        len(contest_texts),
+        avg_text_length
+    )
+    
+    # Calculate credit estimate
+    estimated_credits = estimate_credits(request.model, estimated_input_tokens, estimated_output_tokens)
+    
+    return JudgeCostEstimateResponse(
+        estimated_credits=estimated_credits,
+        estimated_input_tokens=estimated_input_tokens,
+        estimated_output_tokens=estimated_output_tokens
+    ) 

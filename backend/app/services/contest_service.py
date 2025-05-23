@@ -349,43 +349,6 @@ class ContestService:
             
         return contest_text
     
-    # @staticmethod
-    # async def get_contest_texts(
-    #     db: AsyncSession, 
-    #     contest_id: int, 
-    #     current_user_id: Optional[int] = None,
-    #     password: Optional[str] = None
-    # ) -> List[ContestText]:
-    #     # Check contest access - this handles password for private contests
-    #     contest = await ContestService.check_contest_access(
-    #         db=db, 
-    #         contest_id=contest_id, 
-    #         current_user_id=current_user_id,
-    #         password=password
-    #     )
-        
-    #     # For open contests, only the creator and admins can see submissions details
-    #     if contest.status == "open":
-    #         # Require authentication for open contests
-    #         if current_user_id is None:
-    #             raise HTTPException(
-    #                 status_code=status.HTTP_401_UNAUTHORIZED,
-    #                 detail="Not authenticated"
-    #             )
-    #         # Allow only contest creator or admin
-    #         user_repo = UserRepository(db)
-    #         is_admin_user = await user_repo.is_admin(current_user_id)
-    #         is_creator = contest.creator_id == current_user_id
-    #         if not (is_admin_user or is_creator):
-    #             raise HTTPException(
-    #                 status_code=status.HTTP_403_FORBIDDEN,
-    #                 detail="Submissions are not visible to participants while the contest is open."
-    #             )
-        
-    #     # For evaluation or closed contests, anyone with access can see submissions
-    #     # No additional authentication needed beyond check_contest_access
-    #     return await ContestRepository.get_contest_texts(db=db, contest_id=contest_id)
-    
     @staticmethod
     async def remove_submission(
         db: AsyncSession, 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
-import { executeWriterAgent, Agent } from '../../services/agentService';
+import { executeWriterAgent, estimateWriterCost, Agent } from '../../services/agentService';
 import { useAuthStore } from '../../store/authStore';
 
 interface AIWriterExecutionFormProps {
@@ -12,6 +12,7 @@ interface FormData {
   agentId: number;
   prompt: string;
   title: string;
+  contestDescription?: string;
 }
 
 const AIWriterExecutionForm: React.FC<AIWriterExecutionFormProps> = ({ 
@@ -20,7 +21,9 @@ const AIWriterExecutionForm: React.FC<AIWriterExecutionFormProps> = ({
 }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [pendingFormData, setPendingFormData] = useState<FormData | null>(null);
   const [estimatedCost, setEstimatedCost] = useState(0);
+  const [isEstimatingCost, setIsEstimatingCost] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuthStore();
   const credits = user?.credits || 0;
@@ -29,30 +32,70 @@ const AIWriterExecutionForm: React.FC<AIWriterExecutionFormProps> = ({
     defaultValues: {
       agentId: availableAgents.length > 0 ? availableAgents[0].id : 0,
       prompt: '',
-      title: ''
+      title: '',
+      contestDescription: ''
     }
   });
 
-  const selectedAgent = watch('agentId');
+  const selectedAgentId = watch('agentId');
   const prompt = watch('prompt');
+  const title = watch('title');
+  const contestDescription = watch('contestDescription');
   
-  // Calculate estimated cost (simplified version)
+  // Calculate estimated cost using backend endpoint
   React.useEffect(() => {
-    if (!prompt) {
-      setEstimatedCost(0);
-      return;
-    }
-    
-    // This is a placeholder for the actual cost calculation
-    // In a real implementation, this might be fetched from an API
-    const baseCost = 5; // Base cost in credits
-    const costPerChar = 0.01; // Cost per character
-    const estimatedTotal = baseCost + (prompt.length * costPerChar);
-    
-    setEstimatedCost(Math.round(estimatedTotal * 100) / 100);
-  }, [prompt, selectedAgent]);
+    const estimateCost = async () => {
+      if (!prompt || !title || selectedAgentId === 0) {
+        setEstimatedCost(0);
+        return;
+      }
+
+      const selectedAgent = availableAgents.find(agent => agent.id === selectedAgentId);
+      if (!selectedAgent) {
+        setEstimatedCost(0);
+        return;
+      }
+      
+      setIsEstimatingCost(true);
+      try {
+        // Build the estimation request payload, filtering out empty values
+        const estimationPayload: any = {
+          agent_id: selectedAgentId,
+          model: selectedAgent.model,
+          title: title,
+          description: prompt
+        };
+        
+        // Only include contest_description if it has content
+        if (contestDescription && contestDescription.trim()) {
+          estimationPayload.contest_description = contestDescription.trim();
+        }
+        
+        console.log('Sending cost estimation request:', estimationPayload);
+        
+        const estimation = await estimateWriterCost(estimationPayload);
+        setEstimatedCost(estimation.estimated_credits);
+      } catch (err: any) {
+        console.error('Error estimating cost:', err);
+        
+        // Log the specific error details for debugging
+        if (err.response?.status === 422) {
+          console.error('Validation error in cost estimation:', err.response?.data?.detail);
+        }
+        
+        setEstimatedCost(0);
+      } finally {
+        setIsEstimatingCost(false);
+      }
+    };
+
+    // Debounce the cost estimation
+    const timeoutId = setTimeout(estimateCost, 500);
+    return () => clearTimeout(timeoutId);
+  }, [prompt, title, contestDescription, selectedAgentId, availableAgents]);
   
   const onSubmit = async (data: FormData) => {
+    setPendingFormData(data);
     setShowConfirmation(true);
   };
   
@@ -67,24 +110,55 @@ const AIWriterExecutionForm: React.FC<AIWriterExecutionFormProps> = ({
         throw new Error('Selected agent not found');
       }
       
-      const result = await executeWriterAgent({
+      // Build the request payload, filtering out empty values
+      const requestPayload: any = {
         agent_id: data.agentId,
         model: selectedAgentObject.model,
         title: data.title,
         description: data.prompt
-      });
+      };
       
-      if (result.text_id) {
-        onSuccess(result.text_id);
+      // Only include contest_description if it has content
+      if (data.contestDescription && data.contestDescription.trim()) {
+        requestPayload.contest_description = data.contestDescription.trim();
+      }
+      
+      console.log('Sending writer execution request:', requestPayload);
+      
+      const result = await executeWriterAgent(requestPayload);
+      
+      if (result.result_id) {
+        onSuccess(result.result_id);
       } else {
         throw new Error('No text ID returned from the API');
       }
     } catch (err: any) {
       console.error('Error executing AI writer:', err);
-      setError(err.message || 'Failed to execute AI writer. Please try again.');
+      
+      // Handle different types of errors
+      let errorMessage = 'Failed to execute AI writer. Please try again.';
+      
+      if (err.response?.status === 422) {
+        // Validation error
+        const validationErrors = err.response?.data?.detail;
+        if (Array.isArray(validationErrors)) {
+          errorMessage = `Validation error: ${validationErrors.map((e: any) => e.msg).join(', ')}`;
+        } else if (typeof validationErrors === 'string') {
+          errorMessage = `Validation error: ${validationErrors}`;
+        } else {
+          errorMessage = 'Invalid request data. Please check your input.';
+        }
+      } else if (err.response?.data?.detail) {
+        errorMessage = err.response.data.detail;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
     } finally {
       setIsSubmitting(false);
       setShowConfirmation(false);
+      setPendingFormData(null);
     }
   };
   
@@ -180,22 +254,40 @@ const AIWriterExecutionForm: React.FC<AIWriterExecutionFormProps> = ({
             <p className="text-red-600 text-sm mt-1">{errors.prompt.message}</p>
           )}
         </div>
+
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Contest Context (Optional)
+          </label>
+          <Controller
+            name="contestDescription"
+            control={control}
+            render={({ field }) => (
+              <textarea
+                {...field}
+                disabled={isSubmitting}
+                rows={3}
+                className="w-full px-3 py-2 border rounded-lg"
+                placeholder="Optional: Provide contest context to help the AI understand the specific requirements..."
+              />
+            )}
+          />
+        </div>
         
         <div className="bg-blue-50 p-4 rounded-lg mb-4">
           <div className="flex justify-between items-center">
             <div>
               <p className="text-blue-800 font-medium">Estimated Credit Cost:</p>
               <p className="text-xs text-blue-600">
-                Based on prompt length and AI model
+                Based on your input and selected AI model
               </p>
             </div>
             <div className="text-blue-800 font-bold text-xl">
-              {estimatedCost} credits
+              {isEstimatingCost ? 'Calculating...' : `${estimatedCost} credits`}
             </div>
           </div>
           <p className="text-xs text-blue-700 mt-2">
-            <strong>Note:</strong> Actual credit usage may vary based on the final generated content. 
-            Writer credits can be very variable depending on the complexity of the prompt and the AI model used.
+            <strong>Note:</strong> This is an estimate. Actual credit usage may vary based on the final generated content length and complexity.
           </p>
         </div>
         
@@ -205,9 +297,9 @@ const AIWriterExecutionForm: React.FC<AIWriterExecutionFormProps> = ({
           </div>
           <button
             type="submit"
-            disabled={isSubmitting || availableAgents.length === 0 || credits < estimatedCost}
+            disabled={isSubmitting || availableAgents.length === 0 || credits < estimatedCost || isEstimatingCost}
             className={`px-4 py-2 rounded-lg font-medium ${
-              isSubmitting || availableAgents.length === 0 || credits < estimatedCost
+              isSubmitting || availableAgents.length === 0 || credits < estimatedCost || isEstimatingCost
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 : 'bg-indigo-600 text-white hover:bg-indigo-700'
             }`}
@@ -223,20 +315,27 @@ const AIWriterExecutionForm: React.FC<AIWriterExecutionFormProps> = ({
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
             <h3 className="text-lg font-bold mb-4">Confirm AI Text Generation</h3>
             <p className="mb-4">
-              You are about to use <span className="font-bold">{estimatedCost} credits</span> to generate a text using an AI writer.
+              You are about to use approximately <span className="font-bold">{estimatedCost} credits</span> to generate a text using an AI writer.
             </p>
             <p className="text-amber-600 text-sm mb-4">
-              <strong>Warning:</strong> Writer credits can be very variable depending on the complexity of the prompt and length of the output.
+              <strong>Note:</strong> The actual cost may vary slightly based on the complexity and length of the generated content.
             </p>
             <div className="flex justify-end space-x-3">
               <button
-                onClick={() => setShowConfirmation(false)}
+                onClick={() => {
+                  setShowConfirmation(false);
+                  setPendingFormData(null);
+                }}
                 className="px-4 py-2 border rounded-lg hover:bg-gray-100"
               >
                 Cancel
               </button>
               <button
-                onClick={() => executeAIWriter(watch())}
+                onClick={() => {
+                  if (pendingFormData) {
+                    executeAIWriter(pendingFormData);
+                  }
+                }}
                 className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
               >
                 Confirm & Generate

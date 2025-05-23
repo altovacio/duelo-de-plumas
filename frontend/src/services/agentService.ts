@@ -57,6 +57,24 @@ export interface AgentExecuteWriterRequest {
   contest_description?: string;
 }
 
+export interface WriterCostEstimate {
+  estimated_credits: number;
+  estimated_input_tokens: number;
+  estimated_output_tokens: number;
+}
+
+export interface JudgeCostEstimateRequest {
+  agent_id: number;
+  model: string;
+  contest_id: number;
+}
+
+export interface JudgeCostEstimate {
+  estimated_credits: number;
+  estimated_input_tokens: number;
+  estimated_output_tokens: number;
+}
+
 // Get all agents (public and owned)
 export const getAgents = async (publicOnly?: boolean): Promise<Agent[]> => {
   const params = publicOnly !== undefined ? { public: publicOnly } : {};
@@ -96,6 +114,18 @@ export const cloneAgent = async (id: number): Promise<Agent> => {
 // Execute a judge agent on a contest
 export const executeJudgeAgent = async (request: AgentExecuteJudgeRequest): Promise<AgentExecution> => {
   const response = await apiClient.post('/agents/execute/judge', request);
+  return response.data;
+};
+
+// Estimate cost for writer agent execution
+export const estimateWriterCost = async (request: AgentExecuteWriterRequest): Promise<WriterCostEstimate> => {
+  const response = await apiClient.post('/agents/estimate/writer', request);
+  return response.data;
+};
+
+// Estimate cost for judge agent execution
+export const estimateJudgeCost = async (request: JudgeCostEstimateRequest): Promise<JudgeCostEstimate> => {
+  const response = await apiClient.post('/agents/estimate/judge', request);
   return response.data;
 };
 

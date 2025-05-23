@@ -86,7 +86,9 @@
 │   │   ├── env.py
 │   │   ├── script.py.mako
 │   │   └── versions
-│   │       └── 851d54183b97_update_ondelete_user_fks_docker.py
+│   │       ├── 38210cf4805b_remove_model_cost_rate_from_credit_.py
+│   │       ├── 851d54183b97_update_ondelete_user_fks_docker.py
+│   │       └── aae8dc883892_add_real_cost_usd_to_credit_transactions.py
 │   ├── pytest.ini
 │   ├── requirements.txt
 │   ├── scripts
@@ -150,6 +152,7 @@
 │   │   │   │   ├── HumanJudgingForm.tsx
 │   │   │   │   ├── JudgeManagementModal.tsx
 │   │   │   │   └── TextSubmissionForm.tsx
+│   │   │   ├── Dashboard
 │   │   │   ├── Layout
 │   │   │   │   └── MainLayout.tsx
 │   │   │   ├── TextEditor
@@ -229,4 +232,4 @@
 │   └── vite.config.ts
 └── nginx.conf
 
-49 directories, 181 files
+50 directories, 183 files

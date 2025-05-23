@@ -46,6 +46,10 @@ services:
     build: ./frontend
     ports:
       - "3001:3001"
+      # Uncomment the next line if you want to use Chrome debugging with --remote-debugging-port
+      # - "9222:9222"
+      # Uncomment the next line if you want to debug the Vite dev server (Node.js debugging)
+      # - "9229:9229"
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -54,6 +58,17 @@ services:
     depends_on:
       - backend
     restart: always
+    # COMMANDS - Choose one based on your needs:
+    
+    # 1. DEVELOPMENT COMMAND (current):
+    #    Standard Vite dev server with hot reload
+    # This is handled by the Dockerfile CMD
+    
+    # 2. DEBUG COMMAND (alternative):
+    #    For debugging Node.js side (Vite dev server itself)
+    #    Uncomment to debug the Vite dev server process
+    # command: >
+    #   sh -c "node --inspect=0.0.0.0:9229 node_modules/vite/bin/vite.js --host 0.0.0.0 --port 3001"
 
 volumes:
   postgres_data: 

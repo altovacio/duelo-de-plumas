@@ -1,80 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import BackButton from '../../components/ui/BackButton';
+import { getCreditUsageSummary, getCreditsTransactions } from '../../services/creditService';
 
-// Mock types for display purposes
+// Interfaces for API data
 interface CreditUsage {
   id: number;
   user_id: number;
   username: string;
-  agent_type: 'writer' | 'judge';
+  agent_type: string;
   model: string;
   credits_used: number;
   real_cost_usd: number;
   execution_date: string;
 }
-
-// Mock data
-const mockCreditUsage: CreditUsage[] = [
-  {
-    id: 1,
-    user_id: 2,
-    username: 'user1',
-    agent_type: 'writer',
-    model: 'gpt-4',
-    credits_used: 12.5,
-    real_cost_usd: 0.25,
-    execution_date: '2023-05-10T14:23:58Z'
-  },
-  {
-    id: 2,
-    user_id: 3,
-    username: 'user2',
-    agent_type: 'judge',
-    model: 'gpt-4',
-    credits_used: 8.75,
-    real_cost_usd: 0.175,
-    execution_date: '2023-05-11T09:12:33Z'
-  },
-  {
-    id: 3,
-    user_id: 2,
-    username: 'user1',
-    agent_type: 'writer',
-    model: 'claude-instant',
-    credits_used: 5.25,
-    real_cost_usd: 0.105,
-    execution_date: '2023-05-12T16:45:12Z'
-  },
-  {
-    id: 4,
-    user_id: 4,
-    username: 'user3',
-    agent_type: 'judge',
-    model: 'gpt-3.5-turbo',
-    credits_used: 3.2,
-    real_cost_usd: 0.064,
-    execution_date: '2023-05-14T11:33:27Z'
-  },
-  {
-    id: 5,
-    user_id: 3,
-    username: 'user2',
-    agent_type: 'writer',
-    model: 'claude-v1',
-    credits_used: 9.8,
-    real_cost_usd: 0.196,
-    execution_date: '2023-05-15T08:22:45Z'
-  }
-];
-
-// Available models
-const availableModels = [
-  'gpt-4', 
-  'gpt-3.5-turbo', 
-  'claude-instant', 
-  'claude-v1'
-];
 
 const AdminMonitoringPage: React.FC = () => {
   const [creditUsageData, setCreditUsageData] = useState<CreditUsage[]>([]);
@@ -83,15 +22,56 @@ const AdminMonitoringPage: React.FC = () => {
   const [userFilter, setUserFilter] = useState<string>('all');
   const [agentTypeFilter, setAgentTypeFilter] = useState<string>('all');
   const [modelFilter, setModelFilter] = useState<string>('all');
+  const [usageSummary, setUsageSummary] = useState<{
+    totalCreditsUsed: number;
+    totalCostUSD: number;
+    avgCreditsPerExecution: number;
+    avgCostPerExecution: number;
+  }>({
+    totalCreditsUsed: 0,
+    totalCostUSD: 0,
+    avgCreditsPerExecution: 0,
+    avgCostPerExecution: 0
+  });
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
 
   useEffect(() => {
-    // Mock API call
-    const fetchCreditUsageData = async () => {
+    const fetchCreditData = async () => {
       setIsLoading(true);
       try {
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        setCreditUsageData(mockCreditUsage);
+        // Fetch real credit usage data from the API
+        const transactions = await getCreditsTransactions();
+        
+        // Transform transactions into the format needed for the UI
+        const formattedData: CreditUsage[] = transactions
+          .filter(txn => txn.transaction_type === 'consumption' || txn.transaction_type === 'admin_adjustment')
+          .map(txn => ({
+            id: txn.id,
+            user_id: txn.user_id,
+            username: txn.user_id.toString(), // This will be updated if we add username to the API
+            agent_type: txn.related_entity_type || 'unknown',
+            model: txn.related_entity_type === 'agent' ? 'AI Agent' : (txn.related_entity_type || 'unknown'),
+            credits_used: Math.abs(txn.amount),
+            real_cost_usd: 0, // To be populated if available in the API
+            execution_date: txn.created_at
+          }));
+        
+        setCreditUsageData(formattedData);
+
+        // Also fetch credit usage summary
+        const summary = await getCreditUsageSummary();
+        
+        // Extract available models from the usage summary
+        const models = Object.keys(summary.usage_by_model || {});
+        setAvailableModels(models.length > 0 ? models : ['unknown']);
+        
+        // Update summary data
+        setUsageSummary({
+          totalCreditsUsed: summary.total_credits_used || 0,
+          totalCostUSD: summary.total_real_cost_usd || 0,
+          avgCreditsPerExecution: summary.average_cost_per_operation || 0,
+          avgCostPerExecution: summary.total_real_cost_usd / (formattedData.length || 1)
+        });
       } catch (error) {
         console.error('Error fetching credit usage data:', error);
         toast.error('Failed to load credit usage data');
@@ -100,7 +80,7 @@ const AdminMonitoringPage: React.FC = () => {
       }
     };
 
-    fetchCreditUsageData();
+    fetchCreditData();
   }, []);
 
   // Filter credit usage data
@@ -144,12 +124,6 @@ const AdminMonitoringPage: React.FC = () => {
     return true;
   });
 
-  // Calculate summary statistics
-  const totalCreditsUsed = filteredData.reduce((sum, item) => sum + item.credits_used, 0);
-  const totalCostUSD = filteredData.reduce((sum, item) => sum + item.real_cost_usd, 0);
-  const avgCreditsPerExecution = filteredData.length > 0 ? totalCreditsUsed / filteredData.length : 0;
-  const avgCostPerExecution = filteredData.length > 0 ? totalCostUSD / filteredData.length : 0;
-  
   // Get unique users
   const uniqueUsers = Array.from(new Set(creditUsageData.map(item => item.user_id)))
     .map(userId => {
@@ -159,6 +133,9 @@ const AdminMonitoringPage: React.FC = () => {
         username: user?.username || `User #${userId}`
       };
     });
+
+  // Get unique agent types
+  const uniqueAgentTypes = Array.from(new Set(creditUsageData.map(item => item.agent_type)));
 
   // Get unique models
   const uniqueModels = Array.from(new Set(creditUsageData.map(item => item.model)));
@@ -176,12 +153,12 @@ const AdminMonitoringPage: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-sm font-medium text-gray-500 uppercase mb-2">Total Credits Used</h2>
-          <p className="text-3xl font-bold text-indigo-600">{totalCreditsUsed.toFixed(2)}</p>
+          <p className="text-3xl font-bold text-indigo-600">{usageSummary.totalCreditsUsed.toFixed(2)}</p>
         </div>
         
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-sm font-medium text-gray-500 uppercase mb-2">Total Cost (USD)</h2>
-          <p className="text-3xl font-bold text-green-600">${totalCostUSD.toFixed(2)}</p>
+          <p className="text-3xl font-bold text-green-600">${usageSummary.totalCostUSD.toFixed(2)}</p>
         </div>
         
         <div className="bg-white rounded-lg shadow p-6">
@@ -191,12 +168,12 @@ const AdminMonitoringPage: React.FC = () => {
         
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-sm font-medium text-gray-500 uppercase mb-2">Avg. Credits Per Run</h2>
-          <p className="text-3xl font-bold text-indigo-600">{avgCreditsPerExecution.toFixed(2)}</p>
+          <p className="text-3xl font-bold text-indigo-600">{usageSummary.avgCreditsPerExecution.toFixed(2)}</p>
         </div>
         
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-sm font-medium text-gray-500 uppercase mb-2">Avg. Cost Per Run</h2>
-          <p className="text-3xl font-bold text-green-600">${avgCostPerExecution.toFixed(4)}</p>
+          <p className="text-3xl font-bold text-green-600">${usageSummary.avgCostPerExecution.toFixed(4)}</p>
         </div>
       </div>
       
@@ -240,8 +217,9 @@ const AdminMonitoringPage: React.FC = () => {
               onChange={(e) => setAgentTypeFilter(e.target.value)}
             >
               <option value="all">All Types</option>
-              <option value="writer">Writer</option>
-              <option value="judge">Judge</option>
+              {uniqueAgentTypes.map(type => (
+                <option key={type} value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</option>
+              ))}
             </select>
           </div>
           

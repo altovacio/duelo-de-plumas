@@ -11,11 +11,14 @@ import { toast } from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import apiClient from '../../utils/apiClient';
 import JudgeManagementModal from '../../components/Contest/JudgeManagementModal';
+import { useAuthStore } from '../../store/authStore';
 
 type TabType = 'overview' | 'contests' | 'texts' | 'agents' | 'participation' | 'credits';
 
 const DashboardPage: React.FC = () => {
   const { user } = useAuth();
+  const setUser = useAuthStore(state => state.setUser);
+  const loadUser = useAuthStore(state => state.loadUser);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   
   // Common state
@@ -72,6 +75,11 @@ const DashboardPage: React.FC = () => {
   const [filteredTexts, setFilteredTexts] = useState<TextType[]>([]);
   const [isCreateTextDropdownOpen, setIsCreateTextDropdownOpen] = useState(false);
 
+  // Refresh user data when component mounts to ensure credit balance is up to date
+  useEffect(() => {
+    loadUser();
+  }, [loadUser]);
+
   // Fetch data based on active tab
   useEffect(() => {
     if (activeTab === 'texts') {
@@ -85,8 +93,20 @@ const DashboardPage: React.FC = () => {
       fetchOverviewData();
     } else if (activeTab === 'participation') {
       fetchParticipation();
+    } else if (activeTab === 'credits') {
+      // Refresh user data when viewing credits tab to show latest balance
+      refreshUserData();
     }
   }, [activeTab]);
+
+  // Helper function to refresh user data
+  const refreshUserData = async () => {
+    try {
+      await loadUser();
+    } catch (err) {
+      console.error('Error refreshing user data:', err);
+    }
+  };
 
   // Text management functions
   const fetchTexts = async () => {
@@ -361,6 +381,10 @@ const DashboardPage: React.FC = () => {
     try {
       setIsLoading(true);
       setError(null);
+      
+      // Refresh user data from server to get latest credit balance
+      await loadUser();
+      
       const dashboardData = await getDashboardData();
       
       // Update contests data if available
@@ -574,7 +598,9 @@ const DashboardPage: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-white border border-gray-200 rounded-lg p-4">
                   <h3 className="font-medium text-gray-700">Credit Balance</h3>
-                  <p className="text-2xl font-bold text-indigo-600">{user?.credit_balance}</p>
+                  <p className="text-2xl font-bold text-indigo-600">
+                    {user?.credits !== undefined ? `${user.credits} credits` : 'Loading...'}
+                  </p>
                 </div>
                 <div className="bg-white border border-gray-200 rounded-lg p-4">
                   <h3 className="font-medium text-gray-700">My Contests</h3>
@@ -1096,7 +1122,9 @@ const DashboardPage: React.FC = () => {
               <h2 className="text-xl font-medium mb-4">Credits Management</h2>
               <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
                 <h3 className="font-medium text-gray-700">Current Balance</h3>
-                <p className="text-2xl font-bold text-indigo-600">{user?.credit_balance} credits</p>
+                <p className="text-2xl font-bold text-indigo-600">
+                  {user?.credits !== undefined ? `${user.credits} credits` : 'Loading...'}
+                </p>
               </div>
               <h3 className="font-medium text-gray-700 mb-2">Transaction History</h3>
               <p className="text-gray-500 italic">No transaction history available.</p>

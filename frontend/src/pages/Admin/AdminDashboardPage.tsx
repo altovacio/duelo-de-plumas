@@ -24,7 +24,7 @@ const AdminDashboardPage: React.FC = () => {
       try {
         const usersData = await getAdminUsers();
         const totalUsers = usersData.length;
-        const totalCreditsAssigned = usersData.reduce((sum, user) => sum + (user.credit_balance || 0), 0);
+        const totalCreditsAssigned = usersData.reduce((sum, user) => sum + (user.credits || 0), 0);
 
         const openContests = await getContests({ status: 'open' });
         const evaluationContests = await getContests({ status: 'evaluation' });

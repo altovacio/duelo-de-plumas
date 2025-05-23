@@ -23,7 +23,7 @@ const AIWriterExecutionForm: React.FC<AIWriterExecutionFormProps> = ({
   const [estimatedCost, setEstimatedCost] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuthStore();
-  const credits = user?.credit_balance || 0;
+  const credits = user?.credits || 0;
 
   const { control, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
     defaultValues: {

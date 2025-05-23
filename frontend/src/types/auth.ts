@@ -3,7 +3,7 @@ export interface User {
   username: string;
   email: string;
   is_admin: boolean;
-  credit_balance: number;
+  credits: number;
 }
 
 export interface AuthTokens {

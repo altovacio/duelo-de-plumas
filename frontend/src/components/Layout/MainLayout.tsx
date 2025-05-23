@@ -40,7 +40,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   Logout
                 </button>
                 <span className="px-2 py-1">
-                  {user?.username} ({user?.credit_balance} credits)
+                  {user?.username} {user?.credits !== undefined && `(${user.credits} credits)`}
                 </span>
               </>
             ) : (

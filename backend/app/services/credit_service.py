@@ -34,15 +34,14 @@ class CreditService:
             )
         
         # Update user's credit balance via UserRepository
-        new_credit_value = user.credits + credit_update.credits
-        await user_repo.update_credits(user_id, UserCredit(amount=new_credit_value, description=credit_update.description))
-        # Note: user object in memory might be stale here, but transaction records new balance contextually
+        # We update the credits by passing the amount to add/remove directly
+        await user_repo.update_credits(user_id, UserCredit(amount=credit_update.credits, description=credit_update.description))
         
         # Create a credit transaction record
         transaction_create = CreditTransactionCreate(
             user_id=user_id,
-            amount=credit_update.credits, # Positive for addition
-            transaction_type="addition",
+            amount=credit_update.credits, # Positive for addition, negative for subtraction
+            transaction_type="addition" if credit_update.credits > 0 else "deduction",
             description=credit_update.description
         )
         db_transaction = await CreditRepository.create_transaction(db, transaction_create)

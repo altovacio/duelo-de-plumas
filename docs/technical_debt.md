@@ -4,17 +4,15 @@ This document lists known technical debt, areas for refactoring, and potential f
 
 ## ONGOING
 assign judges
-
+credits
 
 ## TODO
 ### Dashboard
 My PArticipation: is broken
-Create New Text: 
--Remove modal (write in markdown option)
--add the options available in markdown writer to the full page writer
 
-### Credits
---everything is broken here
+
+AI writer: remove from header
+Estimated credit cost is bs.
 
 #### Credit Monitoring Implementation Plan
 

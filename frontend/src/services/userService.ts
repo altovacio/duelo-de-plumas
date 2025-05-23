@@ -6,7 +6,7 @@ export interface User {
   username: string;
   email?: string; // Assuming email is available
   is_admin?: boolean;
-  credit_balance?: number; // For admin views
+  credits?: number; // For admin views
   created_at?: string;
   last_seen?: string | null; // For admin views, to be implemented
   contests_created?: number | string; // For admin views, can be N/A when there's an error
@@ -34,5 +34,11 @@ export const deleteUserByAdmin = async (userId: number): Promise<void> => {
 // Function for an admin to get all users
 export const getAdminUsers = async (): Promise<User[]> => {
   const response = await apiClient.get('/users');
+  return response.data;
+};
+
+// Function for an admin to get a single user by ID
+export const getAdminUserById = async (userId: number): Promise<User> => {
+  const response = await apiClient.get(`/users/${userId}`);
   return response.data;
 }; 

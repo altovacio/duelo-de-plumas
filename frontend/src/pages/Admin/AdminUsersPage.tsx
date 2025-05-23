@@ -1,23 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import BackButton from '../../components/ui/BackButton';
-import { User, deleteUserByAdmin, getAdminUsers } from '../../services/userService';
+import { deleteUserByAdmin, getAdminUsers } from '../../services/userService';
 import { updateUserCredits } from '../../services/creditService';
 import { getContests } from '../../services/contestService';
 
-// Local User interface removed, will use the one from userService
-/*
-interface User {
+// Updated User interface for more comprehensive user details, especially for admin views
+export interface User {
   id: number;
   username: string;
-  email: string;
-  is_admin: boolean;
-  credit_balance: number;
-  created_at: string;
-  last_seen?: string;
-  contests_created?: number;
+  email?: string; // Assuming email is available
+  is_admin?: boolean;
+  credits?: number; // For admin views
+  created_at?: string;
+  last_seen?: string | null; // For admin views, to be implemented
+  contests_created?: number | string; // For admin views, can be N/A when there's an error
+  // Add other fields as returned by GET /admin/users
 }
-*/
 
 // mockUsers removed
 // const mockUsers: User[] = [ ... ];
@@ -91,28 +90,25 @@ const AdminUsersPage: React.FC = () => {
     if (!userToModifyCredits || creditAmount === 0) return;
 
     try {
-      const result = await modifyUserCredits(userToModifyCredits.id, creditAmount);
+      await modifyUserCredits(userToModifyCredits.id, creditAmount);
       
-      if (result.success) {
-        // Update local state
-        setUsers(users.map(user => 
-          user.id === userToModifyCredits.id 
-            ? { ...user, credit_balance: (user.credit_balance || 0) + creditAmount } 
-            : user
-        ));
-        
-        toast.success(`Credits ${creditAmount > 0 ? 'added' : 'removed'} successfully`);
-      } else {
-        toast.error('Failed to modify credits. Please try again.');
-      }
+      // Update local state
+      setUsers(users.map(user => 
+        user.id === userToModifyCredits.id 
+          ? { ...user, credits: (user.credits || 0) + creditAmount } 
+          : user
+      ));
+      
+      toast.success(`Credits ${creditAmount > 0 ? 'added' : 'removed'} successfully`);
       
       // Close modal regardless of success/failure
       setIsCreditModalOpen(false);
       setUserToModifyCredits(null);
       setCreditAmount(0);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error modifying credits:', error);
-      toast.error('Failed to modify credits. Please check the server logs.');
+      const errorMessage = error.response?.data?.detail || 'Failed to modify credits. Please check the server logs.';
+      toast.error(errorMessage);
       // Keep modal open to let user try again
     }
   };
@@ -232,7 +228,7 @@ const AdminUsersPage: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {user.credit_balance || 0}
+                        {user.credits || 0}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {typeof user.contests_created === 'number' ? user.contests_created : 'N/A'}
@@ -279,7 +275,7 @@ const AdminUsersPage: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg max-w-md w-full p-6">
             <h3 className="text-lg font-bold mb-4">Modify Credits for {userToModifyCredits.username}</h3>
-            <p className="mb-4">Current balance: <span className="font-bold">{userToModifyCredits.credit_balance || 0}</span> credits</p>
+            <p className="mb-4">Current balance: <span className="font-bold">{userToModifyCredits.credits || 0}</span> credits</p>
             
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -292,7 +288,7 @@ const AdminUsersPage: React.FC = () => {
                 onChange={(e) => setCreditAmount(Number(e.target.value))}
               />
               <p className="text-sm text-gray-500 mt-1">
-                New balance will be: {(userToModifyCredits.credit_balance || 0) + creditAmount}
+                New balance will be: {(userToModifyCredits.credits || 0) + creditAmount}
               </p>
             </div>
             

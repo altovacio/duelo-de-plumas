@@ -87,12 +87,9 @@ export const getCurrentUser = async (): Promise<User | null> => {
       return null;
     }
     
-    console.log('Fetching current user data');
-    
     // Use apiClient which will handle the Authorization header automatically
     const user = await api.get<User>(AUTH_ENDPOINTS.CURRENT_USER);
     
-    console.log('User data received');
     return user;
   } catch (error) {
     console.error('Get current user error:', error);

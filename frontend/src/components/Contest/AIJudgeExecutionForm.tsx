@@ -42,7 +42,7 @@ const AIJudgeExecutionForm: React.FC<AIJudgeExecutionFormProps> = ({
   
   const [showConfirmation, setShowConfirmation] = useState(false);
   const { user } = useAuthStore();
-  const credits = user?.credit_balance || 0;
+  const credits = user?.credits || 0;
   
   const { control, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
     defaultValues: {

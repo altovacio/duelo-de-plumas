@@ -13,15 +13,11 @@ export interface CreditTransaction {
 
 export interface CreditUsageSummary {
   total_credits_used: number;
-  usage_by_user: {
-    user_id: number;
-    username: string;
-    credits_used: number;
-  }[];
-  usage_by_agent_type: {
-    agent_type: string;
-    credits_used: number;
-  }[];
+  usage_by_model: Record<string, number>;
+  usage_by_user: Record<string, number>;
+  average_cost_per_operation: number;
+  total_tokens_used: number;
+  total_real_cost_usd: number;
 }
 
 // Get credit transactions for the current user
@@ -55,8 +51,13 @@ export const getCreditUsageSummary = async (): Promise<CreditUsageSummary> => {
 
 // Admin only: Update user's credits
 export const updateUserCredits = async (userId: number, amount: number, description: string): Promise<void> => {
-  await apiClient.patch(`/admin/users/${userId}/credits`, {
-    amount,
-    description
-  });
+  try {
+    await apiClient.patch(`/admin/users/${userId}/credits`, {
+      credits: amount,
+      description
+    });
+  } catch (error) {
+    console.error("Error updating user credits:", error);
+    throw error;
+  }
 }; 

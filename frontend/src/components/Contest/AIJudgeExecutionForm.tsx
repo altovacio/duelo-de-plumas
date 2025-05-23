@@ -16,6 +16,7 @@ interface AIJudgeExecutionFormProps {
 
 interface FormData {
   agentId: number;
+  modelId: string;
 }
 
 const AIJudgeExecutionForm: React.FC<AIJudgeExecutionFormProps> = ({
@@ -29,9 +30,6 @@ const AIJudgeExecutionForm: React.FC<AIJudgeExecutionFormProps> = ({
   const [agents, setAgents] = useState<Agent[]>([]);
   const [models, setModels] = useState<LLMModel[]>([]);
   
-  const [selectedAgentId, setSelectedAgentId] = useState<number | ''>('');
-  const [selectedModelId, setSelectedModelId] = useState<string>('');
-  
   const [estimatedCost, setEstimatedCost] = useState<number | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [loadingAgents, setLoadingAgents] = useState(false);
@@ -44,11 +42,15 @@ const AIJudgeExecutionForm: React.FC<AIJudgeExecutionFormProps> = ({
   const { user } = useAuthStore();
   const credits = user?.credits || 0;
   
-  const { control, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
+  const { control, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormData>({
     defaultValues: {
-      agentId: availableAgents.length > 0 ? availableAgents[0].id : 0
+      agentId: availableAgents.length > 0 ? availableAgents[0].id : 0,
+      modelId: ''
     }
   });
+  
+  const selectedAgentId = watch('agentId');
+  const selectedModelId = watch('modelId');
   
   // Load judge agents and models
   useEffect(() => {
@@ -68,7 +70,9 @@ const AIJudgeExecutionForm: React.FC<AIJudgeExecutionFormProps> = ({
         
         // Set default model if available
         if (modelsResponse.length > 0) {
-          setSelectedModelId(modelsResponse[0].id);
+          const defaultModel = modelsResponse.find(model => model.id === 'gpt-4.1-nano-2025-04-14') 
+            || modelsResponse[0];
+          setValue('modelId', defaultModel.id);
         }
         setLoadingModels(false);
       } catch (err) {
@@ -80,7 +84,7 @@ const AIJudgeExecutionForm: React.FC<AIJudgeExecutionFormProps> = ({
     };
     
     fetchAgentsAndModels();
-  }, []);
+  }, [setValue]);
   
   // Calculate cost estimate when agent, model, or text stats change
   useEffect(() => {
@@ -98,7 +102,7 @@ const AIJudgeExecutionForm: React.FC<AIJudgeExecutionFormProps> = ({
         setEstimatedCost(cost);
       }
     }
-  }, [selectedModelId, models, contestTextCount, averageTextLength]);
+  }, [selectedModelId, models, contestTextCount, averageTextLength, setValue]);
   
   // Simulate AI execution progress
   useEffect(() => {
@@ -136,7 +140,7 @@ const AIJudgeExecutionForm: React.FC<AIJudgeExecutionFormProps> = ({
       
       await executeJudgeAgent({
         agent_id: data.agentId,
-        model: selectedAgent.model,
+        model: data.modelId,
         contest_id: contestId
       });
       
@@ -183,7 +187,7 @@ const AIJudgeExecutionForm: React.FC<AIJudgeExecutionFormProps> = ({
               >
                 {availableAgents.map(agent => (
                   <option key={agent.id} value={agent.id}>
-                    {agent.name} ({agent.model})
+                    {agent.name} - {agent.description}
                   </option>
                 ))}
                 {availableAgents.length === 0 && (
@@ -194,6 +198,40 @@ const AIJudgeExecutionForm: React.FC<AIJudgeExecutionFormProps> = ({
           />
           {errors.agentId && (
             <p className="text-red-600 text-sm mt-1">{errors.agentId.message}</p>
+          )}
+        </div>
+        
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            AI Model
+          </label>
+          <Controller
+            name="modelId"
+            control={control}
+            rules={{ required: "Please select a model" }}
+            render={({ field }) => (
+              <select 
+                {...field} 
+                disabled={isExecuting || loadingModels}
+                className="w-full px-3 py-2 border rounded-lg"
+              >
+                {loadingModels ? (
+                  <option disabled value="">Loading models...</option>
+                ) : (
+                  models.map(model => (
+                    <option key={model.id} value={model.id}>
+                      {model.name} (${model.pricing.input_tokens}/1M tokens)
+                    </option>
+                  ))
+                )}
+                {models.length === 0 && !loadingModels && (
+                  <option disabled value="">No models available</option>
+                )}
+              </select>
+            )}
+          />
+          {errors.modelId && (
+            <p className="text-red-600 text-sm mt-1">{errors.modelId.message}</p>
           )}
         </div>
         
@@ -229,9 +267,9 @@ const AIJudgeExecutionForm: React.FC<AIJudgeExecutionFormProps> = ({
             </button>
             <button
               type="submit"
-              disabled={isExecuting || availableAgents.length === 0 || credits < (estimatedCost || 0)}
+              disabled={isExecuting || availableAgents.length === 0 || models.length === 0 || !selectedModelId || credits < (estimatedCost || 0)}
               className={`px-4 py-2 rounded-lg font-medium ${
-                isExecuting || availableAgents.length === 0 || credits < (estimatedCost || 0)
+                isExecuting || availableAgents.length === 0 || models.length === 0 || !selectedModelId || credits < (estimatedCost || 0)
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   : 'bg-indigo-600 text-white hover:bg-indigo-700'
               }`}

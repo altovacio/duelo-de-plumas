@@ -57,9 +57,11 @@ const AIWriterExecutionForm: React.FC<AIWriterExecutionFormProps> = ({
         const modelsResponse = await getModels();
         setModels(modelsResponse);
         
-        // Set default model if available and no model is currently selected
+        // Set GPT-4.1 nano as default model, or first available if not found
         if (modelsResponse.length > 0 && !selectedModelId) {
-          setValue('modelId', modelsResponse[0].id);
+          const defaultModel = modelsResponse.find(model => model.id === 'gpt-4.1-nano-2025-04-14') 
+            || modelsResponse[0];
+          setValue('modelId', defaultModel.id);
         }
         setLoadingModels(false);
       } catch (err) {
@@ -213,7 +215,7 @@ const AIWriterExecutionForm: React.FC<AIWriterExecutionFormProps> = ({
               >
                 {availableAgents.map(agent => (
                   <option key={agent.id} value={agent.id}>
-                    {agent.name}
+                    {agent.name} - {agent.description}
                   </option>
                 ))}
                 {availableAgents.length === 0 && (

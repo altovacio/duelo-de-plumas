@@ -318,7 +318,6 @@ const DashboardPage: React.FC = () => {
         description: agentData.description,
         type: agentData.type,
         prompt: agentData.prompt,
-        model: "gpt-3.5-turbo", // Default model - the backend will override this if needed
         is_public: agentData.is_public
       };
       

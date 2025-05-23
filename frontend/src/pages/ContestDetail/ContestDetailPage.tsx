@@ -7,6 +7,7 @@ import HumanJudgingForm from '../../components/Contest/HumanJudgingForm';
 import AIJudgeExecutionForm from '../../components/Contest/AIJudgeExecutionForm';
 import ContestResults from '../../components/Contest/ContestResults';
 import { toast } from 'react-hot-toast';
+import { getAgents, Agent } from '../../services/agentService';
 // import MarkdownEditor from '../../components/MarkdownEditor'; // Commented out - not yet developed
 // import TextSelectionModal from '../../components/TextSelectionModal'; // Commented out - not yet developed
 // import JudgingForm from '../../components/Contest/JudgingForm'; // Commented out - not yet developed
@@ -89,6 +90,10 @@ const ContestDetailPage: React.FC = () => {
 
     // New state for submission success message
     const [submissionStatusMessage, setSubmissionStatusMessage] = useState<string | null>(null);
+
+    // Add state for available judge agents
+    const [availableJudgeAgents, setAvailableJudgeAgents] = useState<Agent[]>([]);
+    const [isLoadingJudgeAgents, setIsLoadingJudgeAgents] = useState(false);
 
   const fetchContestDetails = async (passwordAttemptFromForm?: string) => {
     console.log('Fetching contest details');
@@ -342,12 +347,31 @@ const ContestDetailPage: React.FC = () => {
     setShowJudgeModal(true);
   };
   
+  // Function to fetch available judge agents
+  const fetchAvailableJudgeAgents = async () => {
+    try {
+      setIsLoadingJudgeAgents(true);
+      const agents = await getAgents();
+      // Filter to only include judge-type agents
+      const judgeAgents = agents.filter(agent => agent.type === 'judge');
+      setAvailableJudgeAgents(judgeAgents);
+    } catch (err) {
+      console.error('Error fetching judge agents:', err);
+      toast.error('Failed to load AI judges. Please try again.');
+      setAvailableJudgeAgents([]);
+    } finally {
+      setIsLoadingJudgeAgents(false);
+    }
+  };
+
   const handleAIJudge = () => {
     if (!isAuthenticated) {
       return;
     }
     
     setShowAIJudgeModal(true);
+    // Fetch available judge agents when opening the modal
+    fetchAvailableJudgeAgents();
   };
   
   const handleJudgingSuccess = () => {
@@ -831,6 +855,7 @@ const ContestDetailPage: React.FC = () => {
               averageTextLength={averageTextLength}
               onSuccess={handleJudgingSuccess}
               onCancel={() => setShowAIJudgeModal(false)}
+              availableAgents={availableJudgeAgents}
             />
           </div>
         </div>

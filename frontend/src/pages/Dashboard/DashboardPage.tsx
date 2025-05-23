@@ -75,11 +75,6 @@ const DashboardPage: React.FC = () => {
   const [filteredTexts, setFilteredTexts] = useState<TextType[]>([]);
   const [isCreateTextDropdownOpen, setIsCreateTextDropdownOpen] = useState(false);
 
-  // Refresh user data when component mounts to ensure credit balance is up to date
-  useEffect(() => {
-    loadUser();
-  }, [loadUser]);
-
   // Fetch data based on active tab
   useEffect(() => {
     if (activeTab === 'texts') {
@@ -94,13 +89,15 @@ const DashboardPage: React.FC = () => {
     } else if (activeTab === 'participation') {
       fetchParticipation();
     } else if (activeTab === 'credits') {
-      // Refresh user data when viewing credits tab to show latest balance
-      refreshUserData();
+      // Credits tab - user data is already up-to-date via auth system
+      // No need to refresh user data here
     }
   }, [activeTab]);
 
   // Helper function to refresh user data
   const refreshUserData = async () => {
+    // Note: User data is automatically kept up-to-date by the auth system
+    // Only refresh if absolutely necessary (e.g., after credit transactions)
     try {
       await loadUser();
     } catch (err) {
@@ -381,9 +378,6 @@ const DashboardPage: React.FC = () => {
     try {
       setIsLoading(true);
       setError(null);
-      
-      // Refresh user data from server to get latest credit balance
-      await loadUser();
       
       const dashboardData = await getDashboardData();
       

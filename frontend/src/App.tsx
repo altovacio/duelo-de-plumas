@@ -28,7 +28,7 @@ function App() {
   // Check for stored tokens and load user data on app startup
   useEffect(() => {
     loadUser();
-  }, [loadUser]);
+  }, []); // Empty dependency array to run only once on mount
 
   if (isLoading) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;

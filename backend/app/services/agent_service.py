@@ -7,6 +7,7 @@ from app.db.repositories.agent_repository import AgentRepository
 from app.db.repositories.contest_repository import ContestRepository
 from app.db.repositories.text_repository import TextRepository
 from app.db.models.agent import Agent
+from app.db.models.agent_execution import AgentExecution
 from app.schemas.agent import (
     AgentCreate, 
     AgentUpdate, 
@@ -391,6 +392,7 @@ class AgentService:
         error_msg_for_exec: Optional[str] = None
         result_id_for_exec: Optional[int] = None
         created_text_object: Optional[TextModel] = None
+        execution_record: Optional[AgentExecution] = None
 
         # Fetch user object to get username for author field
         user = await user_repo.get_by_id(current_user_id)
@@ -442,19 +444,27 @@ class AgentService:
 
         except HTTPException as e:
             error_msg_for_exec = e.detail
-            # We will let this re-raise to be caught by FastAPI error handlers if needed,
-            # but the execution record will still be created in finally.
-            # However, for more specific error messages in exec record, we set it here.
-            exec_status = "failed" # Ensure status is failed
-            # Re-raise to allow FastAPI to handle it if it's an expected HTTP error.
-            # If not re-raised, the agent execution record would be the only place error is seen.
-            # This was the previous behavior, so let's stick to it.
-            raise e 
+            exec_status = "failed"
+            # Re-raise to allow FastAPI to handle it
+            raise e
         except Exception as e:
             error_msg_for_exec = f"An unexpected error occurred during writer agent execution: {str(e)}"
-            exec_status = "failed" # Ensure status is failed
-            # Raise a generic 500 for unexpected errors, error_msg_for_exec will be in the log.
+            exec_status = "failed"
+            # Raise a generic 500 for unexpected errors
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=error_msg_for_exec)
+        finally:
+            # Always create the execution record
+            execution_record = await AgentRepository.create_agent_execution(
+                db=db,
+                agent_id=agent.id,
+                owner_id=current_user_id,
+                execution_type="writer",
+                model=request.model,
+                status=exec_status,
+                result_id=result_id_for_exec,
+                error_message=error_msg_for_exec,
+                credits_used=actual_credits_used
+            )
 
         return AgentExecutionResponse.model_validate(execution_record)
     

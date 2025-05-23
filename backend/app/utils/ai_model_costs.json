@@ -105,6 +105,15 @@
       "context_window_k": 200,
       "input_cost_usd_per_1k_tokens": 0.003,
       "output_cost_usd_per_1k_tokens": 0.015,
+      "available": false
+    },
+    {
+      "id": "claude-sonnet-4-20250514",
+      "name": "Claude 4 Sonnet",
+      "provider": "Anthropic",
+      "context_window_k": 200,
+      "input_cost_usd_per_1k_tokens": 0.003,
+      "output_cost_usd_per_1k_tokens": 0.015,
       "available": true
     },
     {

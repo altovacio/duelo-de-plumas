@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router-dom';
 
@@ -17,13 +17,15 @@ export const useAuth = () => {
   } = useAuthStore();
 
   const navigate = useNavigate();
+  const hasAttemptedLoad = useRef(false);
 
   // Load user data when component using this hook mounts if tokens exist
   useEffect(() => {
-    if (tokens && !user && !isLoading) {
+    if (tokens && !user && !isLoading && !hasAttemptedLoad.current) {
+      hasAttemptedLoad.current = true;
       loadUser();
     }
-  }, [tokens, user, isLoading, loadUser]);
+  }, [tokens, user, isLoading]);
   
   // Simple method to check if user is admin
   const isAdmin = (): boolean => {

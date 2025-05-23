@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { executeWriterAgent, estimateWriterCost, Agent } from '../../services/agentService';
+import { getModels, LLMModel } from '../../services/modelService';
 import { useAuthStore } from '../../store/authStore';
 
 interface AIWriterExecutionFormProps {
@@ -10,6 +11,7 @@ interface AIWriterExecutionFormProps {
 
 interface FormData {
   agentId: number;
+  modelId: string;
   prompt: string;
   title: string;
   contestDescription?: string;
@@ -25,12 +27,16 @@ const AIWriterExecutionForm: React.FC<AIWriterExecutionFormProps> = ({
   const [estimatedCost, setEstimatedCost] = useState(0);
   const [isEstimatingCost, setIsEstimatingCost] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [models, setModels] = useState<LLMModel[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
   const { user } = useAuthStore();
   const credits = user?.credits || 0;
 
-  const { control, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
+  const { control, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormData>({
     defaultValues: {
       agentId: availableAgents.length > 0 ? availableAgents[0].id : 0,
+      modelId: '',
       prompt: '',
       title: '',
       contestDescription: ''
@@ -38,61 +44,78 @@ const AIWriterExecutionForm: React.FC<AIWriterExecutionFormProps> = ({
   });
 
   const selectedAgentId = watch('agentId');
+  const selectedModelId = watch('modelId');
   const prompt = watch('prompt');
   const title = watch('title');
   const contestDescription = watch('contestDescription');
   
-  // Calculate estimated cost using backend endpoint
-  React.useEffect(() => {
-    const estimateCost = async () => {
-      if (!prompt || !title || selectedAgentId === 0) {
-        setEstimatedCost(0);
-        return;
+  // Load available models
+  useEffect(() => {
+    const fetchModels = async () => {
+      try {
+        setLoadingModels(true);
+        const modelsResponse = await getModels();
+        setModels(modelsResponse);
+        
+        // Set default model if available and no model is currently selected
+        if (modelsResponse.length > 0 && !selectedModelId) {
+          setValue('modelId', modelsResponse[0].id);
+        }
+        setLoadingModels(false);
+      } catch (err) {
+        console.error('Error fetching models:', err);
+        setError('Failed to load models. Please try again.');
+        setLoadingModels(false);
       }
-
-      const selectedAgent = availableAgents.find(agent => agent.id === selectedAgentId);
-      if (!selectedAgent) {
+    };
+    
+    fetchModels();
+  }, [setValue]);
+  
+  // Track when user is typing
+  useEffect(() => {
+    setIsTyping(true);
+    
+    // Clear typing state after a short delay
+    const typingTimeoutId = setTimeout(() => {
+      setIsTyping(false);
+    }, 500);
+    
+    return () => clearTimeout(typingTimeoutId);
+  }, [prompt, title, contestDescription]);
+  
+  // Calculate estimated cost using backend endpoint with debouncing
+  useEffect(() => {
+    const estimateCost = async () => {
+      if (!prompt || !title || selectedAgentId === 0 || !selectedModelId) {
         setEstimatedCost(0);
         return;
       }
       
       setIsEstimatingCost(true);
       try {
-        // Build the estimation request payload, filtering out empty values
-        const estimationPayload: any = {
+        const costEstimate = await estimateWriterCost({
           agent_id: selectedAgentId,
-          model: selectedAgent.model,
-          title: title,
-          description: prompt
-        };
-        
-        // Only include contest_description if it has content
-        if (contestDescription && contestDescription.trim()) {
-          estimationPayload.contest_description = contestDescription.trim();
-        }
-        
-        console.log('Sending cost estimation request:', estimationPayload);
-        
-        const estimation = await estimateWriterCost(estimationPayload);
-        setEstimatedCost(estimation.estimated_credits);
-      } catch (err: any) {
-        console.error('Error estimating cost:', err);
-        
-        // Log the specific error details for debugging
-        if (err.response?.status === 422) {
-          console.error('Validation error in cost estimation:', err.response?.data?.detail);
-        }
-        
+          model: selectedModelId,
+          title,
+          description: prompt,
+          contest_description: contestDescription || undefined
+        });
+        setEstimatedCost(costEstimate.estimated_credits);
+      } catch (err) {
+        console.error('Cost estimation error:', err);
         setEstimatedCost(0);
       } finally {
         setIsEstimatingCost(false);
       }
     };
 
-    // Debounce the cost estimation
-    const timeoutId = setTimeout(estimateCost, 500);
+    // Debounce the cost estimation - wait 1 second after user stops typing
+    const timeoutId = setTimeout(estimateCost, 1000);
+    
+    // Cleanup timeout if dependencies change before timeout completes
     return () => clearTimeout(timeoutId);
-  }, [prompt, title, contestDescription, selectedAgentId, availableAgents]);
+  }, [prompt, title, selectedAgentId, selectedModelId, contestDescription]);
   
   const onSubmit = async (data: FormData) => {
     setPendingFormData(data);
@@ -113,7 +136,7 @@ const AIWriterExecutionForm: React.FC<AIWriterExecutionFormProps> = ({
       // Build the request payload, filtering out empty values
       const requestPayload: any = {
         agent_id: data.agentId,
-        model: selectedAgentObject.model,
+        model: data.modelId,
         title: data.title,
         description: data.prompt
       };
@@ -190,7 +213,7 @@ const AIWriterExecutionForm: React.FC<AIWriterExecutionFormProps> = ({
               >
                 {availableAgents.map(agent => (
                   <option key={agent.id} value={agent.id}>
-                    {agent.name} ({agent.model})
+                    {agent.name}
                   </option>
                 ))}
                 {availableAgents.length === 0 && (
@@ -201,6 +224,36 @@ const AIWriterExecutionForm: React.FC<AIWriterExecutionFormProps> = ({
           />
           {errors.agentId && (
             <p className="text-red-600 text-sm mt-1">{errors.agentId.message}</p>
+          )}
+        </div>
+
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            AI Model
+          </label>
+          <Controller
+            name="modelId"
+            control={control}
+            rules={{ required: "Please select an AI model" }}
+            render={({ field }) => (
+              <select 
+                {...field} 
+                disabled={isSubmitting || loadingModels}
+                className="w-full px-3 py-2 border rounded-lg"
+              >
+                <option value="">
+                  {loadingModels ? "Loading models..." : "-- Select an AI model --"}
+                </option>
+                {models.map(model => (
+                  <option key={model.id} value={model.id}>
+                    {model.name} ({model.provider})
+                  </option>
+                ))}
+              </select>
+            )}
+          />
+          {errors.modelId && (
+            <p className="text-red-600 text-sm mt-1">{errors.modelId.message}</p>
           )}
         </div>
         
@@ -278,16 +331,46 @@ const AIWriterExecutionForm: React.FC<AIWriterExecutionFormProps> = ({
           <div className="flex justify-between items-center">
             <div>
               <p className="text-blue-800 font-medium">Estimated Credit Cost:</p>
-              <p className="text-xs text-blue-600">
-                Based on your input and selected AI model
-              </p>
+              <div className="flex items-center space-x-2 text-xs text-blue-600 mt-1">
+                {isTyping ? (
+                  <>
+                    <div className="flex items-center space-x-1">
+                      <div className="w-1 h-1 bg-blue-400 rounded-full animate-pulse"></div>
+                      <div className="w-1 h-1 bg-blue-400 rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
+                      <div className="w-1 h-1 bg-blue-400 rounded-full animate-pulse" style={{animationDelay: '0.4s'}}></div>
+                    </div>
+                    <span className="text-blue-500 italic">Waiting for you to finish typing...</span>
+                  </>
+                ) : isEstimatingCost ? (
+                  <>
+                    <div className="animate-spin h-3 w-3 border border-blue-400 border-t-transparent rounded-full"></div>
+                    <span>Calculating based on your input...</span>
+                  </>
+                ) : (
+                  <span>Based on your input and selected AI model</span>
+                )}
+              </div>
             </div>
             <div className="text-blue-800 font-bold text-xl">
-              {isEstimatingCost ? 'Calculating...' : `${estimatedCost} credits`}
+              {isEstimatingCost ? (
+                <div className="flex items-center space-x-2">
+                  <div className="animate-spin h-5 w-5 border-2 border-blue-800 border-t-transparent rounded-full"></div>
+                  <span>Calculating...</span>
+                </div>
+              ) : (
+                <div className="flex items-center space-x-2">
+                  <span>{estimatedCost} credits</span>
+                  {isTyping && (
+                    <div className="px-2 py-1 bg-blue-200 text-blue-700 text-xs rounded-full font-medium">
+                      Will update soon
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           <p className="text-xs text-blue-700 mt-2">
-            <strong>Note:</strong> This is an estimate. Actual credit usage may vary based on the final generated content length and complexity.
+            <strong>Note:</strong> This estimate updates automatically as you type. Actual credit usage may vary based on the final generated content length and complexity.
           </p>
         </div>
         
@@ -297,9 +380,9 @@ const AIWriterExecutionForm: React.FC<AIWriterExecutionFormProps> = ({
           </div>
           <button
             type="submit"
-            disabled={isSubmitting || availableAgents.length === 0 || credits < estimatedCost || isEstimatingCost}
+            disabled={isSubmitting || availableAgents.length === 0 || models.length === 0 || !selectedModelId || credits < estimatedCost || isEstimatingCost}
             className={`px-4 py-2 rounded-lg font-medium ${
-              isSubmitting || availableAgents.length === 0 || credits < estimatedCost || isEstimatingCost
+              isSubmitting || availableAgents.length === 0 || models.length === 0 || !selectedModelId || credits < estimatedCost || isEstimatingCost
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 : 'bg-indigo-600 text-white hover:bg-indigo-700'
             }`}

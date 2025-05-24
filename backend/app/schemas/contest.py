@@ -2,7 +2,7 @@ from typing import Optional, List
 from datetime import datetime
 from pydantic import BaseModel, model_validator
 
-from app.schemas.evaluation import EvaluationCommentResponse
+from app.schemas.vote import VoteEvaluationResponse
 
 
 class ContestBase(BaseModel):
@@ -115,7 +115,7 @@ class ContestTextResponse(BaseModel):
     owner_id: Optional[int] = None
     ranking: Optional[int] = None  # 1 for first place, 2 for second, 3 for third, etc.
     total_points: Optional[int] = None  # Total points received in the contest
-    evaluations: Optional[List[EvaluationCommentResponse]] = None
+    evaluations: Optional[List[VoteEvaluationResponse]] = None
     
     class Config:
         from_attributes = True 

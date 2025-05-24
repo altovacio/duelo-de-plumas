@@ -5,6 +5,8 @@ This document lists known technical debt, areas for refactoring, and potential f
 ## ONGOING
 assign judges
 credits - In admin dashboard, they are starting to work but no transactions are being shown. Also the total spent is rounded and misaligned
+Judges cannot re-vote
+Lets refactor the judge code
 
 ## TODO
 ### Dashboard

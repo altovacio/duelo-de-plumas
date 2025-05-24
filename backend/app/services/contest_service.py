@@ -16,7 +16,7 @@ from app.db.models.contest_text import ContestText
 from app.db.models.contest_judge import ContestJudge
 from app.db.models.vote import Vote
 from app.db.repositories.vote_repository import VoteRepository
-from app.schemas.evaluation import EvaluationCommentResponse
+from app.schemas.vote import VoteEvaluationResponse
 
 # Import UserModel for author details
 from app.db.models.user import User as UserModel
@@ -639,7 +639,7 @@ class ContestService:
 
             author_name = text.author
             owner_id_val = text.owner_id
-            submission_evaluations: List[EvaluationCommentResponse] = [] # Ensure type
+            submission_evaluations: List[VoteEvaluationResponse] = [] # Ensure type
 
             contest_state = contest.status.lower()
             # Mask or reveal owner/author based on contest state
@@ -673,9 +673,10 @@ class ContestService:
                             judge_identifier_str = "ContestJudge entry not found"
                     
                     submission_evaluations.append(
-                        EvaluationCommentResponse(
+                        VoteEvaluationResponse(
                             comment=vote_obj.comment,
-                            judge_identifier=judge_identifier_str
+                            judge_identifier=judge_identifier_str,
+                            text_place=vote_obj.text_place
                         )
                     )
             
@@ -730,7 +731,7 @@ class ContestService:
             # Use the text's author field, which is user-provided text
             author_name = text_orm.author
             
-            submission_evaluations: List[EvaluationCommentResponse] = []
+            submission_evaluations: List[VoteEvaluationResponse] = []
             
             # Include evaluations if contest is closed
             if contest_orm.status.lower() == "closed":
@@ -760,9 +761,10 @@ class ContestService:
                             judge_identifier_str = "ContestJudge entry not found"
                     
                     submission_evaluations.append(
-                        EvaluationCommentResponse(
+                        VoteEvaluationResponse(
                             comment=vote_obj.comment,
-                            judge_identifier=judge_identifier_str
+                            judge_identifier=judge_identifier_str,
+                            text_place=vote_obj.text_place
                         )
                     )
             
@@ -819,7 +821,7 @@ class ContestService:
             # Use the text's author field, which is user-provided text
             author_name = text_orm.author
             
-            submission_evaluations: List[EvaluationCommentResponse] = []
+            submission_evaluations: List[VoteEvaluationResponse] = []
             
             # Include evaluations if contest is closed
             if contest.status.lower() == "closed":
@@ -846,9 +848,10 @@ class ContestService:
                             judge_identifier_str = "ContestJudge entry not found"
                     
                     submission_evaluations.append(
-                        EvaluationCommentResponse(
+                        VoteEvaluationResponse(
                             comment=vote_obj.comment,
-                            judge_identifier=judge_identifier_str
+                            judge_identifier=judge_identifier_str,
+                            text_place=vote_obj.text_place
                         )
                     )
             

@@ -19,6 +19,16 @@ class VoteUpdate(BaseModel):
     comment: Optional[str] = Field(None, description="Justification/feedback for the vote")
 
 
+class VoteEvaluationResponse(BaseModel):
+    """Simplified schema for displaying vote evaluations in contest results"""
+    comment: Optional[str] = None
+    judge_identifier: Optional[str] = None
+    text_place: Optional[int] = Field(None, description="Position given by this judge (1 for 1st place, 2 for 2nd place, 3 for 3rd place, null for non-podium texts)")
+
+    class Config:
+        from_attributes = True
+
+
 class VoteResponse(BaseModel):
     """Schema for vote responses - includes computed properties"""
     id: int

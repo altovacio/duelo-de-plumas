@@ -43,9 +43,11 @@ export const getContestVotes = async (contestId: number): Promise<Vote[]> => {
 // Get votes by a specific judge in a contest
 export const getJudgeVotes = async (
   contestId: number,
-  judgeId: number
+  judgeId: number,
+  voteType?: 'human' | 'ai'
 ): Promise<Vote[]> => {
-  const response = await apiClient.get(`/contests/${contestId}/votes/${judgeId}`);
+  const params = voteType ? { vote_type: voteType } : {};
+  const response = await apiClient.get(`/contests/${contestId}/votes/${judgeId}`, { params });
   return response.data;
 };
 

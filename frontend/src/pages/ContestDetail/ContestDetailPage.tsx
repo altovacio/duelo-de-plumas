@@ -418,7 +418,7 @@ const ContestDetailPage: React.FC = () => {
       let userHasJudged = false;
       
       try {
-        const userVotes = await getJudgeVotes(contestId, user.id);
+        const userVotes = await getJudgeVotes(contestId, user.id, 'human');
         if (userVotes.length > 0) {
           userHasJudged = true;
         }

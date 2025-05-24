@@ -47,9 +47,9 @@ const HumanJudgingForm: React.FC<HumanJudgingFormProps> = ({
       
       try {
         setIsLoadingExistingVotes(true);
-        console.log(`Loading existing votes for user ${user.id} in contest ${contestId}`);
-        const votes = await getJudgeVotes(contestId, user.id);
-        console.log('Loaded existing votes:', votes);
+        console.log(`Loading existing human votes for user ${user.id} in contest ${contestId}`);
+        const votes = await getJudgeVotes(contestId, user.id, 'human');
+        console.log('Loaded existing human votes:', votes);
         setExistingVotes(votes);
         
         // Pre-populate the form with existing votes

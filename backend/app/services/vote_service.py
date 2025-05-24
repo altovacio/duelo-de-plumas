@@ -224,7 +224,8 @@ class VoteService:
         db: AsyncSession, 
         contest_id: int, 
         judge_id: int, # This is user_id of the human judge OR owner of AI judge
-        current_user: User
+        current_user: User,
+        vote_type: Optional[str] = None  # 'human', 'ai', or None for all
     ) -> List[Vote]:
         """Get votes submitted by a specific judge (user) in a contest, including their human and owned AI votes."""
         # Verify the contest exists
@@ -259,12 +260,34 @@ class VoteService:
                 detail="You don't have permission to view these votes"
             )
 
+        # Validate vote_type parameter
+        if vote_type and vote_type not in ['human', 'ai']:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="vote_type must be 'human' or 'ai'"
+            )
+
         # Fetch ContestJudge entries related to this user (judge_id) for this contest.
-        # This includes direct human judge assignments (ContestJudge.user_judge_id == judge_id)
-        # AND AI agent assignments they own (ContestJudge.agent_judge.has(owner_id=judge_id)).
+        # Filter based on vote_type if specified
         contest_judge_entries_stmt = select(ContestJudge)\
-            .outerjoin(Agent, ContestJudge.agent_judge_id == Agent.id)\
-            .filter(
+            .outerjoin(Agent, ContestJudge.agent_judge_id == Agent.id)
+            
+        if vote_type == 'human':
+            # Only get human judge assignments
+            contest_judge_entries_stmt = contest_judge_entries_stmt.filter(
+                ContestJudge.contest_id == contest_id,
+                ContestJudge.user_judge_id == judge_id
+            )
+        elif vote_type == 'ai':
+            # Only get AI agent assignments they own
+            contest_judge_entries_stmt = contest_judge_entries_stmt.filter(
+                ContestJudge.contest_id == contest_id,
+                ContestJudge.agent_judge_id.isnot(None),
+                Agent.owner_id == judge_id
+            )
+        else:
+            # Get all (both human and AI agent assignments)
+            contest_judge_entries_stmt = contest_judge_entries_stmt.filter(
                 ContestJudge.contest_id == contest_id,
                 (
                     (ContestJudge.user_judge_id == judge_id) | 
@@ -276,11 +299,11 @@ class VoteService:
         contest_judge_entries = contest_judge_entries_result.scalars().all()
 
         if not contest_judge_entries:
-            return [] # No human or owned AI judge assignments for this user in this contest
+            return [] # No judge assignments for this user in this contest matching the filter
 
         all_votes: List[Vote] = []
         for cj_entry in contest_judge_entries:
-            # Assuming VoteRepository.get_votes_by_contest_judge_id fetches all votes linked to a specific contest_judge.id
+            # Get votes for this contest_judge_id
             votes = await VoteRepository.get_votes_by_contest_judge_id(db, cj_entry.id)
             all_votes.extend(votes)
             

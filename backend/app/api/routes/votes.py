@@ -92,6 +92,7 @@ async def get_votes_by_contest(
 async def get_votes_by_judge(
     contest_id: int = Path(..., title="The ID of the contest"),
     judge_id: int = Path(..., title="The ID of the judge"),
+    vote_type: Optional[str] = Query(None, description="Filter by vote type: 'human' or 'ai'"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -100,12 +101,14 @@ async def get_votes_by_judge(
     
     - Only the contest creator, the judge themselves, and admins can view a judge's votes
     - Will return all votes by the judge, including both human and AI votes
+    - Use vote_type parameter to filter: 'human' for only human votes, 'ai' for only AI votes
     """
     return await VoteService.get_votes_by_judge(
         db=db,
         contest_id=contest_id,
         judge_id=judge_id,
-        current_user=current_user
+        current_user=current_user,
+        vote_type=vote_type
     )
 
 

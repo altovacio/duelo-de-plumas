@@ -182,7 +182,7 @@ class ContestService:
         
         # Check if the contest is now closed and trigger result computation
         if updated_contest_orm and updated_contest_orm.status.lower() == "closed":
-            await ContestService._compute_and_store_contest_results(db, contest_id)
+            await VoteRepository.calculate_contest_results(db, contest_id)
             # Fetch the updated contest data again AFTER results computation to ensure response reflects ranks
             # This is important because the contest_orm might be stale regarding submission ranks
             updated_contest_data = await ContestRepository.get_contest_with_counts(db=db, contest_id=contest_id)
@@ -690,6 +690,7 @@ class ContestService:
                 "author": author_name,
                 "owner_id": owner_id_val,
                 "ranking": ct.ranking,
+                "total_points": ct.total_points,
                 # Only include evaluations if the contest is closed and evaluations were processed
                 "evaluations": submission_evaluations if contest_state == "closed" and submission_evaluations else None
             }
@@ -709,10 +710,12 @@ class ContestService:
             select(
                 ContestText,  # The whole submission ORM object
                 TextModel,    # The whole text ORM object
-                UserModel     # The user ORM object for the owner
+                UserModel,    # The user ORM object for the owner
+                Contest       # Include the contest to check status
             )
             .join(TextModel, ContestText.text_id == TextModel.id)
             .join(UserModel, TextModel.owner_id == UserModel.id)
+            .join(Contest, ContestText.contest_id == Contest.id)
             .where(TextModel.owner_id == current_user_id)  # Filter by the text's owner
             .order_by(ContestText.submission_date.desc())
             .offset(skip)
@@ -720,12 +723,48 @@ class ContestService:
         )
         
         result = await db.execute(stmt)
-        raw_results = result.all()  # List of tuples: (ContestText_instance, TextModel_instance, UserModel_instance)
+        raw_results = result.all()  # List of tuples: (ContestText_instance, TextModel_instance, UserModel_instance, Contest_instance)
 
         response_list = []
-        for ct_orm, text_orm, owner_orm in raw_results:
+        for ct_orm, text_orm, owner_orm, contest_orm in raw_results:
             # Use the text's author field, which is user-provided text
             author_name = text_orm.author
+            
+            submission_evaluations: List[EvaluationCommentResponse] = []
+            
+            # Include evaluations if contest is closed
+            if contest_orm.status.lower() == "closed":
+                # Fetch votes for this specific text in this contest
+                text_votes = await VoteRepository.get_votes_by_contest(db=db, contest_id=ct_orm.contest_id)
+                text_specific_votes = [v for v in text_votes if v.text_id == ct_orm.text_id]
+                
+                for vote_obj in text_specific_votes:
+                    judge_identifier_str = f"Judge (ID: {vote_obj.contest_judge_id})" # Default/fallback
+                    if vote_obj.contest_judge_id:
+                        contest_judge_entry = await ContestRepository.get_contest_judge_by_id(db, vote_obj.contest_judge_id)
+                        if contest_judge_entry:
+                            if contest_judge_entry.user_judge_id:
+                                user_repo = UserRepository(db)
+                                user_judge = await user_repo.get_by_id(contest_judge_entry.user_judge_id)
+                                if user_judge:
+                                    judge_identifier_str = user_judge.username
+                                else:
+                                    judge_identifier_str = "Unknown User Judge"
+                            elif contest_judge_entry.agent_judge_id:
+                                agent_judge = await AgentRepository.get_agent_by_id(db, contest_judge_entry.agent_judge_id)
+                                if agent_judge:
+                                    judge_identifier_str = agent_judge.name
+                                else:
+                                    judge_identifier_str = "Unknown Agent Judge"
+                        else:
+                            judge_identifier_str = "ContestJudge entry not found"
+                    
+                    submission_evaluations.append(
+                        EvaluationCommentResponse(
+                            comment=vote_obj.comment,
+                            judge_identifier=judge_identifier_str
+                        )
+                    )
             
             response_item = ContestTextResponse(
                 id=ct_orm.id,
@@ -737,7 +776,8 @@ class ContestService:
                 author=author_name,
                 owner_id=text_orm.owner_id,
                 ranking=ct_orm.ranking,
-                evaluations=None
+                total_points=ct_orm.total_points,
+                evaluations=submission_evaluations if contest_orm.status.lower() == "closed" and submission_evaluations else None
             )
             response_list.append(response_item)
         
@@ -750,6 +790,9 @@ class ContestService:
         """
         Retrieves all submissions made by the current_user_id for the given contest_id.
         """
+        # Get contest to check status
+        contest = await ContestService.get_contest(db=db, contest_id=contest_id)
+        
         stmt = (
             select(
                 ContestText, # The whole submission ORM object (ContestText model)
@@ -766,10 +809,48 @@ class ContestService:
         result = await db.execute(stmt)
         raw_results = result.all() # List of tuples: (ContestText_instance, TextModel_instance, UserModel_instance)
 
+        # Fetch all votes for the contest if it's closed to include evaluations
+        all_contest_votes: List[Vote] = []
+        if contest.status.lower() == "closed":
+            all_contest_votes = await VoteRepository.get_votes_by_contest(db=db, contest_id=contest_id)
+
         response_list = []
         for ct_orm, text_orm, owner_orm in raw_results:
             # Use the text's author field, which is user-provided text
             author_name = text_orm.author
+            
+            submission_evaluations: List[EvaluationCommentResponse] = []
+            
+            # Include evaluations if contest is closed
+            if contest.status.lower() == "closed":
+                text_specific_votes = [v for v in all_contest_votes if v.text_id == ct_orm.text_id]
+                for vote_obj in text_specific_votes:
+                    judge_identifier_str = f"Judge (ID: {vote_obj.contest_judge_id})" # Default/fallback
+                    if vote_obj.contest_judge_id:
+                        contest_judge_entry = await ContestRepository.get_contest_judge_by_id(db, vote_obj.contest_judge_id)
+                        if contest_judge_entry:
+                            if contest_judge_entry.user_judge_id:
+                                user_repo = UserRepository(db)
+                                user_judge = await user_repo.get_by_id(contest_judge_entry.user_judge_id)
+                                if user_judge:
+                                    judge_identifier_str = user_judge.username
+                                else:
+                                    judge_identifier_str = "Unknown User Judge"
+                            elif contest_judge_entry.agent_judge_id:
+                                agent_judge = await AgentRepository.get_agent_by_id(db, contest_judge_entry.agent_judge_id)
+                                if agent_judge:
+                                    judge_identifier_str = agent_judge.name
+                                else:
+                                    judge_identifier_str = "Unknown Agent Judge"
+                        else:
+                            judge_identifier_str = "ContestJudge entry not found"
+                    
+                    submission_evaluations.append(
+                        EvaluationCommentResponse(
+                            comment=vote_obj.comment,
+                            judge_identifier=judge_identifier_str
+                        )
+                    )
             
             response_item = ContestTextResponse(
                 id=ct_orm.id, # This is submission_id
@@ -781,96 +862,11 @@ class ContestService:
                 author=author_name, # Use the actual author field from the text
                 owner_id=text_orm.owner_id,
                 ranking=ct_orm.ranking,
-                evaluations=None # Typically not shown in "my submissions" list
+                total_points=ct_orm.total_points,
+                evaluations=submission_evaluations if contest.status.lower() == "closed" and submission_evaluations else None
             )
             response_list.append(response_item)
         
         return response_list
 
-    @staticmethod
-    async def _compute_and_store_contest_results(db: AsyncSession, contest_id: int) -> None:
-        """Computes scores and rankings for submissions in a contest and stores them."""
-        contest_texts = await ContestRepository.get_contest_texts(db, contest_id)
-        if not contest_texts:
-            return # No submissions to rank
-
-        votes = await VoteRepository.get_votes_by_contest(db, contest_id)
-
-        # Handle case with no votes: set points to 0 and ranking to None
-        if not votes:
-            for ct_obj in contest_texts:
-                ct_obj.total_points = 0
-                ct_obj.ranking = None
-            try:
-                await db.commit()
-                for ct_obj in contest_texts:
-                    await db.refresh(ct_obj)
-            except Exception as e:
-                await db.rollback()
-                print(f"Error storing no-vote results for contest {contest_id}: {e}")
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Failed to store results for contest with no votes: {e}"
-                )
-            return # End processing if no votes
-
-        submission_data: Dict[int, Dict[str, Any]] = {
-            # Use ct.id (ContestText.id) as key if votes refer to it as submission_id
-            # Or use ct.text_id if votes refer to the original Text.id
-            # Based on Vote model (Vote.text_id), we assume votes are against the original Text.id
-            ct.text_id: {'points': 0, 'contest_text_obj': ct}
-            for ct in contest_texts
-        }
-
-        for vote in votes:
-            # Ensure vote.text_id corresponds to a key in submission_data
-            if vote.text_id in submission_data: 
-                points_to_add = 0
-                if vote.text_place == 1:
-                    points_to_add = 3
-                elif vote.text_place == 2:
-                    points_to_add = 2
-                elif vote.text_place == 3:
-                    points_to_add = 1
-                
-                submission_data[vote.text_id]['points'] += points_to_add
-
-        # Sort submissions by points (descending), then by submission_date (ascending) as a tie-breaker for rank stability
-        sorted_submissions_info = sorted(
-            submission_data.values(), 
-            key=lambda x: (x['points'], -x['contest_text_obj'].submission_date.timestamp()), 
-            reverse=True
-        )
-
-        current_rank = 0
-        last_score = -1 # Initialize with a score that won't be matched by 0 points
-        num_at_rank = 0
-
-        for i, sub_info in enumerate(sorted_submissions_info):
-            contest_text_obj: ContestText = sub_info['contest_text_obj']
-            current_score = sub_info['points']
-
-            contest_text_obj.total_points = current_score
-
-            if current_score != last_score:
-                current_rank = i + 1 # Standard ranking (1, 2, 2, 4)
-                last_score = current_score
-            
-            contest_text_obj.ranking = current_rank
-            
-            # No need to db.add() if contest_text_obj is already managed by the session and modified
-            # The commit will handle persisting changes.
-
-        try:
-            await db.commit()
-            for sub_info in sorted_submissions_info:
-                await db.refresh(sub_info['contest_text_obj'])
-        except Exception as e:
-            await db.rollback()
-            # Log error or raise a specific exception for result computation failure
-            # This is a critical step, so failure should be noticeable.
-            print(f"Error computing/storing contest results for contest {contest_id}: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to compute and store contest results: {e}"
-            ) 
+ 

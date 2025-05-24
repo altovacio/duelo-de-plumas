@@ -51,6 +51,8 @@ class SimpleChatCompletionJudgeStrategy(JudgeStrategyInterface):
 
         parsed_votes = self._parse_judge_llm_response(llm_response, texts)
         
+                        # Debug logging        logger.info(f"Judge Strategy Debug - Original texts count: {len(texts)}")        logger.info(f"Judge Strategy Debug - Parsed votes count: {len(parsed_votes)}")        print(f"DEBUG: Judge Strategy - Original texts count: {len(texts)}")        print(f"DEBUG: Judge Strategy - Parsed votes count: {len(parsed_votes)}")        for i, vote in enumerate(parsed_votes):            logger.info(f"Judge Strategy Debug - Vote {i+1}: text_id={vote.get('text_id')}, text_place={vote.get('text_place')}, comment_preview={vote.get('comment', '')[:50]}...")            print(f"DEBUG: Judge Strategy - Vote {i+1}: text_id={vote.get('text_id')}, text_place={vote.get('text_place')}, comment_preview={vote.get('comment', '')[:50]}...")
+        
         return parsed_votes, prompt_tokens, completion_tokens
 
     def _parse_judge_llm_response(self, llm_response: str, original_texts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -67,8 +69,14 @@ class SimpleChatCompletionJudgeStrategy(JudgeStrategyInterface):
         parsed_data = []
         text_map_by_title = {text['title']: text['id'] for text in original_texts}
         
+        # Debug logging
+        logger.info(f"Judge Parser Debug - LLM Response:\n{llm_response}")
+        logger.info(f"Judge Parser Debug - Text map: {text_map_by_title}")
+        
         pattern = re.compile(r"^\s*(\d+)\.\s*(.*?)\s*\n\s*Commentary:\s*(.*?)(?=(?:\n\s*\d+\.\s*)|$)", re.MULTILINE | re.DOTALL)
         matches = pattern.findall(llm_response)
+        
+        logger.info(f"Judge Parser Debug - Regex matches found: {len(matches)}")
 
         for match in matches:
             try:
@@ -77,14 +85,21 @@ class SimpleChatCompletionJudgeStrategy(JudgeStrategyInterface):
                 title = title.strip()
                 commentary = commentary.strip()
                 text_id = text_map_by_title.get(title)
+                
+                logger.info(f"Judge Parser Debug - Processing match: rank={rank}, title='{title}', text_id={text_id}")
 
                 if text_id is None:
                     logger.warning(f"Could not map title '{title}' from LLM response to any original text during judging.")
                     continue 
 
+                # Only assign podium places (1, 2, 3) - texts ranked 4th and below get None
+                text_place = rank if rank <= 3 else None
+                
+                logger.info(f"Judge Parser Debug - Final mapping: text_id={text_id}, original_rank={rank}, final_text_place={text_place}")
+                
                 parsed_data.append({
                     "text_id": text_id,
-                    "text_place": rank,
+                    "text_place": text_place,
                     "comment": commentary,
                 })
             except ValueError as e:

@@ -299,16 +299,40 @@ async def get_contest_judges(
         current_user_id=user_id
     )
     
-    return [
-        JudgeAssignmentResponse(
+    # Import repositories to get additional judge information
+    from app.db.repositories.user_repository import UserRepository
+    from app.db.repositories.agent_repository import AgentRepository
+    
+    user_repo = UserRepository(db)
+    
+    result = []
+    for cj in contest_judges:
+        judge_response = JudgeAssignmentResponse(
             id=cj.id,
             contest_id=cj.contest_id,
             user_judge_id=cj.user_judge_id,
             agent_judge_id=cj.agent_judge_id,
             assignment_date=cj.assignment_date,
             has_voted=cj.has_voted
-        ) for cj in contest_judges
-    ]
+        )
+        
+        # Populate additional fields based on judge type
+        if cj.user_judge_id:
+            # Human judge - get user details
+            user_judge = await user_repo.get_by_id(cj.user_judge_id)
+            if user_judge:
+                judge_response.user_judge_name = user_judge.username
+                judge_response.user_judge_email = user_judge.email
+        elif cj.agent_judge_id:
+            # AI judge - get agent details
+            agent_judge = await AgentRepository.get_agent_by_id(db, cj.agent_judge_id)
+            if agent_judge:
+                judge_response.agent_judge_name = agent_judge.name
+                # Note: model is execution-specific, not stored on the agent itself
+        
+        result.append(judge_response)
+    
+    return result
 
 
 @router.delete("/{contest_id}/judges/{judge_id}", status_code=status.HTTP_204_NO_CONTENT)

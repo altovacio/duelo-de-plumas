@@ -249,10 +249,10 @@ class AgentService:
 
         if not await CreditService.has_sufficient_credits(db, current_user_id, estimated_cost):
             raise HTTPException(
-                status_code=status.status.HTTP_402_PAYMENT_REQUIRED,
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
                 detail=f"Insufficient credits. Required approx: {estimated_cost}"
             )
-        
+
         execution_responses = []
         total_credits_for_run = 0
 
@@ -300,43 +300,56 @@ class AgentService:
                     detail=f"Failed to find ContestJudge entry for AI agent {request.agent_id} in contest {request.contest_id} before creating votes."
                 )
 
-            for vote_info in parsed_votes_from_ai:
+            # Create the agent execution record FIRST so it can be linked to votes
+            exec_record = await AgentRepository.create_agent_execution(
+                db=db, agent_id=agent.id, owner_id=current_user_id,
+                execution_type="judge", model=request.model, status="completed",
+                credits_used=actual_credits_used
+            )    
+            # Delete existing AI votes for this contest_judge and model ONCE before creating new votes
+            from app.db.repositories.vote_repository import VoteRepository
+            deleted_count = await VoteRepository.delete_ai_votes_by_contest_judge(
+                db=db,
+                contest_judge_id=ai_contest_judge_entry.id,
+                contest_id=request.contest_id,
+                ai_model=request.model
+            ) 
+            print(f"DEBUG: Agent Service - Deleted {deleted_count} existing AI votes before creating new ones")
+
+            # Now create the votes using VoteService but skipping the deletion logic
+            print(f"DEBUG: Agent Service - About to create {len(parsed_votes_from_ai)} votes from AI response")
+            for i, vote_info in enumerate(parsed_votes_from_ai):
+                print(f"DEBUG: Agent Service - Creating vote {i+1}: text_id={vote_info.get('text_id')}, text_place={vote_info.get('text_place')}, comment='{vote_info.get('comment', 'AI Judge Auto-Comment')[:50]}...'")
                 vote_create_data = VoteCreate(
                     text_id=vote_info["text_id"],
-                    text_place=vote_info.get("place"),
+                    text_place=vote_info.get("text_place"),
                     comment=vote_info.get("comment", "AI Judge Auto-Comment"),
                     is_ai_vote=True,
                     ai_model=request.model
                 )
-                # Pass the AI agent's ID (request.agent_id) as the judge_id to VoteService.create_vote
-                # because VoteService.create_vote expects a user_id or an agent_id as judge_id.
-                await VoteService.create_vote(
-                    db=db, 
-                    vote_data=vote_create_data, 
-                    judge_id=request.agent_id, # Pass the AI agent's ID
+                # Use VoteService.create_vote (deletion already handled above)
+                created_vote = await VoteService.create_vote(
+                    db=db,
+                    vote_data=vote_create_data,
+                    judge_id=request.agent_id,
                     contest_id=request.contest_id
                 )
-
-            exec_record = await AgentRepository.create_agent_execution(
-                db=db, agent_id=agent.id, owner_id=current_user_id,
-                execution_type="judge_contest", model=request.model, status="completed",
-                credits_used=actual_credits_used
-            )
+                print(f"DEBUG: Agent Service - Successfully created vote with ID {created_vote.id}, text_place={created_vote.text_place}")
             execution_responses.append(AgentExecutionResponse.model_validate(exec_record))
 
         except HTTPException as e:
             exec_record = await AgentRepository.create_agent_execution(
                 db=db, agent_id=agent.id, owner_id=current_user_id,
-                execution_type="judge_contest", model=request.model, status="failed",
+                execution_type="judge", model=request.model, status="failed",
                 error_message=e.detail, credits_used=0
             )
             execution_responses.append(AgentExecutionResponse.model_validate(exec_record))
-            raise e 
+            raise e
         except Exception as e:
             error_msg = f"Error executing judge agent: {str(e)}"
             exec_record = await AgentRepository.create_agent_execution(
                 db=db, agent_id=agent.id, owner_id=current_user_id,
-                execution_type="judge_contest", model=request.model, status="failed",
+                execution_type="judge", model=request.model, status="failed",
                 error_message=error_msg, credits_used=0
             )
             execution_responses.append(AgentExecutionResponse.model_validate(exec_record))

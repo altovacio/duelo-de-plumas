@@ -471,15 +471,17 @@ const ContestDetailPage: React.FC = () => {
     fetchAvailableJudgeAgents();
   };
   
-  const handleJudgingSuccess = () => {
+  const handleJudgingSuccess = (isAIJudge?: boolean) => {
+    const wasAIJudge = isAIJudge ?? showAIJudgeModal;
+    
     setShowJudgeModal(false);
     setShowAIJudgeModal(false);
     
     // Show success message with more specific information
-    if (showAIJudgeModal) {
+    if (wasAIJudge) {
       toast.success('AI Judge evaluation completed successfully! Results have been added to the contest.');
     } else {
-      toast.success('Votes submitted successfully!');
+      toast.success('Your votes have been submitted successfully!');
     }
     
     // Refresh judge completion status to show updated counts
@@ -995,7 +997,7 @@ const ContestDetailPage: React.FC = () => {
                 created_at: text.created_at || text.submission_date || '',
                 updated_at: text.updated_at || text.submission_date || '',
               }))}
-              onSuccess={handleJudgingSuccess}
+              onSuccess={() => handleJudgingSuccess(false)}
               onCancel={() => setShowJudgeModal(false)}
             />
           </div>
@@ -1009,7 +1011,7 @@ const ContestDetailPage: React.FC = () => {
               contestId={parseInt(id || '1')}
               contestTextCount={texts.length}
               averageTextLength={averageTextLength}
-              onSuccess={handleJudgingSuccess}
+              onSuccess={() => handleJudgingSuccess(true)}
               onCancel={() => setShowAIJudgeModal(false)}
               availableAgents={availableJudgeAgents}
             />

@@ -56,7 +56,6 @@ export interface ContestJudge {
   user_name?: string;      // Username for human judges  
   user_email?: string;     // Email for human judges
   agent_name?: string;     // Name for AI judges
-  ai_model?: string;       // Model info for AI judges
   ai_judge?: boolean;      // Helper to identify AI judges
 }
 
@@ -128,7 +127,7 @@ export const getContestJudges = async (id: number): Promise<ContestJudge[]> => {
   const response = await apiClient.get(`/contests/${id}/judges`);
   
   // Transform the response to match our frontend model
-  // The backend might be returning a different structure 
+  // The backend now returns the enhanced structure with judge names
   return response.data.map((judge: any) => ({
     id: judge.id || 0,
     contest_id: judge.contest_id,
@@ -140,7 +139,6 @@ export const getContestJudges = async (id: number): Promise<ContestJudge[]> => {
     user_name: judge.user_judge_name,
     user_email: judge.user_judge_email,
     agent_name: judge.agent_judge_name,
-    ai_model: judge.agent_judge_model,
     ai_judge: judge.agent_judge_id ? true : false
   }));
 };
@@ -169,7 +167,6 @@ export const assignJudgeToContest = async (
     user_name: response.data.user_judge_name,
     user_email: response.data.user_judge_email,
     agent_name: response.data.agent_judge_name,
-    ai_model: response.data.agent_judge_model,
     ai_judge: response.data.agent_judge_id ? true : false
   };
 };

@@ -16,7 +16,7 @@ class VoteService:
     async def create_vote(
         db: AsyncSession, 
         vote_data: VoteCreate, 
-        judge_id: int, # This is user_id for human, agent_id for AI
+        judge_id: int, # This is user_id for human votes, agent_id for AI votes
         contest_id: int
     ) -> Vote:
         """Create a new vote in a contest."""
@@ -102,23 +102,17 @@ class VoteService:
         
         # Handle differently based on whether this is a human or AI vote
         if vote_data.is_ai_vote:
-            # For AI votes, we first delete any existing votes from this judge with the same AI model
+            # For AI votes, validation only (deletion is handled by agent service for batch operations)
             if not vote_data.ai_model:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="AI votes must specify the AI model used"
                 )
-                
-            # Delete existing AI votes from this contest_judge with this model
-            # Assumes VoteRepository.delete_ai_votes_by_contest_judge exists or will be created
-            await VoteRepository.delete_ai_votes_by_contest_judge(
-                db, 
-                contest_judge_id=judge_assignment.id, # MODIFIED
-                contest_id=contest_id, # contest_id might be redundant if contest_judge_id is unique
-                ai_model=vote_data.ai_model
-            )
             
-            # Get current AI votes for this contest_judge and model after deletion
+            # Note: AI vote deletion is handled by the agent service before batch creation
+            # Here we just validate that we're not creating duplicate votes in the same batch
+            
+            # Get current AI votes for this contest_judge and model  
             existing_votes_stmt = select(Vote).join(Vote.agent_execution).filter(
                 Vote.contest_judge_id == judge_assignment.id, 
                 AgentExecution.model == vote_data.ai_model,
@@ -127,14 +121,14 @@ class VoteService:
             existing_votes_result = await db.execute(existing_votes_stmt)
             existing_votes = existing_votes_result.scalars().all()
             
-            # Check if the AI is trying to vote for the same text twice
+            # Check if the AI is trying to vote for the same text twice in this batch
             if any(v.text_id == vote_data.text_id for v in existing_votes):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="AI has already voted for this text in this contest with the same model"
                 )
             
-            # If assigning a place, check if already assigned
+            # If assigning a place, check if already assigned in this batch
             if vote_data.text_place is not None:
                 if any(v.text_place == vote_data.text_place for v in existing_votes if v.text_place is not None):
                     detail_msg = (
@@ -177,6 +171,23 @@ class VoteService:
                     await db.commit()
                     await db.refresh(existing_vote)
                     return existing_vote
+        
+        # For AI votes, we need to get the latest AgentExecution for this agent and model
+        if vote_data.is_ai_vote and vote_data.ai_model:
+            # Find the most recent AgentExecution for this agent and model
+            from app.db.repositories.agent_repository import AgentRepository
+            latest_exec_stmt = select(AgentExecution).filter(
+                AgentExecution.agent_id == judge_id,  # judge_id is the agent_id for AI votes
+                AgentExecution.model == vote_data.ai_model,
+                AgentExecution.execution_type == "judge",
+                AgentExecution.status == "completed"
+            ).order_by(AgentExecution.created_at.desc()).limit(1)
+            
+            latest_exec_result = await db.execute(latest_exec_stmt)
+            latest_execution = latest_exec_result.scalar_one_or_none()
+            
+            if latest_execution:
+                vote_dict["agent_execution_id"] = latest_execution.id
         
         # Create the vote using the prepared vote_dict
         # vote_dict contains fields from VoteCreate schema that map to Vote model columns

@@ -52,6 +52,11 @@ class JudgeAssignmentResponse(BaseModel):
     assignment_date: datetime
     has_voted: Optional[bool] = None
     
+    # Additional fields for display purposes
+    user_judge_name: Optional[str] = None      # Username for human judges  
+    user_judge_email: Optional[str] = None     # Email for human judges
+    agent_judge_name: Optional[str] = None     # Name for AI judges
+    
     class Config:
         from_attributes = True
 
@@ -109,6 +114,7 @@ class ContestTextResponse(BaseModel):
     author: Optional[str] = None
     owner_id: Optional[int] = None
     ranking: Optional[int] = None  # 1 for first place, 2 for second, 3 for third, etc.
+    total_points: Optional[int] = None  # Total points received in the contest
     evaluations: Optional[List[EvaluationCommentResponse]] = None
     
     class Config:

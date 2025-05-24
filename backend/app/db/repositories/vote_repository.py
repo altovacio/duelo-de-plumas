@@ -1,6 +1,7 @@
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select, delete, update
+from sqlalchemy.orm import selectinload
 
 from app.db.models import Vote, ContestText, AgentExecution
 
@@ -12,7 +13,7 @@ class VoteRepository:
         # vote_data should contain text_id, comment, text_place, etc. from VoteCreate schema
         # contest_id and contest_judge_id are passed explicitly.
         # Only pass actual column fields to the Vote constructor
-        allowed_keys = {"text_id", "text_place", "comment"}
+        allowed_keys = {"text_id", "text_place", "comment", "agent_execution_id"}
         filtered_data = {k: v for k, v in vote_data.items() if k in allowed_keys}
         vote = Vote(
             contest_judge_id=contest_judge_id,
@@ -27,28 +28,40 @@ class VoteRepository:
     @staticmethod
     async def get_vote(db: AsyncSession, vote_id: int) -> Optional[Vote]:
         """Get a single vote by ID."""
-        stmt = select(Vote).filter(Vote.id == vote_id)
+        stmt = select(Vote).filter(Vote.id == vote_id).options(
+            selectinload(Vote.contest_judge),
+            selectinload(Vote.agent_execution)
+        )
         result = await db.execute(stmt)
         return result.scalar_one_or_none()
 
     @staticmethod
     async def get_votes_by_contest(db: AsyncSession, contest_id: int) -> List[Vote]:
         """Get all votes for a specific contest."""
-        stmt = select(Vote).filter(Vote.contest_id == contest_id)
+        stmt = select(Vote).filter(Vote.contest_id == contest_id).options(
+            selectinload(Vote.contest_judge),
+            selectinload(Vote.agent_execution)
+        )
         result = await db.execute(stmt)
         return result.scalars().all()
 
     @staticmethod
     async def get_votes_by_contest_judge_id(db: AsyncSession, contest_judge_id: int) -> List[Vote]:
         """Get all votes by a specific contest_judge_id."""
-        stmt = select(Vote).filter(Vote.contest_judge_id == contest_judge_id)
+        stmt = select(Vote).filter(Vote.contest_judge_id == contest_judge_id).options(
+            selectinload(Vote.contest_judge),
+            selectinload(Vote.agent_execution)
+        )
         result = await db.execute(stmt)
         return result.scalars().all()
 
     @staticmethod
     async def get_votes_by_text(db: AsyncSession, text_id: int) -> List[Vote]:
         """Get all votes for a specific text."""
-        stmt = select(Vote).filter(Vote.text_id == text_id)
+        stmt = select(Vote).filter(Vote.text_id == text_id).options(
+            selectinload(Vote.contest_judge),
+            selectinload(Vote.agent_execution)
+        )
         result = await db.execute(stmt)
         return result.scalars().all()
 
@@ -103,86 +116,84 @@ class VoteRepository:
         This should be called when a contest is ready to be closed.
         Points are derived from vote.text_place (1st place = 3 points, 2nd = 2, 3rd = 1).
         """
-        # Get all texts in this contest
+        # Get all contest texts in one query to minimize database round trips
         contest_texts_stmt = select(ContestText).filter(ContestText.contest_id == contest_id)
         contest_texts_result = await db.execute(contest_texts_stmt)
-        contest_texts_q = contest_texts_result.scalars().all()
-        text_ids = [ct.text_id for ct in contest_texts_q]
+        contest_texts = contest_texts_result.scalars().all()
         
-        text_total_points = {text_id: 0 for text_id in text_ids}
+        if not contest_texts:
+            return  # No submissions to rank
+        
+        # Initialize submission data structure
+        submission_data = {
+            ct.text_id: {'points': 0, 'contest_text_obj': ct}
+            for ct in contest_texts
+        }
 
-        all_votes_stmt = select(Vote).filter(Vote.contest_id == contest_id)
+        # Get all votes for this contest - using direct column access to avoid lazy loading
+        all_votes_stmt = select(
+            Vote.text_id, 
+            Vote.text_place,
+            Vote.id,
+            Vote.contest_judge_id,
+            Vote.agent_execution_id
+        ).filter(Vote.contest_id == contest_id)
         all_votes_result = await db.execute(all_votes_stmt)
-        all_votes_for_contest = all_votes_result.scalars().all()
+        all_votes = all_votes_result.all()
 
-        for vote in all_votes_for_contest:
-            if vote.text_id in text_total_points:
-                points_for_this_vote = 0
-                if vote.text_place == 1:
-                    points_for_this_vote = 3
-                elif vote.text_place == 2:
-                    points_for_this_vote = 2
-                elif vote.text_place == 3:
-                    points_for_this_vote = 1
+        # Debug logging to understand what votes we have
+        print(f"DEBUG: calculate_contest_results - Found {len(all_votes)} votes for contest {contest_id}")
+        for vote_row in all_votes:
+            print(f"DEBUG: Vote - text_id={vote_row.text_id}, text_place={vote_row.text_place}, vote_id={vote_row.id}, contest_judge_id={vote_row.contest_judge_id}, agent_execution_id={vote_row.agent_execution_id}")
+
+        # Handle case with no votes: set points to 0 and ranking to None
+        if not all_votes:
+            for ct in contest_texts:
+                ct.total_points = 0
+                ct.ranking = None
+            await db.commit()
+            return
+
+        # Calculate points for each text using raw column data
+        for vote_row in all_votes:
+            text_id = vote_row.text_id
+            text_place = vote_row.text_place
+            
+            if text_id in submission_data and text_place is not None:
+                points_to_add = 0
+                if text_place == 1:
+                    points_to_add = 3
+                elif text_place == 2:
+                    points_to_add = 2
+                elif text_place == 3:
+                    points_to_add = 1
                 
-                if points_for_this_vote > 0:
-                    text_total_points[vote.text_id] += points_for_this_vote
-        
-        # Sort texts by derived points (highest first)
-        # sorted_texts will be a list of tuples: (text_id, total_calculated_points)
-        sorted_texts_by_points = sorted(text_total_points.items(), key=lambda item: item[1], reverse=True)
-        
-        # Update rankings in contest_texts
+                if points_to_add > 0:
+                    submission_data[text_id]['points'] += points_to_add
+
+        # Sort submissions by points (descending), then by submission_date (ascending) as tie-breaker
+        sorted_submissions = sorted(
+            submission_data.values(),
+            key=lambda x: (x['points'], -x['contest_text_obj'].submission_date.timestamp()),
+            reverse=True
+        )
+
+        # Assign rankings and total points
         current_rank = 0
-        prev_total_points = -1 # Initialize to a value that won't match any point total
-        
-        processed_texts_count = 0
-        rank_assignment_count = 0 # How many distinct ranks have been assigned
+        last_score = -1
 
-        for text_id, calculated_points in sorted_texts_by_points:
-            # Fetch ContestText to update
-            ct_stmt = select(ContestText).filter(
-                ContestText.contest_id == contest_id,
-                ContestText.text_id == text_id
-            )
-            ct_result = await db.execute(ct_stmt)
-            ct = ct_result.scalar_one_or_none()
-            
-            if ct:
-                if calculated_points != prev_total_points:
-                    # New rank only if points are different from the previous text's points
-                    current_rank = rank_assignment_count + 1
-                    rank_assignment_count +=1
-                # If points are the same as previous, they get the same current_rank
-                
-                ct.ranking = current_rank
-                prev_total_points = calculated_points
-            processed_texts_count +=1
-            
-        # Any texts not in sorted_texts_by_points (e.g. those with 0 points and not explicitly in text_total_points if it was pre-filtered)
-        # or texts that were processed but had 0 points and didn't get a rank assigned if all ranks went to >0 point texts.
-        # The current logic ensures all texts in contest_texts_q are in text_total_points, initialized to 0.
-        # So, texts with 0 points will be at the end of sorted_texts_by_points.
-        # If current_rank is still 0 (meaning no texts got any points), all get rank 1.
-        # Otherwise, texts with 0 points get the next available rank.
+        for i, sub_info in enumerate(sorted_submissions):
+            contest_text_obj = sub_info['contest_text_obj']
+            current_score = sub_info['points']
 
-        if rank_assignment_count == 0 and processed_texts_count > 0: # All texts had 0 points
-             for text_id in text_ids:
-                ct_stmt = select(ContestText).filter(ContestText.contest_id == contest_id, ContestText.text_id == text_id)
-                ct_result = await db.execute(ct_stmt)
-                ct = ct_result.scalar_one_or_none()
-                if ct:
-                    ct.ranking = 1
-        elif processed_texts_count < len(text_ids): # Should not happen with current logic, but as a safeguard
-            # This case implies some texts were not processed by the loop above, which is unlikely.
-            # Assign them a rank after all others.
-            unranked_ids = set(text_ids) - set(tid for tid, _ in sorted_texts_by_points)
-            fallback_rank = rank_assignment_count + 1
-            for text_id in unranked_ids:
-                ct_stmt = select(ContestText).filter(ContestText.contest_id == contest_id, ContestText.text_id == text_id)
-                ct_result = await db.execute(ct_stmt)
-                ct = ct_result.scalar_one_or_none()
-                if ct:
-                    ct.ranking = fallback_rank
-        
+            # Update total points
+            contest_text_obj.total_points = current_score
+
+            # Assign ranking (texts with same points get same rank)
+            if current_score != last_score:
+                current_rank = i + 1  # Standard ranking (1, 2, 2, 4)
+                last_score = current_score
+            
+            contest_text_obj.ranking = current_rank
+
         await db.commit() 

@@ -1,8 +1,8 @@
-"""update_ondelete_user_fks_docker
+"""create_all_tables_fresh
 
-Revision ID: 851d54183b97
+Revision ID: 04f26b447d6c
 Revises: 
-Create Date: 2025-05-15 17:09:04.363324
+Create Date: 2025-05-24 15:36:20.981511
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '851d54183b97'
+revision = '04f26b447d6c'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -73,7 +73,7 @@ def upgrade() -> None:
     sa.Column('description', sa.String(), nullable=False),
     sa.Column('ai_model', sa.String(), nullable=True),
     sa.Column('tokens_used', sa.Integer(), nullable=True),
-    sa.Column('model_cost_rate', sa.Float(), nullable=True),
+    sa.Column('real_cost_usd', sa.Float(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id')
@@ -101,6 +101,7 @@ def upgrade() -> None:
     sa.Column('result_id', sa.Integer(), nullable=True),
     sa.Column('error_message', sa.String(), nullable=True),
     sa.Column('credits_used', sa.Integer(), nullable=False),
+    sa.Column('api_version', sa.String(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['agent_id'], ['agents.id'], ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ondelete='SET NULL'),

@@ -17,4 +17,4 @@ COPY . .
 RUN chmod +x wait-for-it.sh
 
 # Run migrations and start server
-CMD alembic upgrade head && python create_tables.py && uvicorn app.main:app --host 0.0.0.0 --port 8000 
+CMD alembic upgrade head && python scripts/create_admin.py && uvicorn app.main:app --host 0.0.0.0 --port 8000 

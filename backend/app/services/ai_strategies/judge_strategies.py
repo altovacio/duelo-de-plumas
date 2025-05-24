@@ -7,6 +7,9 @@ from app.services.ai_provider_service import AIProviderInterface
 from app.utils.judge_prompts import JUDGE_BASE_PROMPT # Import base prompt
 # from app.utils.logging_utils import logger # Removed this import
 
+# Version constant for tracking AI judge strategy changes
+JUDGE_VERSION = "1.0"
+
 logger = logging.getLogger(__name__) # Initialized standard logger
 
 class SimpleChatCompletionJudgeStrategy(JudgeStrategyInterface):

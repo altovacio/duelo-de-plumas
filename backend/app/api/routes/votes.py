@@ -6,6 +6,7 @@ from app.db.database import get_db
 from app.api.routes.auth import get_current_user
 from app.schemas.vote import VoteCreate, VoteResponse
 from app.services.vote_service import VoteService
+from app.services.judge_service import JudgeService
 from app.db.models.user import User
 
 router = APIRouter(tags=["votes"])
@@ -49,16 +50,12 @@ async def create_vote(
     - For contests with fewer than 3 texts, judges only need to assign all possible places
     - For example, in a contest with 2 texts, only 1st and 2nd places are required
     """
-    # Determine the correct judge_id based on vote type
-    if not vote_data.is_ai_vote:
-        # For human votes, use the current user's ID
-        judge_id = current_user.id
-    
-    return await VoteService.create_vote(
+    # Use the new unified JudgeService for creating votes
+    return await JudgeService.execute_human_vote(
         db=db,
+        contest_id=contest_id,
         vote_data=vote_data,
-        judge_id=judge_id,
-        contest_id=contest_id
+        user_id=current_user.id
     )
 
 

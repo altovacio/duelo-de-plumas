@@ -110,6 +110,20 @@ class VoteRepository:
         return deleted_id is not None
 
     @staticmethod
+    async def delete_human_votes_by_contest_judge(db: AsyncSession, contest_judge_id: int, contest_id: int) -> int:
+        """Delete all human votes associated with a specific contest_judge_id.
+        Returns the number of votes deleted."""
+        stmt_delete = delete(Vote).where(
+            Vote.contest_judge_id == contest_judge_id,
+            Vote.contest_id == contest_id,
+            Vote.agent_execution_id.is_(None)  # Human votes have no agent_execution_id
+        )
+        
+        result = await db.execute(stmt_delete)
+        await db.commit()
+        return result.rowcount
+
+    @staticmethod
     async def calculate_contest_results(db: AsyncSession, contest_id: int) -> None:
         """
         Calculate contest results based on votes and update the contest_texts table.

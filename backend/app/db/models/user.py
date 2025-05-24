@@ -23,18 +23,11 @@ class User(Base):
         back_populates="user_judge",
         cascade="all, delete-orphan"
     )
-    votes = relationship(
-        "Vote",
-        secondary="join(ContestJudge, Vote, ContestJudge.id == Vote.contest_judge_id)",
-        primaryjoin="User.id == ContestJudge.user_judge_id",
-        secondaryjoin="ContestJudge.id == Vote.contest_judge_id",
-        viewonly=True,
-        overlaps="contest_judges"
-    )
     credit_transactions = relationship(
         "CreditTransaction", 
         back_populates="user", 
         cascade="all, delete-orphan",
         lazy="noload"
     )
-    agents = relationship("Agent", back_populates="owner", cascade="all, delete-orphan") 
+    agents = relationship("Agent", back_populates="owner", cascade="all, delete-orphan")
+    agent_executions = relationship("AgentExecution", back_populates="owner", cascade="all, delete-orphan") 

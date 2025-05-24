@@ -102,7 +102,8 @@ class AgentRepository:
         status: str = "completed",
         result_id: Optional[int] = None,
         error_message: Optional[str] = None,
-        credits_used: int = 0
+        credits_used: int = 0,
+        api_version: Optional[str] = None
     ) -> AgentExecution:
         """Create a new agent execution record."""
         db_execution = AgentExecution(
@@ -113,7 +114,8 @@ class AgentRepository:
             status=status,
             result_id=result_id,
             error_message=error_message,
-            credits_used=credits_used
+            credits_used=credits_used,
+            api_version=api_version
         )
         db.add(db_execution)
         await db.commit()
@@ -125,4 +127,21 @@ class AgentRepository:
         """Get all agents in the system (for admin use)."""
         stmt = select(Agent).offset(skip).limit(limit)
         result = await db.execute(stmt)
-        return result.scalars().all() 
+        return result.scalars().all()
+    
+    @staticmethod
+    async def get_latest_execution(
+        db: AsyncSession, 
+        agent_id: int, 
+        model: str, 
+        execution_type: str
+    ) -> Optional[AgentExecution]:
+        """Get the latest execution for an agent with specific model and type."""
+        stmt = select(AgentExecution).filter(
+            AgentExecution.agent_id == agent_id,
+            AgentExecution.model == model,
+            AgentExecution.execution_type == execution_type
+        ).order_by(AgentExecution.created_at.desc()).limit(1)
+        
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none() 

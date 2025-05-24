@@ -17,6 +17,7 @@ from app.schemas.agent import (
 from app.schemas.text import TextResponse as TextSchemaResponse
 from app.services.agent_service import AgentService
 from app.services.contest_service import ContestService
+from app.services.judge_service import JudgeService
 from app.utils.ai_models import estimate_credits
 
 router = APIRouter()
@@ -100,6 +101,7 @@ async def get_agents(
 @router.post("/execute/judge", response_model=List[AgentExecutionResponse])
 async def execute_judge_agent(
     request: AgentExecuteJudge,
+    force_execute: bool = Query(False, description="Force execution even with insufficient credits"),
     db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_current_user)
 ):
@@ -107,9 +109,9 @@ async def execute_judge_agent(
     Execute a judge agent on a contest.
     - The agent must be a judge agent
     - The contest must be in evaluation state
-    - User must have sufficient credits
+    - User must have sufficient credits (unless force_execute=true)
     """
-    return await AgentService.execute_judge_agent(db, request, current_user.id)
+    return await JudgeService.execute_ai_judge(db, request, current_user.id, force_execute)
 
 
 @router.post("/execute/writer", response_model=AgentExecutionResponse)
@@ -242,49 +244,13 @@ async def estimate_judge_cost(
     """
     Estimate the cost of executing a judge agent without actually executing it.
     """
-    # Get the agent to access its prompt
-    agent = await AgentService.get_agent_by_id(db, request.agent_id, current_user.id, skip_auth_check=True)
-    
-    if agent.type != "judge":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Agent with id {request.agent_id} is not a judge agent"
-        )
-    
-    # Get the contest to access its description and texts
- 
-    contest = await ContestService.get_contest(db, request.contest_id)
-    
-    if not contest:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Contest with id {request.contest_id} not found"
-        )
-    
-    # Get contest texts to estimate tokens
-    contest_texts = await ContestService.get_contest_submissions(db, request.contest_id, current_user.id)
-    
-    # Calculate average text length for estimation
-    if contest_texts:
-        total_length = sum(len(text.content) for text in contest_texts)
-        avg_text_length = total_length // len(contest_texts)
-    else:
-        avg_text_length = 500  # Default assumption
-    
-    # Calculate token estimates using the same method as in execution
-    estimated_input_tokens, estimated_output_tokens = AgentService.estimate_judge_tokens(
-        agent.prompt, 
-        request.model, 
-        contest.description,
-        len(contest_texts),
-        avg_text_length
+    # Use the new unified estimation method
+    estimation = await JudgeService.get_judge_estimation(
+        db, request.contest_id, request.agent_id, request.model
     )
     
-    # Calculate credit estimate
-    estimated_credits = estimate_credits(request.model, estimated_input_tokens, estimated_output_tokens)
-    
     return JudgeCostEstimateResponse(
-        estimated_credits=estimated_credits,
-        estimated_input_tokens=estimated_input_tokens,
-        estimated_output_tokens=estimated_output_tokens
+        estimated_credits=estimation.estimated_credits,
+        estimated_input_tokens=estimation.estimated_input_tokens,
+        estimated_output_tokens=estimation.estimated_output_tokens
     ) 

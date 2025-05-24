@@ -3,6 +3,9 @@ from app.services.ai_strategies.base_strategy import WriterStrategyInterface
 from app.services.ai_provider_service import AIProviderInterface
 from app.utils.writer_prompts import WRITER_BASE_PROMPT # Import base prompt
 
+# Version constant for tracking AI writer strategy changes
+WRITER_VERSION = "1.0"
+
 class SimpleChatCompletionWriterStrategy(WriterStrategyInterface):
     async def generate(
         self,

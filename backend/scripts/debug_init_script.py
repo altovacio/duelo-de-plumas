@@ -80,6 +80,38 @@ def create_agent_api(token, name, description, agent_type, prompt, model="defaul
     response = requests.post(f"{BASE_URL}/agents/", headers=headers, json=payload)
     return print_response(response, f"Create Agent: {name} ({agent_type})")
 
+def submit_text_to_contest_api(token, contest_id, text_id, password=None):
+    headers = {"Authorization": f"Bearer {token}"}
+    payload = {"text_id": text_id}
+    params = {}
+    if password:
+        params["password"] = password
+    
+    response = requests.post(f"{BASE_URL}/contests/{contest_id}/submissions/", 
+                           headers=headers, json=payload, params=params)
+    return print_response(response, f"Submit Text {text_id} to Contest {contest_id}")
+
+def assign_human_judge_to_contest_api(token, contest_id, user_id):
+    headers = {"Authorization": f"Bearer {token}"}
+    payload = {"user_judge_id": user_id}
+    
+    response = requests.post(f"{BASE_URL}/contests/{contest_id}/judges", 
+                           headers=headers, json=payload)
+    return print_response(response, f"Assign Human Judge (User {user_id}) to Contest {contest_id}")
+
+def assign_ai_judge_to_contest_api(token, contest_id, agent_id):
+    headers = {"Authorization": f"Bearer {token}"}
+    payload = {"agent_judge_id": agent_id}
+    
+    response = requests.post(f"{BASE_URL}/contests/{contest_id}/judges", 
+                           headers=headers, json=payload)
+    return print_response(response, f"Assign AI Judge (Agent {agent_id}) to Contest {contest_id}")
+
+def get_user_info_api(token):
+    headers = {"Authorization": f"Bearer {token}"}
+    response = requests.get(f"{BASE_URL}/users/me", headers=headers)
+    return print_response(response, "Get Current User Info")
+
 # --- Main Script Logic ---
 if __name__ == "__main__":
     print("Starting Duelo de Plumas Debug Init Script...")
@@ -112,6 +144,10 @@ if __name__ == "__main__":
         print(f"WARNING: Could not log in admin ({ADMIN_USERNAME}). Admin actions will be skipped.")
         print("Ensure the admin user exists with the specified credentials or adjust ADMIN_USERNAME/ADMIN_PASSWORD.")
 
+    # Get user1's user ID for judge assignment
+    user1_info = get_user_info_api(user1_token)
+    user1_id = user1_info.get("id") if user1_info else None
+
     # Step b) user1 creates a private contest
     if user1_token:
         print("\n=== Step B: User1 Creates Private Contest ===")
@@ -135,26 +171,38 @@ if __name__ == "__main__":
 
     # Step d) user1 and user2 each create a very simple text
     print("\n=== Step D: Users Create Texts ===")
+    user1_text_ids = []
     if user1_token:
-        create_text_api(
+        # Create texts for user1 and collect their IDs
+        text_responses = []
+        
+        text_responses.append(create_text_api(
             user1_token,
             title="User1's First Text",
             content="This is a very simple text written by user1.",
-            author="user1-pseudonym" # Assuming author is username, adjust if schema differs
-        )
-        create_text_api(
+            author="user1-pseudonym"
+        ))
+        
+        text_responses.append(create_text_api(
             user1_token,
             title="User1's Second Text",
             content="This is the sequel to the first text written by user1.",
-            author="user1-pseudonym" # Assuming author is username, adjust if schema differs
-        )
+            author="user1-pseudonym"
+        ))
+        
         for i in range(10):
-            create_text_api(
+            text_responses.append(create_text_api(
                 user1_token,
                 title=f"User1's Text {i+1} in a cycle",
                 content=f"This is the {i+1}th text written by user1. "*50,
-                author="user1-pseudonym" # Assuming author is username, adjust if schema differs
-            )
+                author="user1-pseudonym"
+            ))
+        
+        # Collect text IDs for later submission
+        for response in text_responses:
+            if response and "id" in response:
+                user1_text_ids.append(response["id"])
+                
     if user2_token:
         create_text_api(
             user2_token,
@@ -166,19 +214,23 @@ if __name__ == "__main__":
             user2_token,
             title="User2's Second Text",
             content="This is the sequel to the first text written by user2.",
-            author="user2-pseudonym" # Assuming author is username, adjust if schema differs
+            author="user2-pseudonym"
         )
 
     # Step e) user1 and user2 create each an AI judge and an AI writer
     print("\n=== Step E: Users Create AI Agents ===")
+    user1_judge_agent_id = None
     if user1_token:
-        create_agent_api(
+        judge_response = create_agent_api(
             user1_token,
             name="User1's Judge Bot",
             description="AI Judge created by user1.",
             agent_type="judge",
             prompt="You are a fair and balanced literary judge."
         )
+        if judge_response and "id" in judge_response:
+            user1_judge_agent_id = judge_response["id"]
+            
         create_agent_api(
             user1_token,
             name="User1's Story Bot",
@@ -248,5 +300,45 @@ if __name__ == "__main__":
         assign_user_credits(admin_token, 2, 10)
     else:
         print("\nSkipping Admin actions as admin token was not obtained.")
+
+    # NEW: Step g) User1 creates a test contest, submits 4 texts, and assigns human + AI judges
+    print("\n=== Step G: User1 Complete Contest Setup ===")
+    if user1_token and user1_id and len(user1_text_ids) >= 4:
+        # Create a test contest for judging
+        contest_response = create_contest_api(
+            user1_token,
+            title="User1's Judging Test Contest",
+            description="Contest created by user1 for testing the complete judging flow with both human and AI judges.",
+            is_private=False  # Make it public for easier testing
+        )
+        
+        if contest_response and "id" in contest_response:
+            test_contest_id = contest_response["id"]
+            
+            # Submit 4 texts to the contest
+            print(f"\n--- Submitting 4 texts to contest {test_contest_id} ---")
+            for i in range(4):
+                if i < len(user1_text_ids):
+                    submit_text_to_contest_api(user1_token, test_contest_id, user1_text_ids[i])
+            
+            # Assign user1 as a human judge to their own contest
+            print(f"\n--- Assigning judges to contest {test_contest_id} ---")
+            assign_human_judge_to_contest_api(user1_token, test_contest_id, user1_id)
+            
+            # Assign user1's AI judge agent to the contest
+            if user1_judge_agent_id:
+                assign_ai_judge_to_contest_api(user1_token, test_contest_id, user1_judge_agent_id)
+            
+            print(f"\n✅ Contest {test_contest_id} is ready for testing with:")
+            print(f"   - 4 submitted texts")
+            print(f"   - 1 human judge (user1: {user1_id})")
+            if user1_judge_agent_id:
+                print(f"   - 1 AI judge (agent: {user1_judge_agent_id})")
+            else:
+                print("   - ⚠️ AI judge not assigned (agent creation failed)")
+        else:
+            print("❌ Failed to create test contest for user1")
+    else:
+        print("❌ Cannot set up test contest - missing user1 token, user ID, or texts")
 
     print("\n--- Debug Init Script Finished ---") 

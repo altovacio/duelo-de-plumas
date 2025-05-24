@@ -7,6 +7,7 @@ from app.api.routes.auth import get_current_user
 from app.schemas.vote import VoteCreate, VoteResponse
 from app.services.vote_service import VoteService
 from app.services.judge_service import JudgeService
+from app.db.repositories.vote_repository import VoteRepository
 from app.db.models.user import User
 
 router = APIRouter(tags=["votes"])
@@ -14,49 +15,63 @@ router = APIRouter(tags=["votes"])
 
 @router.post(
     "/contests/{contest_id}/votes",
-    response_model=VoteResponse,
+    response_model=List[VoteResponse],
     status_code=status.HTTP_201_CREATED,
-    summary="Create a vote in a contest"
+    summary="Submit complete judging session"
 )
-async def create_vote(
-    vote_data: VoteCreate,
+async def create_votes(
+    votes_data: List[VoteCreate],
     contest_id: int = Path(..., title="The ID of the contest"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Create a new vote in a contest.
+    Submit a complete judging session with all votes for a contest.
+    
+    This endpoint follows the proper judging workflow:
+    1. Validates contest and judge assignment once
+    2. Deletes all previous votes by this judge once  
+    3. Creates all new votes in one session
+    4. Updates completion status once
     
     - The contest must be in the evaluation state
     - The user must be a judge for the contest
-    - The text must be part of the contest
+    - All texts must be part of the contest
     
     **Voting System:**
     - Judges assign places (1st, 2nd, 3rd) to texts and provide commentary for each
     - Judges can also provide commentary for texts that didn't make the podium (no place assigned)
-    
-    **Human Votes:**
     - A judge must assign places to at least min(3, total_texts) different texts
-    - A judge can comment on any number of texts that didn't make the podium
-    - When a judge votes for the same place again, the previous vote for that place is replaced
     
-    **AI Votes:**
-    - Users can submit multiple votes using different AI judges (agents)
-    - When voting with an AI model that was previously used, all previous votes with that model are deleted first
-    - The same restrictions apply to each AI model
-    - The same user can have multiple sets of votes in a contest: one as a human judge and multiple as AI judges
-    
-    **Small Contests:**
-    - For contests with fewer than 3 texts, judges only need to assign all possible places
-    - For example, in a contest with 2 texts, only 1st and 2nd places are required
+    **Features:**
+    - Atomic operation (all votes succeed or all fail)
+    - Efficient (one database transaction)
+    - Proper credit accounting for AI judges
     """
-    # Use the new unified JudgeService for creating votes
-    return await JudgeService.execute_human_vote(
+    # Use the unified JudgeService for creating multiple votes
+    votes = await JudgeService.execute_human_votes(
         db=db,
         contest_id=contest_id,
-        vote_data=vote_data,
+        votes_data=votes_data,
         user_id=current_user.id
     )
+    
+    # Convert all votes to VoteResponse
+    vote_responses = []
+    for vote in votes:
+        vote_details = await VoteRepository.get_vote_details(db, vote.id)
+        if vote_details:
+            vote_response = await VoteResponse.from_vote_details(vote_details)
+        else:
+            # Fallback - create VoteResponse with basic info
+            vote_response = VoteResponse.from_vote_model(
+                vote, 
+                judge_id=current_user.id, 
+                is_ai_vote=False
+            )
+        vote_responses.append(vote_response)
+    
+    return vote_responses
 
 
 @router.get(

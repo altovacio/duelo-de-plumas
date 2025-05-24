@@ -1,4 +1,5 @@
 .
+├── DEBUGGING.md
 ├── README.md
 ├── backend
 │   ├── Dockerfile
@@ -52,7 +53,6 @@
 │   │   │   ├── agent.py
 │   │   │   ├── contest.py
 │   │   │   ├── credit.py
-│   │   │   ├── evaluation.py
 │   │   │   ├── text.py
 │   │   │   ├── user.py
 │   │   │   └── vote.py
@@ -139,8 +139,9 @@
 │   │   ├── App.tsx
 │   │   ├── components
 │   │   │   ├── Agent
-│   │   │   │   ├── AIWriterExecutionForm.tsx
 │   │   │   │   └── AgentFormModal.tsx
+│   │   │   ├── Common
+│   │   │   │   └── FullTextModal.tsx
 │   │   │   ├── Contest
 │   │   │   │   ├── AIJudgeConfirmationModal.tsx
 │   │   │   │   ├── AIJudgeExecutionForm.tsx
@@ -232,4 +233,4 @@
 │   └── vite.config.ts
 └── nginx.conf
 
-50 directories, 183 files
+51 directories, 183 files

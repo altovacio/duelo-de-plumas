@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Text } from '../../services/textService';
-import { submitVote, CreateVoteRequest, getJudgeVotes, Vote } from '../../services/voteService';
+import { submitVotes, CreateVoteRequest, getJudgeVotes, Vote } from '../../services/voteService';
 import { useAuth } from '../../hooks/useAuth';
 
 interface HumanJudgingFormProps {
@@ -211,11 +211,8 @@ const HumanJudgingForm: React.FC<HumanJudgingFormProps> = ({
         }
       });
       
-      // Submit each vote
-      for (const vote of votes) {
-        console.log('Submitting vote:', vote);
-        await submitVote(contestId, vote);
-      }
+      // Submit all votes at once
+      await submitVotes(contestId, votes);
       
       setIsLoading(false);
       setSuccess('Votes submitted successfully!');

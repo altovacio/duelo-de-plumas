@@ -119,7 +119,11 @@ async def setup_database_suite():
     print(f"INFO [conftest.py]: Creating admin user: {settings.FIRST_SUPERUSER_USERNAME} (Main Tests)")
     try:
         async with TestAsyncSessionLocal() as temp_admin_db_session:
-            await create_admin_user( # create_admin_user now accepts a session
+            # Ensure all required settings are available
+            if not all([settings.FIRST_SUPERUSER_USERNAME, settings.FIRST_SUPERUSER_EMAIL, settings.FIRST_SUPERUSER_PASSWORD]):
+                pytest.fail("CRITICAL [conftest.py]: Admin credentials missing from settings. Check FIRST_SUPERUSER_* environment variables.")
+            
+            await create_admin_user(
                 db=temp_admin_db_session, 
                 username=settings.FIRST_SUPERUSER_USERNAME,
                 email=settings.FIRST_SUPERUSER_EMAIL,

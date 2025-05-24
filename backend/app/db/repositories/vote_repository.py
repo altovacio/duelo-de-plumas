@@ -1,24 +1,32 @@
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select, delete, update
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 
-from app.db.models import Vote, ContestText, AgentExecution
+from app.db.models import Vote, ContestText, AgentExecution, ContestJudge, Agent
 
 
 class VoteRepository:
     @staticmethod
-    async def create_vote(db: AsyncSession, vote_data: dict, contest_judge_id: int, contest_id: int) -> Vote:
-        """Create a new vote. vote_data is expected to contain text_id."""
-        # vote_data should contain text_id, comment, text_place, etc. from VoteCreate schema
-        # contest_id and contest_judge_id are passed explicitly.
-        # Only pass actual column fields to the Vote constructor
-        allowed_keys = {"text_id", "text_place", "comment", "agent_execution_id"}
-        filtered_data = {k: v for k, v in vote_data.items() if k in allowed_keys}
+    async def create_vote(
+        db: AsyncSession, 
+        contest_id: int,
+        contest_judge_id: int,
+        text_id: int,
+        text_place: Optional[int],
+        comment: str,
+        is_ai: bool,
+        agent_execution_id: Optional[int] = None
+    ) -> Vote:
+        """Create a new vote with explicit parameters."""
         vote = Vote(
-            contest_judge_id=contest_judge_id,
             contest_id=contest_id,
-            **filtered_data
+            contest_judge_id=contest_judge_id,
+            text_id=text_id,
+            text_place=text_place,
+            comment=comment,
+            is_ai=is_ai,
+            agent_execution_id=agent_execution_id
         )
         db.add(vote)
         await db.commit()
@@ -34,6 +42,99 @@ class VoteRepository:
         )
         result = await db.execute(stmt)
         return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_vote_with_full_details(db: AsyncSession, vote_id: int) -> Optional[Vote]:
+        """Get a vote with all related details loaded for complex operations."""
+        stmt = select(Vote).filter(Vote.id == vote_id).options(
+            joinedload(Vote.contest_judge),
+            joinedload(Vote.agent_execution).joinedload(AgentExecution.agent)
+        )
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_judge_id_for_vote(db: AsyncSession, vote_id: int) -> Optional[int]:
+        """Get the judge ID (user_id or agent_id) for a vote."""
+        stmt = select(
+            ContestJudge.user_judge_id,
+            ContestJudge.agent_judge_id
+        ).join(Vote, Vote.contest_judge_id == ContestJudge.id).filter(Vote.id == vote_id)
+        
+        result = await db.execute(stmt)
+        row = result.first()
+        
+        if row:
+            return row.user_judge_id if row.user_judge_id else row.agent_judge_id
+        return None
+
+    @staticmethod
+    async def is_ai_vote(vote: Vote) -> bool:
+        """Check if a vote is from an AI judge."""
+        return vote.is_ai
+
+    @staticmethod
+    async def get_ai_model_for_vote(db: AsyncSession, vote_id: int) -> Optional[str]:
+        """Get the AI model used for a vote if it's an AI vote."""
+        stmt = select(AgentExecution.model).join(
+            Vote, Vote.agent_execution_id == AgentExecution.id
+        ).filter(Vote.id == vote_id)
+        
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_ai_version_for_vote(db: AsyncSession, vote_id: int) -> Optional[str]:
+        """Get the AI version (agent version) for a vote if it's an AI vote."""
+        stmt = select(Agent.version).join(
+            AgentExecution, AgentExecution.agent_id == Agent.id
+        ).join(
+            Vote, Vote.agent_execution_id == AgentExecution.id
+        ).filter(Vote.id == vote_id)
+        
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_vote_details(db: AsyncSession, vote_id: int) -> Optional[Dict[str, Any]]:
+        """Get comprehensive vote details including judge info, AI model, etc."""
+        vote = await VoteRepository.get_vote_with_full_details(db, vote_id)
+        if not vote:
+            return None
+        
+        # Build details dictionary
+        details = {
+            "id": vote.id,
+            "contest_id": vote.contest_id,
+            "text_id": vote.text_id,
+            "contest_judge_id": vote.contest_judge_id,
+            "agent_execution_id": vote.agent_execution_id,
+            "text_place": vote.text_place,
+            "comment": vote.comment,
+            "created_at": vote.created_at,
+            "is_ai_vote": vote.is_ai,
+            "judge_id": None,
+            "judge_type": None,
+            "ai_model": None,
+            "ai_version": None
+        }
+        
+        # Get judge information
+        if vote.contest_judge:
+            if vote.contest_judge.user_judge_id:
+                details["judge_id"] = vote.contest_judge.user_judge_id
+                details["judge_type"] = "human"
+            elif vote.contest_judge.agent_judge_id:
+                details["judge_id"] = vote.contest_judge.agent_judge_id
+                details["judge_type"] = "ai"
+        
+        # Get AI information if applicable
+        if vote.agent_execution:
+            details["ai_model"] = vote.agent_execution.model
+            if vote.agent_execution.agent:
+                details["ai_version"] = vote.agent_execution.agent.version
+        
+        return details
 
     @staticmethod
     async def get_votes_by_contest(db: AsyncSession, contest_id: int) -> List[Vote]:
@@ -100,7 +201,7 @@ class VoteRepository:
         Returns True if a vote was deleted, False otherwise."""
         stmt = delete(Vote).where(
             Vote.contest_judge_id == contest_judge_id,
-            Vote.agent_execution_id.is_(None),
+            Vote.is_ai == False,  # Human votes use is_ai column
             Vote.text_place == text_place
         ).returning(Vote.id)
         
@@ -116,7 +217,7 @@ class VoteRepository:
         stmt_delete = delete(Vote).where(
             Vote.contest_judge_id == contest_judge_id,
             Vote.contest_id == contest_id,
-            Vote.agent_execution_id.is_(None)  # Human votes have no agent_execution_id
+            Vote.is_ai == False  # Human votes use is_ai column
         )
         
         result = await db.execute(stmt_delete)
@@ -210,4 +311,34 @@ class VoteRepository:
             
             contest_text_obj.ranking = current_rank
 
-        await db.commit() 
+        await db.commit()
+
+    @staticmethod
+    async def delete_votes_by_contest_judge(db: AsyncSession, contest_judge_id: int, contest_id: int, ai_model: Optional[str] = None) -> int:
+        """Delete all votes associated with a specific contest_judge_id.
+        For AI judges, optionally filter by ai_model if provided.
+        Returns the number of votes deleted."""
+        if ai_model:
+            # For AI judges with specific model, delete votes that match the model
+            stmt_select_ids = select(Vote.id).join(Vote.agent_execution).filter(
+                Vote.contest_judge_id == contest_judge_id,
+                Vote.contest_id == contest_id,
+                AgentExecution.model == ai_model
+            )
+            vote_ids_result = await db.execute(stmt_select_ids)
+            vote_ids_to_delete = vote_ids_result.scalars().all()
+
+            if not vote_ids_to_delete:
+                return 0
+
+            stmt_delete = delete(Vote).where(Vote.id.in_(vote_ids_to_delete))
+        else:
+            # For human judges or all AI votes from this contest_judge, delete all votes
+            stmt_delete = delete(Vote).where(
+                Vote.contest_judge_id == contest_judge_id,
+                Vote.contest_id == contest_id
+            )
+        
+        result = await db.execute(stmt_delete)
+        await db.commit()
+        return result.rowcount 

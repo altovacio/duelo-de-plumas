@@ -1,8 +1,8 @@
-"""create_all_tables_fresh
+"""Initial migration with clean models
 
-Revision ID: 04f26b447d6c
+Revision ID: 558cd0c633c1
 Revises: 
-Create Date: 2025-05-24 15:36:20.981511
+Create Date: 2025-05-24 17:25:32.006250
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '04f26b447d6c'
+revision = '558cd0c633c1'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -145,6 +145,7 @@ def upgrade() -> None:
     sa.Column('agent_execution_id', sa.Integer(), nullable=True),
     sa.Column('text_place', sa.Integer(), nullable=True),
     sa.Column('comment', sa.Text(), nullable=False),
+    sa.Column('is_ai', sa.Boolean(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['agent_execution_id'], ['agent_executions.id'], ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['contest_id'], ['contests.id'], ondelete='CASCADE'),

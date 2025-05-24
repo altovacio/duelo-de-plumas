@@ -2,12 +2,13 @@ from typing import List, Optional, Dict, Any
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, exists
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 
 from app.db.repositories.vote_repository import VoteRepository
 from app.db.repositories.contest_repository import ContestRepository
 from app.db.repositories.user_repository import UserRepository
-from app.schemas.vote import VoteCreate
+from app.db.repositories.agent_repository import AgentRepository
+from app.schemas.vote import VoteCreate, VoteResponse
 from app.db.models import Contest, ContestJudge, User, ContestText, Vote, AgentExecution, Agent
 
 
@@ -76,10 +77,7 @@ class VoteService:
         total_texts_result = await db.execute(total_texts_stmt)
         total_texts = total_texts_result.scalar_one()
         
-        # Prepare data for vote creation from the input schema
-        vote_dict = vote_data.model_dump(exclude_unset=True)
-        
-        # If text_place is provided, validate it
+        # Validate text_place if provided
         if vote_data.text_place is not None:
             # Validate text_place (must be 1, 2, or 3)
             if vote_data.text_place not in [1, 2, 3]:
@@ -98,11 +96,11 @@ class VoteService:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=detail_msg
                 )
-
+        
         # For AI votes, we need to get the latest AgentExecution for this agent and model
+        latest_execution = None
         if vote_data.is_ai_vote and vote_data.ai_model:
             # Find the most recent AgentExecution for this agent and model
-            from app.db.repositories.agent_repository import AgentRepository
             latest_exec_stmt = select(AgentExecution).filter(
                 AgentExecution.agent_id == judge_id,  # judge_id is the agent_id for AI votes
                 AgentExecution.model == vote_data.ai_model,
@@ -112,34 +110,32 @@ class VoteService:
             
             latest_exec_result = await db.execute(latest_exec_stmt)
             latest_execution = latest_exec_result.scalar_one_or_none()
-            
-            if latest_execution:
-                vote_dict["agent_execution_id"] = latest_execution.id
-        
-        # Create the vote using the prepared vote_dict
-        # vote_dict contains fields from VoteCreate schema that map to Vote model columns
+
+        # Create the vote using the repository
         vote = await VoteRepository.create_vote(
-            db=db, 
-            vote_data=vote_dict, # vote_dict (from VoteCreate.model_dump()) already contains text_id
+            db=db,
+            contest_id=contest_id,
             contest_judge_id=judge_assignment.id,
-            contest_id=contest_id 
+            text_id=vote_data.text_id,
+            text_place=vote_data.text_place,
+            comment=vote_data.comment,
+            is_ai=vote_data.is_ai_vote,
+            agent_execution_id=latest_execution.id if latest_execution else None
         )
-        
-        # For human votes, check if all required podium places have been assigned
-        # A judge has completed their voting duties when they've assigned all possible places
-        # (either all 3 places or as many as there are texts if fewer than 3)
-        if not vote_data.is_ai_vote: # This implies judge_assignment.user_judge_id is not None
-            podium_votes_stmt = select(Vote).filter(
-                Vote.contest_judge_id == judge_assignment.id, # MODIFIED
-                # Vote.contest_id == contest_id, # Redundant
+
+        # Update judge status logic
+        if not vote_data.is_ai_vote:
+            # For human votes, check if they have completed voting
+            human_votes_stmt = select(Vote).filter(
+                Vote.contest_judge_id == judge_assignment.id,
                 Vote.text_place.isnot(None),
-                Vote.agent_execution_id.is_(None) # Ensure these are human votes
+                Vote.is_ai == False  # Use the is_ai column
             )
-            podium_votes_result = await db.execute(podium_votes_stmt)
-            podium_votes = podium_votes_result.scalars().all()
+            human_votes_result = await db.execute(human_votes_stmt)
+            human_votes = human_votes_result.scalars().all()
             
             required_places = min(3, total_texts)
-            assigned_places = len(podium_votes)
+            assigned_places = len(human_votes)
             
             if assigned_places >= required_places:
                 judge_assignment.has_voted = True
@@ -154,7 +150,7 @@ class VoteService:
             ai_votes_stmt = select(Vote).filter(
                 Vote.contest_judge_id == judge_assignment.id,
                 Vote.text_place.isnot(None),
-                Vote.agent_execution_id.isnot(None) # Ensure these are AI votes
+                Vote.is_ai == True  # Use the is_ai column
             )
             ai_votes_result = await db.execute(ai_votes_stmt)
             ai_votes = ai_votes_result.scalars().all()
@@ -172,7 +168,7 @@ class VoteService:
         return vote
 
     @staticmethod
-    async def get_votes_by_contest(db: AsyncSession, contest_id: int, current_user: User) -> List[Vote]:
+    async def get_votes_by_contest(db: AsyncSession, contest_id: int, current_user: User) -> List[VoteResponse]:
         """Get all votes for a contest."""
         # Verify the contest exists
         contest = await ContestRepository.get_contest(db, contest_id)
@@ -185,30 +181,29 @@ class VoteService:
         # Check permissions - only contest creator, judges, and admins can view votes
         is_creator = contest.creator_id == current_user.id
         
-        # Check if current_user is any kind of judge for this contest
-        # This means either their user_id is in ContestJudge.user_judge_id
-        # OR they are the owner of an Agent whose agent_id is in ContestJudge.agent_judge_id
-        
-        # Simplified approach: check both conditions separately
-        is_human_judge_stmt = select(exists().where(
-            (ContestJudge.contest_id == contest_id) &
-            (ContestJudge.user_judge_id == current_user.id)
-        ))
-        is_human_judge_result = await db.execute(is_human_judge_stmt)
-        is_human_judge = is_human_judge_result.scalar_one()
-        
-        # Check if user owns any AI agents that are judges in this contest
-        is_ai_owner_judge_stmt = select(exists().where(
-            (ContestJudge.contest_id == contest_id) &
-            (ContestJudge.agent_judge_id.isnot(None)) &
-            (Agent.owner_id == current_user.id)
-        )).select_from(
-            ContestJudge.join(Agent, ContestJudge.agent_judge_id == Agent.id, isouter=False)
-        )
-        is_ai_owner_judge_result = await db.execute(is_ai_owner_judge_stmt)
-        is_ai_owner_judge = is_ai_owner_judge_result.scalar_one()
-        
-        is_judge = is_human_judge or is_ai_owner_judge
+        # Check if current_user is a judge (either human or owns an AI agent that's a judge)
+        is_judge = False
+        if not is_creator and not current_user.is_admin:
+            # Check if user is a human judge
+            human_judge_stmt = select(exists().where(
+                (ContestJudge.contest_id == contest_id) &
+                (ContestJudge.user_judge_id == current_user.id)
+            ))
+            human_judge_result = await db.execute(human_judge_stmt)
+            is_human_judge = human_judge_result.scalar_one()
+            
+            # Check if user owns any AI agents that are judges
+            ai_judge_stmt = select(exists().where(
+                (ContestJudge.contest_id == contest_id) &
+                (ContestJudge.agent_judge_id.isnot(None)) &
+                (Agent.owner_id == current_user.id)
+            )).select_from(
+                ContestJudge.join(Agent, ContestJudge.agent_judge_id == Agent.id)
+            )
+            ai_judge_result = await db.execute(ai_judge_stmt)
+            is_ai_judge = ai_judge_result.scalar_one()
+            
+            is_judge = is_human_judge or is_ai_judge
         
         if not (is_creator or is_judge or current_user.is_admin):
             raise HTTPException(
@@ -216,17 +211,59 @@ class VoteService:
                 detail="You don't have permission to view votes for this contest"
             )
         
-        votes = await VoteRepository.get_votes_by_contest(db, contest_id)
-        return votes
+        # Get all votes for this contest with relationships loaded
+        votes_stmt = select(Vote).filter(Vote.contest_id == contest_id).options(
+            selectinload(Vote.contest_judge),
+            selectinload(Vote.agent_execution)
+        )
+        votes_result = await db.execute(votes_stmt)
+        votes = votes_result.scalars().all()
+        
+        # Convert to VoteResponse using the simplified approach
+        vote_responses = []
+        for vote in votes:
+            # For VoteResponse, we need to determine the judge_id and AI details
+            judge_id_for_response = None
+            ai_model = None
+            ai_version = None
+            
+            if vote.is_ai:
+                # For AI votes, judge_id is the agent_id
+                if vote.contest_judge and vote.contest_judge.agent_judge_id:
+                    judge_id_for_response = vote.contest_judge.agent_judge_id
+                
+                # Get AI model and version from agent_execution
+                if vote.agent_execution:
+                    ai_model = vote.agent_execution.model
+                    # Get AI version - we need to fetch the agent
+                    if vote.agent_execution.agent_id:
+                        agent_stmt = select(Agent.version).filter(Agent.id == vote.agent_execution.agent_id)
+                        agent_result = await db.execute(agent_stmt)
+                        ai_version = agent_result.scalar_one_or_none()
+            else:
+                # For human votes, judge_id is the user_judge_id
+                if vote.contest_judge and vote.contest_judge.user_judge_id:
+                    judge_id_for_response = vote.contest_judge.user_judge_id
+            
+            vote_response = VoteResponse.from_vote_model(
+                vote=vote,
+                judge_id=judge_id_for_response,
+                is_ai_vote=vote.is_ai,
+                ai_model=ai_model,
+                ai_version=ai_version
+            )
+            vote_responses.append(vote_response)
+        
+        return vote_responses
 
     @staticmethod
     async def get_votes_by_judge(
         db: AsyncSession, 
         contest_id: int, 
-        judge_id: int, # This is user_id of the human judge OR owner of AI judge
+        judge_id: int,  # This is user_id who we want to see votes for
         current_user: User,
         vote_type: Optional[str] = None  # 'human', 'ai', or None for all
-    ) -> List[Vote]:
+    ) -> List[VoteResponse]:
         """Get votes submitted by a specific judge (user) in a contest, including their human and owned AI votes."""
         # Verify the contest exists
         contest = await ContestRepository.get_contest(db, contest_id)
@@ -245,14 +282,12 @@ class VoteService:
                 detail="Judge not found"
             )
         
-        # Permissions check: Current user must be admin, or the judge themselves, or the contest creator.
-        can_view = False
-        if current_user.is_admin:
-            can_view = True
-        elif current_user.id == judge_id: # If the current user is the judge whose votes are being requested
-            can_view = True
-        elif contest.creator_id == current_user.id: # If current user is contest creator
-            can_view = True
+        # Permissions check: Current user must be admin, or the judge themselves, or the contest creator
+        can_view = (
+            current_user.is_admin or 
+            current_user.id == judge_id or 
+            contest.creator_id == current_user.id
+        )
         
         if not can_view:
             raise HTTPException(
@@ -267,56 +302,100 @@ class VoteService:
                 detail="vote_type must be 'human' or 'ai'"
             )
 
-        # Fetch ContestJudge entries related to this user (judge_id) for this contest.
-        # Filter based on vote_type if specified
-        contest_judge_entries_stmt = select(ContestJudge)\
-            .outerjoin(Agent, ContestJudge.agent_judge_id == Agent.id)
-            
+        # Get all contest judge assignments for this user (both human and AI agents they own)
+        contest_judges_stmt = select(ContestJudge).filter(
+            ContestJudge.contest_id == contest_id
+        )
+        
+        # Add filter for human judge assignments
         if vote_type == 'human':
-            # Only get human judge assignments
-            contest_judge_entries_stmt = contest_judge_entries_stmt.filter(
-                ContestJudge.contest_id == contest_id,
+            contest_judges_stmt = contest_judges_stmt.filter(
                 ContestJudge.user_judge_id == judge_id
             )
         elif vote_type == 'ai':
-            # Only get AI agent assignments they own
-            contest_judge_entries_stmt = contest_judge_entries_stmt.filter(
-                ContestJudge.contest_id == contest_id,
-                ContestJudge.agent_judge_id.isnot(None),
-                Agent.owner_id == judge_id
-            )
+            # For AI, we need to join with agents to check ownership
+            contest_judges_stmt = contest_judges_stmt.join(
+                Agent, ContestJudge.agent_judge_id == Agent.id
+            ).filter(Agent.owner_id == judge_id)
         else:
-            # Get all (both human and AI agent assignments)
-            contest_judge_entries_stmt = contest_judge_entries_stmt.filter(
-                ContestJudge.contest_id == contest_id,
-                (
-                    (ContestJudge.user_judge_id == judge_id) | 
-                    (Agent.owner_id == judge_id) # Filter on Agent.owner_id from the joined Agent table
-                )
+            # For all types, get both human assignments and AI agent assignments they own
+            contest_judges_stmt = contest_judges_stmt.outerjoin(
+                Agent, ContestJudge.agent_judge_id == Agent.id
+            ).filter(
+                (ContestJudge.user_judge_id == judge_id) | 
+                (Agent.owner_id == judge_id)
             )
             
-        contest_judge_entries_result = await db.execute(contest_judge_entries_stmt)
-        contest_judge_entries = contest_judge_entries_result.scalars().all()
+        contest_judges_result = await db.execute(contest_judges_stmt)
+        contest_judges = contest_judges_result.scalars().all()
 
-        if not contest_judge_entries:
-            return [] # No judge assignments for this user in this contest matching the filter
+        if not contest_judges:
+            return []  # No judge assignments for this user in this contest
 
-        all_votes: List[Vote] = []
-        for cj_entry in contest_judge_entries:
-            # Get votes for this contest_judge_id
-            votes = await VoteRepository.get_votes_by_contest_judge_id(db, cj_entry.id)
-            all_votes.extend(votes)
+        # Get all contest_judge_ids
+        contest_judge_ids = [cj.id for cj in contest_judges]
+        
+        # Now get votes for these contest judges, filtering by vote_type if specified
+        votes_stmt = select(Vote).filter(
+            Vote.contest_judge_id.in_(contest_judge_ids)
+        ).options(
+            selectinload(Vote.contest_judge),
+            selectinload(Vote.agent_execution)
+        )
+        
+        # Apply vote_type filter using the is_ai column
+        if vote_type == 'human':
+            votes_stmt = votes_stmt.filter(Vote.is_ai == False)
+        elif vote_type == 'ai':
+            votes_stmt = votes_stmt.filter(Vote.is_ai == True)
+        
+        votes_result = await db.execute(votes_stmt)
+        votes = votes_result.scalars().all()
+        
+        # Convert to VoteResponse using the simplified approach
+        vote_responses = []
+        for vote in votes:
+            # For VoteResponse, we need to determine the judge_id and AI details
+            judge_id_for_response = None
+            ai_model = None
+            ai_version = None
             
-        return all_votes
+            if vote.is_ai:
+                # For AI votes, judge_id is the agent_id
+                if vote.contest_judge and vote.contest_judge.agent_judge_id:
+                    judge_id_for_response = vote.contest_judge.agent_judge_id
+                
+                # Get AI model and version from agent_execution
+                if vote.agent_execution:
+                    ai_model = vote.agent_execution.model
+                    # Get AI version - we need to fetch the agent
+                    if vote.agent_execution.agent_id:
+                        agent_stmt = select(Agent.version).filter(Agent.id == vote.agent_execution.agent_id)
+                        agent_result = await db.execute(agent_stmt)
+                        ai_version = agent_result.scalar_one_or_none()
+            else:
+                # For human votes, judge_id is the user_judge_id
+                if vote.contest_judge and vote.contest_judge.user_judge_id:
+                    judge_id_for_response = vote.contest_judge.user_judge_id
+            
+            vote_response = VoteResponse.from_vote_model(
+                vote=vote,
+                judge_id=judge_id_for_response,
+                is_ai_vote=vote.is_ai,
+                ai_model=ai_model,
+                ai_version=ai_version
+            )
+            vote_responses.append(vote_response)
+        
+        return vote_responses
 
     @staticmethod
     async def delete_vote(db: AsyncSession, vote_id: int, current_user: User) -> None:
         """Delete a vote."""
         # Fetch the vote with relationships needed for permissions and logic
-        # Ensure contest_judge and agent_execution (with its owner) are loaded
         stmt = select(Vote).options(
-            joinedload(Vote.contest_judge).joinedload(ContestJudge.agent_judge), # Load ContestJudge and its potential Agent
-            joinedload(Vote.agent_execution).joinedload(AgentExecution.owner) # Load AgentExecution and its User owner
+            joinedload(Vote.contest_judge).joinedload(ContestJudge.agent_judge),
+            joinedload(Vote.agent_execution).joinedload(AgentExecution.owner)
         ).filter(Vote.id == vote_id)
         result = await db.execute(stmt)
         vote_to_delete = result.scalar_one_or_none()
@@ -332,7 +411,7 @@ class VoteService:
         if current_user.is_admin:
             can_delete = True
         else:
-            if vote_to_delete.is_ai_vote: # Property from Vote model
+            if vote_to_delete.is_ai:
                 # For AI vote, current_user must be the owner of the AgentExecution
                 if vote_to_delete.agent_execution and vote_to_delete.agent_execution.owner_id == current_user.id:
                     can_delete = True
@@ -348,15 +427,11 @@ class VoteService:
             )
         
         # Get the contest to check its state
-        # contest = await ContestRepository.get_contest(db, vote_to_delete.contest_id) # Already loaded via vote_to_delete.contest if relationship is good
-        # To be safe, or if contest status is critical and might change, re-fetch or ensure it's loaded.
-        # For now, assuming vote_to_delete.contest relationship gives us what we need or we fetch it.
-        # Let's ensure contest is loaded for status check, if not already via default relationship loading.
         contest_stmt = select(Contest).filter(Contest.id == vote_to_delete.contest_id)
         contest_res = await db.execute(contest_stmt)
         contest = contest_res.scalar_one_or_none() 
 
-        if not contest: # Should not happen if vote exists and has valid contest_id
+        if not contest:
              raise HTTPException(status_code=500, detail="Contest not found for vote.")
 
         if contest.status == "closed":
@@ -366,35 +441,30 @@ class VoteService:
             )
         
         # Update the judge's has_voted status if this is a human vote and they were marked as voted
-        if not vote_to_delete.is_ai_vote: # Property from Vote model
-            # contest_judge_id is directly on the vote
-            if vote_to_delete.contest_judge_id:
-                judge_assignment = await db.get(ContestJudge, vote_to_delete.contest_judge_id)
-                if judge_assignment and judge_assignment.has_voted:
-                    judge_assignment.has_voted = False
-                    # No need to commit here, VoteRepository.delete_vote will commit
-                    # db.add(judge_assignment) # Mark for update, commit will handle it
-                    # await db.commit() # This commit is premature
+        if not vote_to_delete.is_ai:
+            # Check if removing this vote means the judge hasn't completed voting anymore
+            total_texts_stmt = select(func.count(ContestText.id)).filter(ContestText.contest_id == vote_to_delete.contest_id)
+            total_texts_result = await db.execute(total_texts_stmt)
+            total_texts = total_texts_result.scalar_one()
             
-        deleted = await VoteRepository.delete_vote(db, vote_id) # This method does its own commit
+            # Get remaining human votes after deletion
+            remaining_votes_stmt = select(Vote).filter(
+                Vote.contest_judge_id == vote_to_delete.contest_judge_id,
+                Vote.text_place.isnot(None),
+                Vote.is_ai == False,
+                Vote.id != vote_id  # Exclude the vote being deleted
+            )
+            remaining_votes_result = await db.execute(remaining_votes_stmt)
+            remaining_votes = remaining_votes_result.scalars().all()
+            
+            required_places = min(3, total_texts)
+            if len(remaining_votes) < required_places and vote_to_delete.contest_judge:
+                vote_to_delete.contest_judge.has_voted = False
+                await db.commit()
         
-        # If we modified judge_assignment, ensure that change is also committed.
-        # The current VoteRepository.delete_vote only deletes the vote and commits.
-        # We need to commit judge_assignment changes if any.
-        # Let's make this service method manage the transaction for atomicity.
-        if not vote_to_delete.is_ai_vote and vote_to_delete.contest_judge_id:
-            judge_assignment_for_update = await db.get(ContestJudge, vote_to_delete.contest_judge_id)
-            if judge_assignment_for_update and judge_assignment_for_update.has_voted: # Check again in case of race condition (unlikely here)
-                judge_assignment_for_update.has_voted = False
-                db.add(judge_assignment_for_update)
-        
-        # The actual deletion of the vote object
-        await db.delete(vote_to_delete) # Delete the vote object itself
-        await db.commit() # Commit deletion and potential update to ContestJudge
-
-        # The old call was: deleted = await VoteRepository.delete_vote(db, vote_id)
-        # That repo method also did a commit. We should handle transaction here.
-        # The VoteRepository.delete_vote(vote_id) fetches vote then deletes. We already have vote_to_delete.
+        # Delete the vote
+        await db.delete(vote_to_delete)
+        await db.commit()
 
     @staticmethod
     async def check_contest_completion(db: AsyncSession, contest_id: int) -> None:

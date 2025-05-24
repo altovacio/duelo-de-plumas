@@ -25,13 +25,22 @@ export interface CreateVoteRequest {
   ai_model?: string;
 }
 
-// Create or update a vote in a contest
+// Submit multiple votes in a contest (complete judging session)
+export const submitVotes = async (
+  contestId: number,
+  votesData: CreateVoteRequest[]
+): Promise<Vote[]> => {
+  const response = await apiClient.post(`/contests/${contestId}/votes`, votesData);
+  return response.data;
+};
+
+// Submit single vote (convenience method - wraps in array)
 export const submitVote = async (
   contestId: number,
   voteData: CreateVoteRequest
 ): Promise<Vote> => {
-  const response = await apiClient.post(`/contests/${contestId}/votes`, voteData);
-  return response.data;
+  const response = await apiClient.post(`/contests/${contestId}/votes`, [voteData]);
+  return response.data[0]; // Return first (and only) vote from the array
 };
 
 // Get all votes for a contest

@@ -60,12 +60,13 @@ class JudgeService:
         force_execute: bool = False
     ) -> List[Vote]:
         """
-        Unified method to create votes for any judge type following the specified flow.
+        Unified method to create votes for any judge type.
+        One judge evaluates all texts in a contest in a single session.
         """
-        # Step 1: Validate contest and judge assignment
+        # Step 1: Validate contest and judge assignment (once per judging session)
         await JudgeService._validate_contest_and_judge(db, contest_id, judge_context)
         
-        # Step 2: If AI, handle AI setup
+        # Step 2: Handle AI setup (once per judging session, AI only)
         execution_record = None
         estimation = None
         if judge_context.judge_type == JudgeType.AI:
@@ -73,7 +74,7 @@ class JudgeService:
                 db, contest_id, judge_context.agent_id, judge_context.model
             )
             
-            # Step 2.2: Check credits unless force_execute is True
+            # Check credits unless force_execute is True
             if not force_execute:
                 has_credits = await CreditService.has_sufficient_credits(
                     db, judge_context.user_id, estimation.estimated_credits
@@ -84,7 +85,7 @@ class JudgeService:
                         detail=f"Insufficient credits. Required approx: {estimation.estimated_credits}. Use force_execute=true to override."
                     )
             
-            # Step 2.3: Create running execution record (no credit deduction yet)
+            # Create running execution record (no credit deduction yet)
             agent = await AgentRepository.get_agent_by_id(db, judge_context.agent_id)
             execution_record = await AgentRepository.create_agent_execution(
                 db=db,
@@ -94,14 +95,14 @@ class JudgeService:
                 model=judge_context.model,
                 status="running",
                 credits_used=0,  # Will be updated in step 5
-                api_version=judge_context.api_version  # Track API version
+                api_version=judge_context.api_version
             )
         
-        # Step 3: Delete previous votes from this judge for this contest
+        # Step 3: Delete all previous votes by this judge in this contest (once per judging session)
         await JudgeService._delete_previous_votes(db, contest_id, judge_context)
         
         try:
-            # Step 4: Create votes
+            # Step 4: Emit all the votes by this judge in this contest (loop here)
             created_votes = []
             for vote_data in votes_data:
                 vote = await JudgeService._create_single_vote(
@@ -114,13 +115,13 @@ class JudgeService:
                 db, contest_id, judge_context, created_votes
             )
             
-            # Step 5: If AI, update execution record and deduct actual credits
+            # Step 5: AI audit stuff (once per judging session, AI only)
             if execution_record and estimation:
                 actual_credits_used = estimation.estimated_credits  # For now, use estimation
                 execution_record.status = "completed"
                 execution_record.credits_used = actual_credits_used
                 
-                # Deduct credits based on actual usage
+                # Deduct credits based on actual usage (once per judging session)
                 await CreditService.deduct_credits(
                     db=db,
                     user_id=judge_context.user_id,
@@ -136,7 +137,7 @@ class JudgeService:
             return created_votes
             
         except Exception as e:
-            # If AI execution fails, mark execution as failed
+            # If anything fails, mark AI execution as failed (if applicable)
             if execution_record:
                 execution_record.status = "failed"
                 execution_record.error_message = str(e)
@@ -201,10 +202,21 @@ class JudgeService:
         vote_data: VoteCreate,
         user_id: int
     ) -> Vote:
-        """Entry point for human judge voting"""
+        """Entry point for human judge voting (single vote - legacy compatibility)"""
         judge_context = await JudgeService._create_human_judge_context(db, contest_id, user_id)
         votes = await JudgeService.create_judge_votes(db, contest_id, [vote_data], judge_context)
         return votes[0]
+    
+    @staticmethod
+    async def execute_human_votes(
+        db: AsyncSession,
+        contest_id: int,
+        votes_data: List[VoteCreate],
+        user_id: int
+    ) -> List[Vote]:
+        """Entry point for human judge voting (multiple votes - preferred method)"""
+        judge_context = await JudgeService._create_human_judge_context(db, contest_id, user_id)
+        return await JudgeService.create_judge_votes(db, contest_id, votes_data, judge_context)
     
     @staticmethod
     async def execute_ai_judge(
@@ -280,22 +292,17 @@ class JudgeService:
         contest_id: int,
         judge_context: JudgeContext
     ):
-        """Step 3: Delete previous votes from this judge for this contest"""
-        if judge_context.judge_type == JudgeType.AI:
-            # For AI judges, delete votes by contest_judge and model
-            deleted_count = await VoteRepository.delete_ai_votes_by_contest_judge(
-                db=db,
-                contest_judge_id=judge_context.contest_judge_entry.id,
-                contest_id=contest_id,
-                ai_model=judge_context.model
-            )
-        else:
-            # For human judges, delete all votes by this contest_judge
-            deleted_count = await VoteRepository.delete_human_votes_by_contest_judge(
-                db=db,
-                contest_judge_id=judge_context.contest_judge_entry.id,
-                contest_id=contest_id
-            )
+        """Step 3: Delete all previous votes from this judge for this contest (unified for both human and AI)"""
+        # For AI judges, pass the model to delete only votes from that specific model
+        # For human judges, pass None to delete all votes from that contest_judge
+        ai_model = judge_context.model if judge_context.judge_type == JudgeType.AI else None
+        
+        deleted_count = await VoteRepository.delete_votes_by_contest_judge(
+            db=db,
+            contest_judge_id=judge_context.contest_judge_entry.id,
+            contest_id=contest_id,
+            ai_model=ai_model
+        )
         
         return deleted_count
     
@@ -340,19 +347,16 @@ class JudgeService:
                     detail=f"Cannot assign place {vote_data.text_place} when there are only {total_texts} texts"
                 )
         
-        # Prepare vote data
-        vote_dict = vote_data.model_dump(exclude_unset=True)
-        
-        # Add execution record for AI votes
-        if execution_record:
-            vote_dict["agent_execution_id"] = execution_record.id
-        
-        # Create the vote
+        # Create the vote using the clean repository method
         return await VoteRepository.create_vote(
             db=db,
-            vote_data=vote_dict,
+            contest_id=contest_id,
             contest_judge_id=judge_context.contest_judge_entry.id,
-            contest_id=contest_id
+            text_id=vote_data.text_id,
+            text_place=vote_data.text_place,
+            comment=vote_data.comment,
+            is_ai=vote_data.is_ai_vote,
+            agent_execution_id=execution_record.id if execution_record else None
         )
     
     @staticmethod
@@ -363,16 +367,12 @@ class JudgeService:
         created_votes: List[Vote]
     ):
         """Update judge completion status and check for contest completion"""
-        # Count podium votes for this judge
+        # Count podium votes for this judge using the is_ai column
         podium_votes_stmt = select(Vote).filter(
             Vote.contest_judge_id == judge_context.contest_judge_entry.id,
-            Vote.text_place.isnot(None)
+            Vote.text_place.isnot(None),
+            Vote.is_ai == (judge_context.judge_type == JudgeType.AI)
         )
-        
-        if judge_context.judge_type == JudgeType.HUMAN:
-            podium_votes_stmt = podium_votes_stmt.filter(Vote.agent_execution_id.is_(None))
-        else:
-            podium_votes_stmt = podium_votes_stmt.filter(Vote.agent_execution_id.isnot(None))
         
         result = await db.execute(podium_votes_stmt)
         podium_votes = result.scalars().all()

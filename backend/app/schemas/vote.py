@@ -1,39 +1,40 @@
 from typing import Optional
 from datetime import datetime
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
 
 
-class VoteBase(BaseModel):
-    text_id: int
+class VoteCreate(BaseModel):
+    """Schema for creating a vote - contains actual database fields"""
+    text_id: int = Field(..., description="ID of the text being voted on")
     text_place: Optional[int] = Field(None, description="Position (1 for 1st place, 2 for 2nd place, 3 for 3rd place, null for non-podium texts)")
     comment: str = Field(..., description="Justification/feedback for the vote")
-    
-
-class VoteCreate(VoteBase):
-    # Allow frontend to send 'place' instead of 'text_place' for compatibility
-    place: Optional[int] = Field(None, description="Alias for text_place (frontend compatibility)")
-    is_ai_vote: bool = False
-    agent_id: Optional[int] = Field(None, description="Agent ID for AI votes (required when is_ai_vote=True)")
-    ai_model: Optional[str] = None
-    ai_version: Optional[str] = None
-    
-    def __init__(self, **data):
-        # If place is provided but text_place is not, use place for text_place
-        if 'place' in data and data['place'] is not None and 'text_place' not in data:
-            data['text_place'] = data['place']
-        elif 'place' in data and data['place'] is not None and data.get('text_place') is None:
-            data['text_place'] = data['place']
-        super().__init__(**data)
+    # For AI votes, these fields help determine the agent_execution_id
+    is_ai_vote: bool = Field(False, description="Whether this is an AI-generated vote")
+    ai_model: Optional[str] = Field(None, description="LLM model used for AI votes")
 
 
-class VoteResponse(VoteBase):
+class VoteUpdate(BaseModel):
+    """Schema for updating a vote"""
+    text_place: Optional[int] = Field(None, description="Position (1 for 1st place, 2 for 2nd place, 3 for 3rd place, null for non-podium texts)")
+    comment: Optional[str] = Field(None, description="Justification/feedback for the vote")
+
+
+class VoteResponse(BaseModel):
+    """Schema for vote responses - includes computed properties"""
     id: int
-    judge_id: int
     contest_id: int
-    is_ai_vote: bool
-    ai_model: Optional[str] = None
-    ai_version: Optional[str] = None
+    text_id: int
+    contest_judge_id: int
+    agent_execution_id: Optional[int] = None
+    text_place: Optional[int] = Field(None, description="Position (1 for 1st place, 2 for 2nd place, 3 for 3rd place, null for non-podium texts)")
+    comment: str
     created_at: datetime
     
+    # Computed properties from the Vote model
+    judge_id: Optional[int] = Field(None, description="The actual judge ID (user_id for human votes, agent_id for AI votes)")
+    is_ai_vote: bool = Field(default=False, description="Whether this is an AI-generated vote")
+    ai_model: Optional[str] = Field(None, description="LLM model used for AI votes")
+    ai_version: Optional[str] = Field(None, description="Version of the AI agent used")
+
     class Config:
         from_attributes = True 

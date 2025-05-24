@@ -13,10 +13,6 @@ from app.schemas.contest import (
 from app.db.models.user import User as UserModel
 from app.services.contest_service import ContestService
 
-from app.schemas.vote import VoteCreate, VoteResponse
-from app.services.vote_service import VoteService
-from app.services.text_service import TextService
-
 router = APIRouter(tags=["contests"])
 
 

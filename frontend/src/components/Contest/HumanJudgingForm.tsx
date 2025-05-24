@@ -54,9 +54,9 @@ const HumanJudgingForm: React.FC<HumanJudgingFormProps> = ({
         
         // Pre-populate the form with existing votes
         votes.forEach(vote => {
-          if (vote.place === 1) setFirstPlace(vote.text_id);
-          if (vote.place === 2) setSecondPlace(vote.text_id);
-          if (vote.place === 3) setThirdPlace(vote.text_id);
+          if (vote.text_place === 1) setFirstPlace(vote.text_id);
+          if (vote.text_place === 2) setSecondPlace(vote.text_id);
+          if (vote.text_place === 3) setThirdPlace(vote.text_id);
           if (vote.comment) {
             setComments(prev => ({ ...prev, [vote.text_id]: vote.comment }));
           }
@@ -87,27 +87,27 @@ const HumanJudgingForm: React.FC<HumanJudgingFormProps> = ({
   };
   
   // Handle place selection
-  const handlePlaceSelection = (place: 1 | 2 | 3, textId: number) => {
+  const handlePlaceSelection = (text_place: 1 | 2 | 3, textId: number) => {
     // If this text is already selected for another place, unselect it there
-    if (textId === firstPlace && place !== 1) setFirstPlace(null);
-    if (textId === secondPlace && place !== 2) setSecondPlace(null);
-    if (textId === thirdPlace && place !== 3) setThirdPlace(null);
+    if (textId === firstPlace && text_place !== 1) setFirstPlace(null);
+    if (textId === secondPlace && text_place !== 2) setSecondPlace(null);
+    if (textId === thirdPlace && text_place !== 3) setThirdPlace(null);
     
     // Now set the new place
-    if (place === 1) {
+    if (text_place === 1) {
       // If another text was in first place, handle the conflict
       if (firstPlace !== null && firstPlace !== textId) {
         setFirstPlace(textId);
       } else {
         setFirstPlace(textId === firstPlace ? null : textId);
       }
-    } else if (place === 2) {
+    } else if (text_place === 2) {
       if (secondPlace !== null && secondPlace !== textId) {
         setSecondPlace(textId);
       } else {
         setSecondPlace(textId === secondPlace ? null : textId);
       }
-    } else if (place === 3) {
+    } else if (text_place === 3) {
       if (thirdPlace !== null && thirdPlace !== textId) {
         setThirdPlace(textId);
       } else {
@@ -170,7 +170,7 @@ const HumanJudgingForm: React.FC<HumanJudgingFormProps> = ({
       if (firstPlace !== null) {
         votes.push({
           text_id: firstPlace,
-          place: 1, 
+          text_place: 1, 
           comment: comments[firstPlace] || '',
           is_ai_vote: false
         });
@@ -179,7 +179,7 @@ const HumanJudgingForm: React.FC<HumanJudgingFormProps> = ({
       if (secondPlace !== null) {
         votes.push({
           text_id: secondPlace,
-          place: 2,
+          text_place: 2,
           comment: comments[secondPlace] || '',
           is_ai_vote: false
         });
@@ -188,7 +188,7 @@ const HumanJudgingForm: React.FC<HumanJudgingFormProps> = ({
       if (thirdPlace !== null) {
         votes.push({
           text_id: thirdPlace,
-          place: 3,
+          text_place: 3,
           comment: comments[thirdPlace] || '',
           is_ai_vote: false
         });
@@ -204,7 +204,7 @@ const HumanJudgingForm: React.FC<HumanJudgingFormProps> = ({
         ) {
           votes.push({
             text_id: text.id,
-            place: null,
+            text_place: null,
             comment: comments[text.id],
             is_ai_vote: false
           });
@@ -293,8 +293,8 @@ const HumanJudgingForm: React.FC<HumanJudgingFormProps> = ({
                 {/* Show existing vote if any */}
                 {getExistingVote(text.id) && (
                   <div className="mb-2 text-sm text-blue-600 bg-blue-50 p-2 rounded">
-                    {getExistingVote(text.id)?.place ? (
-                      `Previously voted: ${getExistingVote(text.id)?.place === 1 ? '1st' : getExistingVote(text.id)?.place === 2 ? '2nd' : '3rd'} place`
+                    {getExistingVote(text.id)?.text_place ? (
+                      `Previously voted: ${getExistingVote(text.id)?.text_place === 1 ? '1st' : getExistingVote(text.id)?.text_place === 2 ? '2nd' : '3rd'} place`
                     ) : (
                       'Previously commented on this text'
                     )}

@@ -3,9 +3,9 @@ import pytest
 from httpx import AsyncClient # MODIFIED: For async client
 import logging
 
-from app.schemas.contest import ContestUpdate, ContestResponse, TextSubmissionResponse, ContestTextResponse, ContestDetailResponse
-from app.schemas.user import UserResponse, UserCredit # For credit top-up
-from app.schemas.vote import VoteCreate, VoteResponse # Added Vote schemas
+from app.schemas.contest import ContestUpdate, ContestResponse, ContestTextResponse, ContestDetailResponse
+from app.schemas.user import UserResponse # For credit top-up
+from app.schemas.vote import VoteResponse # Added Vote schemas
 from tests.shared_test_state import test_data
 from app.core.config import settings # ADDED import for settings
 

@@ -7,7 +7,7 @@ from sqlalchemy.orm import joinedload
 from app.db.repositories.vote_repository import VoteRepository
 from app.db.repositories.contest_repository import ContestRepository
 from app.db.repositories.user_repository import UserRepository
-from app.schemas.vote import VoteCreate, VoteResponse
+from app.schemas.vote import VoteCreate
 from app.db.models import Contest, ContestJudge, User, ContestText, Vote, AgentExecution, Agent
 
 
@@ -99,79 +99,6 @@ class VoteService:
                     detail=detail_msg
                 )
 
-        
-        # Handle differently based on whether this is a human or AI vote
-        if vote_data.is_ai_vote:
-            # For AI votes, validation only (deletion is handled by agent service for batch operations)
-            if not vote_data.ai_model:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="AI votes must specify the AI model used"
-                )
-            
-            # Note: AI vote deletion is handled by the agent service before batch creation
-            # Here we just validate that we're not creating duplicate votes in the same batch
-            
-            # Get current AI votes for this contest_judge and model  
-            existing_votes_stmt = select(Vote).join(Vote.agent_execution).filter(
-                Vote.contest_judge_id == judge_assignment.id, 
-                AgentExecution.model == vote_data.ai_model,
-                Vote.agent_execution_id.isnot(None)
-            )
-            existing_votes_result = await db.execute(existing_votes_stmt)
-            existing_votes = existing_votes_result.scalars().all()
-            
-            # Check if the AI is trying to vote for the same text twice in this batch
-            if any(v.text_id == vote_data.text_id for v in existing_votes):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="AI has already voted for this text in this contest with the same model"
-                )
-            
-            # If assigning a place, check if already assigned in this batch
-            if vote_data.text_place is not None:
-                if any(v.text_place == vote_data.text_place for v in existing_votes if v.text_place is not None):
-                    detail_msg = (
-                        f"AI has already assigned place {vote_data.text_place} "
-                        f"to another text in this contest"
-                    )
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=detail_msg
-                    )
-        else:
-            # For human votes, we handle separately:
-            # 1. If it's a podium vote (1st, 2nd, 3rd), delete any previous vote from this contest_judge with the same place
-            # 2. For non-podium votes, just check if we already commented on this text by this contest_judge
-            
-            if vote_data.text_place is not None:
-                # Delete any previous vote with the same place by this contest_judge
-                # Assumes VoteRepository.delete_human_vote_by_place_and_contest_judge exists or will be created
-                await VoteRepository.delete_human_vote_by_place_and_contest_judge(
-                    db, 
-                    contest_judge_id=judge_assignment.id, # MODIFIED
-                    contest_id=contest_id, # contest_id might be redundant
-                    text_place=vote_data.text_place
-                )
-            else:
-                # For non-podium votes, check if this contest_judge already commented on this text
-                existing_vote_stmt = select(Vote).filter(
-                    Vote.contest_judge_id == judge_assignment.id, # MODIFIED
-                    # Vote.contest_id == contest_id, # Redundant
-                    Vote.text_id == vote_data.text_id,
-                    Vote.agent_execution_id.is_(None) # Ensure it's a human vote record
-                )
-                existing_vote_result = await db.execute(existing_vote_stmt)
-                existing_vote = existing_vote_result.scalar_one_or_none()
-                
-                if existing_vote:
-                    # If the vote exists, update it instead of creating a new one
-                    existing_vote.comment = vote_data.comment
-                    existing_vote.text_place = vote_data.text_place # If we allow updating place for non-podium to podium
-                    await db.commit()
-                    await db.refresh(existing_vote)
-                    return existing_vote
-        
         # For AI votes, we need to get the latest AgentExecution for this agent and model
         if vote_data.is_ai_vote and vote_data.ai_model:
             # Find the most recent AgentExecution for this agent and model
@@ -196,7 +123,6 @@ class VoteService:
             vote_data=vote_dict, # vote_dict (from VoteCreate.model_dump()) already contains text_id
             contest_judge_id=judge_assignment.id,
             contest_id=contest_id 
-            # text_id=vote_data.text_id # REMOVED: text_id is in vote_dict
         )
         
         # For human votes, check if all required podium places have been assigned

@@ -4,23 +4,25 @@ export interface Vote {
   id: number;
   contest_id: number;
   text_id: number;
-  judge_id: number;
-  is_ai_vote: boolean;
-  place: 1 | 2 | 3 | null;
+  contest_judge_id: number;
+  agent_execution_id?: number;
+  text_place: 1 | 2 | 3 | null;
   comment: string;
   created_at: string;
-  updated_at: string;
-  agent_id?: number;
+  
+  // Computed properties from backend
+  judge_id?: number;
+  is_ai_vote: boolean;
   ai_model?: string;
   ai_version?: string;
 }
 
 export interface CreateVoteRequest {
   text_id: number;
-  place: 1 | 2 | 3 | null;
+  text_place: 1 | 2 | 3 | null;
   comment: string;
   is_ai_vote?: boolean;
-  agent_id?: number;
+  ai_model?: string;
 }
 
 // Create or update a vote in a contest

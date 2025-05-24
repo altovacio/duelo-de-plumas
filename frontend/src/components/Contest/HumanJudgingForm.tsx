@@ -220,10 +220,8 @@ const HumanJudgingForm: React.FC<HumanJudgingFormProps> = ({
       setIsLoading(false);
       setSuccess('Votes submitted successfully!');
       
-      // Automatically close the modal after showing success message
-      setTimeout(() => {
-        onSuccess();
-      }, 2000);
+      // Close the modal
+      onSuccess();
     } catch (err: any) {
       console.error('Error submitting votes:', err);
       const errorMessage = err.response?.data?.detail || err.response?.data?.message || err.message || 'Failed to submit votes. Please try again.';

@@ -13,8 +13,9 @@ class ContestText(Base):
     contest_id: Mapped[int] = mapped_column(Integer, ForeignKey("contests.id", ondelete="CASCADE"), nullable=False)
     text_id: Mapped[int] = mapped_column(Integer, ForeignKey("texts.id", ondelete="CASCADE"), nullable=False)
     
-    # Contest relationship defined in Contest model
-    # Text relationship defined in Text model
+    # Relationships
+    contest = relationship("Contest", back_populates="contest_texts")
+    text = relationship("Text", back_populates="contest_texts")
     
     submission_date: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     

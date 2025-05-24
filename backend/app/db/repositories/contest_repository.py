@@ -1,8 +1,7 @@
 from typing import List, Optional, Union
-from sqlalchemy.orm import selectinload
-from sqlalchemy import func
-from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func
+from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import IntegrityError
 
 from app.db.models.contest import Contest
@@ -173,6 +172,8 @@ class ContestRepository:
     async def get_contest_texts(db: AsyncSession, contest_id: int) -> List[ContestText]:
         stmt = select(ContestText).filter(
             ContestText.contest_id == contest_id
+        ).options(
+            selectinload(ContestText.text)
         )
         result = await db.execute(stmt)
         return result.scalars().all()

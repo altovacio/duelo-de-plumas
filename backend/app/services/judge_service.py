@@ -461,12 +461,21 @@ class JudgeService:
         contest = await ContestRepository.get_contest(db, request.contest_id)
         contest_texts = await ContestRepository.get_contest_texts(db, request.contest_id)
         
-        # Generate AI response
-        ai_response, actual_prompt_tokens, actual_completion_tokens = await AIService.judge_texts(
+        # Format texts for AI service (it expects a list of dictionaries)
+        texts_for_ai = []
+        for ct in contest_texts:
+            texts_for_ai.append({
+                "id": ct.text_id,
+                "title": ct.text.title,
+                "content": ct.text.content
+            })
+        
+        # Generate AI response using the correct method name and parameters
+        ai_response, actual_prompt_tokens, actual_completion_tokens = await AIService.judge_contest(
             model=request.model,
-            judge_prompt=agent.prompt,
+            personality_prompt=agent.prompt,
             contest_description=contest.description,
-            texts_to_judge=[(ct.text.title, ct.text.content, ct.text_id) for ct in contest_texts]
+            texts=texts_for_ai
         )
         
         # Parse AI response into vote data

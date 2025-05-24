@@ -213,7 +213,7 @@ const DashboardPage: React.FC = () => {
       setIsLoading(true);
       if (isEditing && selectedContest) {
         const { end_date, judge_restrictions, author_restrictions, ...restOfForm } = contestDataFromForm;
-        const dataToUpdate: Partial<Omit<ContestType, 'id' | 'creator_id' | 'created_at' | 'updated_at' | 'participant_count' | 'text_count' | 'has_password'>> = {
+        const dataToUpdate: Partial<Omit<ContestType, 'id' | 'creator' | 'created_at' | 'updated_at' | 'participant_count' | 'text_count' | 'has_password'>> = {
           ...restOfForm,
           end_date: end_date === undefined || end_date === '' ? null : end_date,
           judge_restrictions: judge_restrictions === undefined ? false : judge_restrictions,
@@ -224,13 +224,13 @@ const DashboardPage: React.FC = () => {
             dataToUpdate.status = selectedContest.status;
         }
 
-        const updatedContest = await updateContest(selectedContest.id, dataToUpdate as Omit<ContestType, 'id' | 'creator_id' | 'created_at' | 'updated_at' | 'participant_count' | 'text_count' | 'has_password'>);
+        const updatedContest = await updateContest(selectedContest.id, dataToUpdate as Omit<ContestType, 'id' | 'creator' | 'created_at' | 'updated_at' | 'participant_count' | 'text_count' | 'has_password'>);
         setContestsData(contestsData.map(contest => 
           contest.id === updatedContest.id ? updatedContest : contest
         ));
       } else {
         const { end_date, judge_restrictions, author_restrictions, ...restOfCreationForm } = contestDataFromForm;
-        const creationData: Partial<Omit<ContestType, 'id' | 'creator_id' | 'created_at' | 'updated_at' | 'participant_count' | 'text_count' | 'has_password' | 'status'>> & { status?: 'open' | 'evaluation' | 'closed' } = {
+        const creationData: Partial<Omit<ContestType, 'id' | 'creator' | 'created_at' | 'updated_at' | 'participant_count' | 'text_count' | 'has_password' | 'status'>> & { status?: 'open' | 'evaluation' | 'closed' } = {
             ...restOfCreationForm,
             end_date: end_date === undefined || end_date === '' ? null : end_date,
             judge_restrictions: judge_restrictions === undefined ? false : judge_restrictions,

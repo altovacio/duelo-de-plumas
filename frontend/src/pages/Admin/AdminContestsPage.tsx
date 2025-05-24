@@ -271,7 +271,7 @@ const AdminContestsPage: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {contest.creator?.username || `User #${contest.creator_id}`}
+                        {contest.creator?.username || `User #${contest.creator?.id || 'Unknown'}`}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {contest.participant_count || 0}

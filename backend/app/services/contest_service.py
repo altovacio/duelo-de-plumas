@@ -35,15 +35,20 @@ class ContestService:
             
         created_contest = await ContestRepository.create_contest(db, contest, creator_id)
         
-        # Manually construct the response including counts initialized to 0
-        response_data = created_contest.__dict__.copy() # Get ORM attributes
-        response_data['participant_count'] = 0
-        response_data['text_count'] = 0
+        # Get the complete contest data with creator and counts using the repository method
+        contest_data_with_creator = await ContestRepository.get_contest_with_counts(db, created_contest.id)
+        
+        if not contest_data_with_creator:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to retrieve created contest data"
+            )
+        
         # Reflect whether a password is set
-        response_data['has_password'] = bool(response_data.get('password'))
+        contest_data_with_creator['has_password'] = bool(contest_data_with_creator.get('password'))
         
         # Use model_validate to create the Pydantic response model instance
-        return ContestResponse.model_validate(response_data)
+        return ContestResponse.model_validate(contest_data_with_creator)
     
     @staticmethod
     async def get_contests(

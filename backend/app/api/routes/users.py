@@ -40,6 +40,50 @@ async def get_users(
     users = await service.get_users(skip, limit)
     return users
 
+@router.get("/search", response_model=List[UserPublicResponse])
+async def search_users(
+    q: str = Query(..., min_length=2, description="Search query (username or email)"),
+    limit: int = Query(10, ge=1, le=50, description="Maximum number of results"),
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user)
+):
+    """
+    Search users by username or email. Returns public user information only.
+    Requires authentication to prevent abuse.
+    """
+    service = UserService(db)
+    users = await service.search_users(q, limit)
+    return users
+
+@router.get("/judge-contests", response_model=List[ContestResponse])
+async def get_user_judge_contests(
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user)
+):
+    """
+    Get all contests where the current user is a judge.
+    """
+    contests = await ContestService.get_contests_where_user_is_judge(
+        db=db,
+        user_id=current_user.id,
+        skip=skip,
+        limit=limit
+    )
+    
+    # Transform the Contest models to ContestResponse
+    response_list = []
+    for contest_orm in contests:
+        # Fetch details including counts for each contest
+        contest_data_with_counts = await ContestRepository.get_contest_with_counts(db=db, contest_id=contest_orm.id)
+        if contest_data_with_counts:
+            # Reflect whether a password is set on each contest
+            contest_data_with_counts['has_password'] = bool(contest_data_with_counts.get('password'))
+            response_list.append(ContestResponse.model_validate(contest_data_with_counts))
+    
+    return response_list
+
 @router.get("/{user_id}/public", response_model=UserPublicResponse)
 async def get_user_public(
     user_id: int,
@@ -98,34 +142,4 @@ async def delete_user(
     """
     service = UserService(db)
     await service.delete_user(user_id, current_user)
-    return None
-
-
-@router.get("/judge-contests", response_model=List[ContestResponse])
-async def get_user_judge_contests(
-    skip: int = 0,
-    limit: int = 100,
-    db: AsyncSession = Depends(get_db),
-    current_user: UserModel = Depends(get_current_user)
-):
-    """
-    Get all contests where the current user is a judge.
-    """
-    contests = await ContestService.get_contests_where_user_is_judge(
-        db=db,
-        user_id=current_user.id,
-        skip=skip,
-        limit=limit
-    )
-    
-    # Transform the Contest models to ContestResponse
-    response_list = []
-    for contest_orm in contests:
-        # Fetch details including counts for each contest
-        contest_data_with_counts = await ContestRepository.get_contest_with_counts(db=db, contest_id=contest_orm.id)
-        if contest_data_with_counts:
-            # Reflect whether a password is set on each contest
-            contest_data_with_counts['has_password'] = bool(contest_data_with_counts.get('password'))
-            response_list.append(ContestResponse.model_validate(contest_data_with_counts))
-    
-    return response_list 
+    return None 

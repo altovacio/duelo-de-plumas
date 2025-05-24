@@ -6,8 +6,7 @@ export interface Contest {
   id: number;
   title: string;
   description: string;
-  creator_id: number;
-  creator?: { id: number; username: string }; // Optional, if backend provides it nested
+  creator: { id: number; username: string }; // Use creator object instead of creator_id
   created_at: string;
   updated_at: string;
   start_date?: string;
@@ -79,13 +78,13 @@ export const getContest = async (id: number, password?: string): Promise<Contest
 };
 
 // Create a new contest
-export const createContest = async (contestData: Omit<Contest, 'id' | 'creator_id' | 'created_at' | 'updated_at' | 'participant_count' | 'text_count' | 'has_password'>): Promise<Contest> => {
+export const createContest = async (contestData: Omit<Contest, 'id' | 'creator' | 'created_at' | 'updated_at' | 'participant_count' | 'text_count' | 'has_password'>): Promise<Contest> => {
   const response = await apiClient.post('/contests/', contestData);
   return response.data;
 };
 
 // Update a contest
-export const updateContest = async (id: number, contestData: Partial<Omit<Contest, 'id' | 'creator_id' | 'created_at' | 'updated_at' | 'participant_count' | 'text_count' | 'has_password'>>): Promise<Contest> => {
+export const updateContest = async (id: number, contestData: Partial<Omit<Contest, 'id' | 'creator' | 'created_at' | 'updated_at' | 'participant_count' | 'text_count' | 'has_password'>>): Promise<Contest> => {
   const response = await apiClient.put(`/contests/${id}`, contestData);
   return response.data;
 };

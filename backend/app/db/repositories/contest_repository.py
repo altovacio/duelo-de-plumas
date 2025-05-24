@@ -43,7 +43,7 @@ class ContestRepository:
         If status is provided, filter by status.
         If creator_id is provided, filter by creator_id.
         """
-        query = select(Contest)
+        query = select(Contest).options(selectinload(Contest.creator))
         
         if status:
             query = query.where(Contest.status.ilike(f"%{status}%"))
@@ -123,7 +123,8 @@ class ContestRepository:
             text_count_subq.label("text_count"),
             participant_count_subq.label("participant_count")
         ).options(
-            selectinload(Contest.contest_judges) # Changed to Contest.contest_judges
+            selectinload(Contest.contest_judges), # Changed to Contest.contest_judges
+            selectinload(Contest.creator) # Load creator relationship
         ).filter(Contest.id == contest_id)
         
         result = await db.execute(stmt)
@@ -140,6 +141,22 @@ class ContestRepository:
         # Add the counts
         contest_data["text_count"] = record.text_count
         contest_data["participant_count"] = record.participant_count
+        
+        # Add creator information - this is now required
+        if contest_obj.creator:
+            contest_data["creator"] = {
+                "id": contest_obj.creator.id,
+                "username": contest_obj.creator.username
+            }
+        else:
+            # Fallback if creator relationship is not loaded properly
+            contest_data["creator"] = {
+                "id": contest_data["creator_id"],
+                "username": "Unknown"
+            }
+        
+        # Remove creator_id since we now use the creator object
+        contest_data.pop("creator_id", None)
         
         # Add the loaded judges (will be ORM objects, Pydantic handles conversion)
         contest_data["judges"] = contest_obj.contest_judges # Changed to contest_obj.contest_judges

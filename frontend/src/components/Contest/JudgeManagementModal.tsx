@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getContestJudges, assignJudgeToContest, removeJudgeFromContest, ContestJudge } from '../../services/contestService';
 import { getAgents, Agent } from '../../services/agentService';
+import { searchUsers, User } from '../../services/userService';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../hooks/useAuth';
 import { Link } from 'react-router-dom';
@@ -31,6 +32,11 @@ const JudgeManagementModal: React.FC<JudgeManagementModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isRemovingJudgeId, setIsRemovingJudgeId] = useState<number | null>(null);
   const [isAddingJudgeId, setIsAddingJudgeId] = useState<number | null>(null);
+  
+  // User search state
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -106,6 +112,62 @@ const JudgeManagementModal: React.FC<JudgeManagementModalProps> = ({
         // Handle specific HTTP status codes
         if (err.response.status === 409) {
           toast.success('You are already a judge for this contest');
+        } else {
+          toast.error(`Error: ${err.response.data?.detail || err.message || 'Failed to add judge'}`);
+        }
+      } else {
+        toast.error('Failed to add judge. Please try again.');
+      }
+    } finally {
+      setIsAddingJudgeId(null);
+    }
+  };
+
+  // User search functionality
+  const handleUserSearch = async (query: string) => {
+    setUserSearchQuery(query);
+    
+    if (query.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    
+    try {
+      setIsSearching(true);
+      const results = await searchUsers(query);
+      // Filter out users who are already judges
+      const availableUsers = results.filter(searchUser => 
+        !judges.some(judge => judge.user_judge_id === searchUser.id)
+      );
+      setSearchResults(availableUsers);
+    } catch (err) {
+      console.error('Error searching users:', err);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleAddUserAsJudge = async (userId: number) => {
+    try {
+      setIsAddingJudgeId(userId);
+      await assignJudgeToContest(contestId, { user_id: userId });
+      // Refresh judges list
+      await fetchJudges();
+      // Clear search
+      setUserSearchQuery('');
+      setSearchResults([]);
+      toast.success('User added as judge successfully');
+    } catch (err: any) {
+      console.error('Error adding user as judge:', err);
+      
+      // Handle network errors and common status codes
+      if (err.code === 'ERR_NETWORK') {
+        toast.error('Network error: Could not connect to the server');
+      } else if (err.response) {
+        // Handle specific HTTP status codes
+        if (err.response.status === 409) {
+          toast.success('This user is already a judge for this contest');
         } else {
           toast.error(`Error: ${err.response.data?.detail || err.message || 'Failed to add judge'}`);
         }
@@ -216,27 +278,76 @@ const JudgeManagementModal: React.FC<JudgeManagementModalProps> = ({
           {activeTab === 'human' && (
             <div>
               <div className="mb-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h4 className="text-lg font-medium text-gray-700">Add Human Judge</h4>
-                  <button
-                    onClick={handleAddHumanJudge}
-                    disabled={isAddingJudgeId !== null || !user}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
-                  >
-                    Add Yourself as Judge
-                  </button>
-                </div>
-                <p className="text-sm text-gray-500 mb-2">
-                  Add yourself as a human judge to this contest. As the contest creator, you can also add yourself to manually judge submissions.
-                  {judgeRestrictions && " This contest has judge restrictions, so only users you specifically assign can be judges."}
+                <h4 className="text-lg font-medium text-gray-700 mb-4">Add Human Judge</h4>
+                <p className="text-sm text-gray-500 mb-4">
+                  Search for users by username or email to add them as judges for this contest.
                 </p>
-                <div className="bg-yellow-50 border border-yellow-100 rounded-md p-3 mt-2">
-                  <p className="text-sm text-yellow-700">
-                    <span className="font-medium">Note:</span> Other users can't be added directly. 
-                    {!judgeRestrictions 
-                      ? " However, since this contest allows volunteer judges, users can add themselves as judges from the contest page."
-                      : " With judge restrictions enabled, you must share the contest link with them and they need to request judge access."}
-                  </p>
+                
+                <div className="space-y-4">
+                  {/* User Search Input */}
+                  <div>
+                    <label htmlFor="userSearch" className="block text-sm font-medium text-gray-700 mb-1">
+                      Search Users
+                    </label>
+                    <input
+                      id="userSearch"
+                      type="text"
+                      placeholder="Type username or email..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      value={userSearchQuery}
+                      onChange={(e) => handleUserSearch(e.target.value)}
+                    />
+                  </div>
+                  
+                  {/* Search Results */}
+                  {userSearchQuery.length >= 2 && (
+                    <div className="border rounded-md">
+                      {isSearching ? (
+                        <div className="p-4 text-center text-gray-500">
+                          <div className="inline-flex items-center">
+                            <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Searching...
+                          </div>
+                        </div>
+                      ) : searchResults.length === 0 ? (
+                        <div className="p-4 text-center text-gray-500">
+                          No users found matching "{userSearchQuery}"
+                        </div>
+                      ) : (
+                        <ul className="divide-y">
+                          {searchResults.map(searchUser => (
+                            <li key={searchUser.id} className="flex justify-between items-center p-3 hover:bg-gray-50">
+                              <span className="font-medium">{searchUser.username}</span>
+                              <button
+                                onClick={() => handleAddUserAsJudge(searchUser.id)}
+                                disabled={isAddingJudgeId === searchUser.id}
+                                className="text-sm px-3 py-1 bg-green-500 text-white rounded-md hover:bg-green-600 disabled:opacity-50"
+                              >
+                                {isAddingJudgeId === searchUser.id ? 'Adding...' : 'Add as Judge'}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Quick Add Self Option */}
+                  <div className="border-t pt-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Add yourself as a judge:</span>
+                      <button
+                        onClick={handleAddHumanJudge}
+                        disabled={isAddingJudgeId !== null || !user}
+                        className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 text-sm"
+                      >
+                        Add Yourself
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -326,7 +437,7 @@ const JudgeManagementModal: React.FC<JudgeManagementModalProps> = ({
                           <span className="font-medium">{judge.user_name || judge.agent_name || 'Unknown'}</span>
                           {judge.agent_judge_id && (
                             <span className="ml-2 text-xs px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full">
-                              AI - {judge.ai_model || "Unknown model"}
+                              AI
                             </span>
                           )}
                         </div>

@@ -24,6 +24,10 @@ class UserService:
         """Get all users with pagination."""
         return await self.repository.get_all(skip, limit)
         
+    async def search_users(self, query: str, limit: int = 10):
+        """Search users by username or email."""
+        return await self.repository.search_users(query, limit)
+        
     async def create_user(self, user_data: UserCreate):
         """Create a new user."""
         # Check if username exists

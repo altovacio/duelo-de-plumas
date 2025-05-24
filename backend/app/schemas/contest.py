@@ -4,6 +4,14 @@ from pydantic import BaseModel, model_validator
 
 from app.schemas.vote import VoteEvaluationResponse
 
+# Simple creator model for nested use
+class ContestCreator(BaseModel):
+    id: int
+    username: str
+    
+    class Config:
+        from_attributes = True
+
 
 class ContestBase(BaseModel):
     title: str
@@ -63,7 +71,7 @@ class JudgeAssignmentResponse(BaseModel):
 
 class ContestResponse(ContestBase):
     id: int
-    creator_id: int
+    creator: ContestCreator  # Creator information - removed creator_id as it's redundant
     status: str  # "open", "evaluation", "closed"
     created_at: datetime
     updated_at: datetime

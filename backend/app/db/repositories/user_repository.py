@@ -35,6 +35,17 @@ class UserRepository:
         result = await self.db.execute(select(User).offset(skip).limit(limit))
         return result.scalars().all()
         
+    async def search_users(self, query: str, limit: int = 10):
+        """Search users by username or email."""
+        search_pattern = f"%{query}%"
+        result = await self.db.execute(
+            select(User).where(
+                (User.username.ilike(search_pattern)) | 
+                (User.email.ilike(search_pattern))
+            ).limit(limit)
+        )
+        return result.scalars().all()
+        
     async def create(self, user_data: UserCreate) -> User:
         """Create a new user."""
         hashed_password = get_password_hash(user_data.password)

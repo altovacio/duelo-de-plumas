@@ -129,7 +129,7 @@ async def test_06_05_user1_votes_in_contest1_fails_not_judge(client: AsyncClient
     }
     response = await client.post(
         f"/contests/{test_data['contest1_id']}/votes", # REVERTED: REMOVE TRAILING SLASH
-        json=vote_payload,
+        json=[vote_payload],  # Wrap in array since API expects List[VoteCreate]
         headers=test_data["user1_headers"]
     )
     assert response.status_code == 403, f"User 1 voting (not judge) should fail with 403, but got {response.status_code}: {response.text}"
@@ -163,14 +163,18 @@ async def test_06_06_user2_votes_in_contest1_succeeds(client: AsyncClient): # MO
 
     response = await client.post(
         f"/contests/{test_data['contest1_id']}/votes", 
-        json=vote_payload,
+        json=[vote_payload],  # Wrap in array since API expects List[VoteCreate]
         headers=test_data["user2_headers"]
     )
 
     assert response.status_code in [200, 201], \
         f"User 2 (judge) voting in contest1 should succeed, but got {response.status_code}: {response.text}"
     
-    vote_data = response.json()
+    vote_data_list = response.json()
+    assert isinstance(vote_data_list, list), "Expected a list of vote responses"
+    assert len(vote_data_list) == 1, "Expected exactly one vote in response"
+    vote_data = vote_data_list[0]  # Get the first (and only) vote
+    
     assert vote_data["text_place"] == vote_payload["text_place"]
     assert vote_data["comment"] == vote_payload["comment"]
     assert str(vote_data["judge_id"]) == str(test_data["user2_id"]), "Vote judge_id does not match User 2 ID."
@@ -298,13 +302,17 @@ async def test_06_08_admin_votes_as_human_judge_in_contest1(client: AsyncClient)
     }
     response = await client.post(
         f"/contests/{test_data['contest1_id']}/votes",
-        json=vote_payload,
+        json=[vote_payload],
         headers=test_data["admin_headers"]
     )
     assert response.status_code in [200, 201], \
         f"Admin (as human judge) failed to submit vote for contest1: {response.text}"
     
-    vote_response_data = VoteResponse(**response.json())
+    vote_data_list = response.json()
+    assert isinstance(vote_data_list, list), "Expected a list of vote responses"
+    assert len(vote_data_list) == 1, "Expected exactly one vote in response"
+    vote_response_data = VoteResponse(**vote_data_list[0])  # Get the first (and only) vote
+    
     assert vote_response_data.text_id == text_to_vote_on_id
     assert str(vote_response_data.judge_id) == str(test_data["admin_user_id"]) # Ensure judge_id is string for comparison if necessary
     assert vote_response_data.text_place == vote_payload["text_place"]
@@ -388,7 +396,7 @@ async def test_06_10_admin_triggers_judge_global_for_contest2_fails_not_evaluati
     # Use the existing AI judge execution endpoint instead of a custom contest path
     trigger_payload = {
         "agent_id": test_data["judge_global_id"],
-        "model": "claude-3-haiku-20240307"
+        "model": settings.DEFAULT_TEST_MODEL_ID,
     }
     trigger_payload["contest_id"] = test_data["contest2_id"]
     response = await client.post(
@@ -511,13 +519,17 @@ async def test_06_14_user1_submits_votes_for_contest3(client: AsyncClient):
     }
     vote_response = await client.post(
         f"/contests/{test_data['contest3_id']}/votes",
-        json=vote_payload,
+        json=[vote_payload],  # Wrap in array since API expects List[VoteCreate]
         headers=test_data["user1_headers"]
     )
     assert vote_response.status_code in [200, 201], \
         f"User 1 voting on text {text_id_to_vote_on} in contest 3 failed: {vote_response.text}"
     
-    vote_data = vote_response.json()
+    vote_data_list = vote_response.json()
+    assert isinstance(vote_data_list, list), "Expected a list of vote responses"
+    assert len(vote_data_list) == 1, "Expected exactly one vote in response"
+    vote_data = vote_data_list[0]  # Get the first (and only) vote
+    
     assert vote_data["text_place"] == vote_payload["text_place"]
     assert vote_data["comment"] == vote_payload["comment"]
     assert str(vote_data["judge_id"]) == str(test_data["user1_id"])

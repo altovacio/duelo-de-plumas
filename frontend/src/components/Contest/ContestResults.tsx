@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Text } from '../../services/textService';
+import FullTextModal from '../Common/FullTextModal';
 
 interface ContestResultsProps {
   contestId: number;
@@ -20,7 +21,7 @@ const ContestResults: React.FC<ContestResultsProps> = ({
   contestId,
   texts
 }) => {
-  const [expandedTextId, setExpandedTextId] = useState<number | null>(null);
+  const [selectedTextForModal, setSelectedTextForModal] = useState<RankedText | null>(null);
   
   // Convert and sort texts by ranking
   const rankedTexts: RankedText[] = texts
@@ -42,10 +43,6 @@ const ContestResults: React.FC<ContestResultsProps> = ({
       return a.ranking - b.ranking;
     });
   
-  const toggleExpandedText = (textId: number) => {
-    setExpandedTextId(expandedTextId === textId ? null : textId);
-  };
-
   const getRankingDisplay = (ranking?: number) => {
     if (!ranking) return 'Unranked';
     
@@ -61,6 +58,21 @@ const ContestResults: React.FC<ContestResultsProps> = ({
       case 3: return 'bg-orange-100 text-orange-700';
       default: return 'bg-blue-50 text-blue-600';
     }
+  };
+
+  // Helper function to get preview of text content
+  const getTextPreview = (content: string) => {
+    const maxLength = 300;
+    if (content.length <= maxLength) return content;
+    return content.substring(0, maxLength) + '...';
+  };
+
+  const openFullTextModal = (text: RankedText) => {
+    setSelectedTextForModal(text);
+  };
+
+  const closeFullTextModal = () => {
+    setSelectedTextForModal(null);
   };
 
   if (texts.length === 0) {
@@ -94,7 +106,7 @@ const ContestResults: React.FC<ContestResultsProps> = ({
                     {getRankingDisplay(text.ranking)}
                   </span>
                   {text.total_points !== undefined && (
-                    <span className="text-sm text-gray-600">
+                    <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-bold">
                       {text.total_points} points
                     </span>
                   )}
@@ -102,40 +114,41 @@ const ContestResults: React.FC<ContestResultsProps> = ({
                 <h3 className="text-lg font-semibold text-gray-900">{text.title}</h3>
                 <p className="text-sm text-gray-600">by {text.author}</p>
               </div>
-              <button
-                onClick={() => toggleExpandedText(text.id)}
-                className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
-              >
-                {expandedTextId === text.id ? 'Hide Content' : 'Show Content'}
-              </button>
             </div>
             
-            {expandedTextId === text.id && (
-              <div className="mt-4">
-                <div className="bg-gray-50 p-4 rounded-md mb-4">
-                  <h4 className="font-medium text-gray-900 mb-2">Text Content</h4>
-                  <pre className="whitespace-pre-wrap text-sm text-gray-700">
-                    {text.content}
-                  </pre>
-                </div>
-                
-                {text.evaluations && text.evaluations.length > 0 && (
-                  <div className="bg-blue-50 p-4 rounded-md">
-                    <h4 className="font-medium text-gray-900 mb-3">Judge Evaluations</h4>
-                    <div className="space-y-3">
-                      {text.evaluations.map((evaluation, evalIndex) => (
-                        <div key={evalIndex} className="bg-white p-3 rounded border">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm font-medium text-gray-900">
-                              {evaluation.judge_identifier}
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-700">{evaluation.comment}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+            {/* Text preview */}
+            <div className="mb-4">
+              <div className="prose prose-sm max-w-none">
+                <pre className="whitespace-pre-wrap bg-gray-50 p-4 rounded text-sm">
+                  {getTextPreview(text.content)}
+                </pre>
+                {text.content.length > 300 && (
+                  <button
+                    onClick={() => openFullTextModal(text)}
+                    className="mt-2 text-indigo-600 hover:text-indigo-800 text-sm font-medium"
+                  >
+                    Read Full Text
+                  </button>
                 )}
+              </div>
+            </div>
+            
+            {/* Judge evaluations */}
+            {text.evaluations && text.evaluations.length > 0 && (
+              <div className="bg-blue-50 p-4 rounded-md">
+                <h4 className="font-medium text-gray-900 mb-3">Judge Evaluations</h4>
+                <div className="space-y-3">
+                  {text.evaluations.map((evaluation, evalIndex) => (
+                    <div key={evalIndex} className="bg-white p-3 rounded border">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-gray-900">
+                          {evaluation.judge_identifier}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-700">{evaluation.comment}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -150,6 +163,15 @@ const ContestResults: React.FC<ContestResultsProps> = ({
           </p>
         </div>
       )}
+
+      {/* Full Text Modal */}
+      <FullTextModal
+        isOpen={selectedTextForModal !== null}
+        onClose={closeFullTextModal}
+        title={selectedTextForModal?.title || ''}
+        content={selectedTextForModal?.content || ''}
+        author={selectedTextForModal?.author}
+      />
     </div>
   );
 };

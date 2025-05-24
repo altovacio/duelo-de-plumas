@@ -12,6 +12,7 @@ import { Link } from 'react-router-dom';
 import apiClient from '../../utils/apiClient';
 import JudgeManagementModal from '../../components/Contest/JudgeManagementModal';
 import { useAuthStore } from '../../store/authStore';
+import FullTextModal from '../../components/Common/FullTextModal';
 
 type TabType = 'overview' | 'contests' | 'texts' | 'agents' | 'participation' | 'credits';
 
@@ -1247,25 +1248,16 @@ const DashboardPage: React.FC = () => {
 
       {/* Full Submission Content Modal (Nested inside DashboardPage return) */}
       {isFullContentModalOpen && selectedSubmissionForContent && (
-        <div className="fixed inset-0 z-[60] overflow-y-auto bg-black bg-opacity-60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl transform transition-all sm:max-w-2xl sm:w-full max-h-[80vh] flex flex-col">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-800">{selectedSubmissionForContent.title || 'Full Submission Content'}</h3>
-            </div>
-            <div className="px-6 py-4 overflow-y-auto flex-grow prose prose-sm max-w-none">
-              <pre className="whitespace-pre-wrap">{selectedSubmissionForContent.content}</pre>
-            </div>
-            <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex justify-end">
-              <button
-                type="button"
-                onClick={handleCloseFullContentModal}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
+        <FullTextModal
+          isOpen={isFullContentModalOpen}
+          onClose={handleCloseFullContentModal}
+          title={selectedSubmissionForContent.title || 'Submission Content'}
+          content={selectedSubmissionForContent.content}
+          author={typeof selectedSubmissionForContent.author === 'string' 
+            ? selectedSubmissionForContent.author 
+            : selectedSubmissionForContent.author?.username
+          }
+        />
       )}
 
       {/* Judge Management Modal */}

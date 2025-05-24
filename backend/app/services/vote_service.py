@@ -210,6 +210,27 @@ class VoteService:
                 
                 # Check if all judges have voted, and if so, close the contest
                 await VoteService.check_contest_completion(db, contest_id)
+        else:
+            # For AI votes, check if the AI judge has completed voting
+            # AI judge is considered complete when it has assigned all possible places
+            # (either all 3 places or as many as there are texts if fewer than 3)
+            ai_votes_stmt = select(Vote).filter(
+                Vote.contest_judge_id == judge_assignment.id,
+                Vote.text_place.isnot(None),
+                Vote.agent_execution_id.isnot(None) # Ensure these are AI votes
+            )
+            ai_votes_result = await db.execute(ai_votes_stmt)
+            ai_votes = ai_votes_result.scalars().all()
+            
+            required_places = min(3, total_texts)
+            assigned_places = len(ai_votes)
+            
+            if assigned_places >= required_places:
+                judge_assignment.has_voted = True
+                await db.commit()
+                
+                # Check if all judges have voted, and if so, close the contest
+                await VoteService.check_contest_completion(db, contest_id)
         
         return vote
 

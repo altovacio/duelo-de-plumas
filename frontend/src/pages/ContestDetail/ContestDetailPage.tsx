@@ -97,17 +97,17 @@ const ContestDetailPage: React.FC = () => {
     const [isLoadingJudgeAgents, setIsLoadingJudgeAgents] = useState(false);
 
     // Add state for more detailed voting status
-    const [userVotingStatus, setUserVotingStatus] = useState<{
-      hasVoted: boolean;
-      humanVoteCount: number;
-      aiVoteCount: number;
-      totalVoteCount: number;
+    const [judgeCompletionStatus, setJudgeCompletionStatus] = useState<{
+      totalJudges: number;
+      completedJudges: number;
+      userHasJudged: boolean;
+      judgeDetails: { name: string; type: 'human' | 'ai'; completed: boolean; }[];
       isLoading: boolean;
     }>({
-      hasVoted: false,
-      humanVoteCount: 0,
-      aiVoteCount: 0,
-      totalVoteCount: 0,
+      totalJudges: 0,
+      completedJudges: 0,
+      userHasJudged: false,
+      judgeDetails: [],
       isLoading: false
     });
 
@@ -247,11 +247,11 @@ const ContestDetailPage: React.FC = () => {
       // Add this at the end of the fetchContestDetails function, right before the final setIsLoading(false)
       if (grantAccess && contestDataForPage.status === 'evaluation') {
         await fetchJudgeStatus(parseInt(id));
-        // Check user's voting status for evaluation contests
-        await checkUserVotingStatus(parseInt(id));
+        // Check judge completion status for evaluation contests
+        await checkJudgeCompletionStatus(parseInt(id));
       } else if (grantAccess && contestDataForPage.status === 'closed') {
-        // Also check voting status for closed contests to show final status
-        await checkUserVotingStatus(parseInt(id));
+        // Also check judge completion status for closed contests to show final status
+        await checkJudgeCompletionStatus(parseInt(id));
       }
 
     } catch (err: any) {
@@ -372,9 +372,19 @@ const ContestDetailPage: React.FC = () => {
   const fetchAvailableJudgeAgents = async () => {
     try {
       setIsLoadingJudgeAgents(true);
+      // Get contest judges to filter only registered AI agents
+      const contestJudges = await contestService.getContestJudges(parseInt(id || '1'));
       const agents = await getAgents();
-      // Filter to only include judge-type agents
-      const judgeAgents = agents.filter(agent => agent.type === 'judge');
+      
+      // Filter to only include agents that are registered as judges for this contest
+      const registeredAgentIds = contestJudges
+        .filter(judge => judge.agent_judge_id)
+        .map(judge => judge.agent_judge_id);
+      
+      const judgeAgents = agents.filter(agent => 
+        agent.type === 'judge' && registeredAgentIds.includes(agent.id)
+      );
+      
       setAvailableJudgeAgents(judgeAgents);
     } catch (err) {
       console.error('Error fetching judge agents:', err);
@@ -385,50 +395,68 @@ const ContestDetailPage: React.FC = () => {
     }
   };
 
-  // Function to check user's voting status with better breakdown
-  const checkUserVotingStatus = async (contestId: number) => {
+  // Function to check judge completion status
+  const checkJudgeCompletionStatus = async (contestId: number) => {
     if (!isAuthenticated || !user) {
-      setUserVotingStatus({ 
-        hasVoted: false, 
-        humanVoteCount: 0, 
-        aiVoteCount: 0, 
-        totalVoteCount: 0, 
-        isLoading: false 
+      setJudgeCompletionStatus({ 
+        totalJudges: 0,
+        completedJudges: 0,
+        userHasJudged: false,
+        judgeDetails: [],
+        isLoading: false
       });
       return;
     }
 
     try {
-      setUserVotingStatus(prev => ({ ...prev, isLoading: true }));
-      const votes = await getJudgeVotes(contestId, user.id);
+      setJudgeCompletionStatus(prev => ({ ...prev, isLoading: true }));
       
-      // Separate human votes from AI votes using is_ai_vote instead of judge_type
-      const humanVotes = votes.filter(vote => !vote.is_ai_vote);
-      const aiVotes = votes.filter(vote => vote.is_ai_vote);
+      // Get all judges for this contest
+      const judges = await contestService.getContestJudges(contestId);
       
-      const humanVoteCount = humanVotes.length;
-      const aiVoteCount = aiVotes.length;
-      const totalVoteCount = votes.length;
-      const hasVoted = totalVoteCount > 0;
+      // Check if current user has judged by checking their votes
+      let userHasJudged = false;
       
-      setUserVotingStatus({
-        hasVoted,
-        humanVoteCount,
-        aiVoteCount,
-        totalVoteCount,
+      try {
+        const userVotes = await getJudgeVotes(contestId, user.id);
+        if (userVotes.length > 0) {
+          userHasJudged = true;
+        }
+      } catch (err) {
+        console.warn('Could not get user votes:', err);
+        // Fallback: check if user is a human judge who has voted
+        const userAsHumanJudge = judges.find(judge => judge.user_judge_id === user.id);
+        if (userAsHumanJudge?.has_voted) {
+          userHasJudged = true;
+        }
+      }
+      
+      const totalJudges = judges.length;
+      const completedJudges = judges.filter(judge => judge.has_voted).length;
+      
+      const judgeDetails = judges.map(judge => ({
+        name: judge.user_name || judge.agent_name || `Judge ${judge.id}`,
+        type: judge.user_judge_id ? 'human' as const : 'ai' as const,
+        completed: judge.has_voted || false
+      }));
+      
+      setJudgeCompletionStatus({
+        totalJudges,
+        completedJudges,
+        userHasJudged,
+        judgeDetails,
         isLoading: false
       });
       
-      console.log(`User voting status: hasVoted=${hasVoted}, humanVotes=${humanVoteCount}, aiVotes=${aiVoteCount}, total=${totalVoteCount}`);
+      console.log(`Judge completion status: ${completedJudges}/${totalJudges} judges completed, user has judged: ${userHasJudged}`);
     } catch (err: any) {
-      console.error('Error checking voting status:', err);
-      // Don't show error toast for this, just set default state
-      setUserVotingStatus({ 
-        hasVoted: false, 
-        humanVoteCount: 0, 
-        aiVoteCount: 0, 
-        totalVoteCount: 0, 
-        isLoading: false 
+      console.error('Error checking judge completion status:', err);
+      setJudgeCompletionStatus({ 
+        totalJudges: 0,
+        completedJudges: 0,
+        userHasJudged: false,
+        judgeDetails: [],
+        isLoading: false
       });
     }
   };
@@ -447,12 +475,16 @@ const ContestDetailPage: React.FC = () => {
     setShowJudgeModal(false);
     setShowAIJudgeModal(false);
     
-    // Show success message
-    toast.success('Votes submitted successfully!');
+    // Show success message with more specific information
+    if (showAIJudgeModal) {
+      toast.success('AI Judge evaluation completed successfully! Results have been added to the contest.');
+    } else {
+      toast.success('Votes submitted successfully!');
+    }
     
-    // Refresh voting status to show updated counts
+    // Refresh judge completion status to show updated counts
     if (contest?.id) {
-      checkUserVotingStatus(contest.id);
+      checkJudgeCompletionStatus(contest.id);
     }
   };
 
@@ -787,30 +819,44 @@ const ContestDetailPage: React.FC = () => {
                 {/* User Voting Status Indicator */}
                 {isAuthenticated && user && (
                   <div className="mb-4">
-                    {userVotingStatus.isLoading ? (
+                    {judgeCompletionStatus.isLoading ? (
                       <div className="p-3 bg-blue-50 text-blue-700 rounded-md">
                         <p className="text-sm">Checking your voting status...</p>
                       </div>
-                    ) : userVotingStatus.hasVoted ? (
+                    ) : judgeCompletionStatus.userHasJudged ? (
                       <div className="p-3 bg-green-50 text-green-700 rounded-md border border-green-200">
-                        <p className="font-medium">✓ You have voted in this contest</p>
+                        <p className="font-medium">✓ You have completed your evaluation</p>
                         <p className="text-sm">
-                          {userVotingStatus.humanVoteCount > 0 && userVotingStatus.aiVoteCount > 0 ? (
-                            `You submitted ${userVotingStatus.humanVoteCount} human vote${userVotingStatus.humanVoteCount !== 1 ? 's' : ''} and ${userVotingStatus.aiVoteCount} AI agent vote${userVotingStatus.aiVoteCount !== 1 ? 's' : ''}.`
-                          ) : userVotingStatus.humanVoteCount > 0 ? (
-                            `You submitted ${userVotingStatus.humanVoteCount} vote${userVotingStatus.humanVoteCount !== 1 ? 's' : ''} as a human judge.`
-                          ) : (
-                            `Your AI agents submitted ${userVotingStatus.aiVoteCount} vote${userVotingStatus.aiVoteCount !== 1 ? 's' : ''}.`
-                          )}
-                          {" "}You can vote again to update your choices.
+                          You can vote again to update your choices.
                         </p>
                       </div>
                     ) : isJudge ? (
                       <div className="p-3 bg-yellow-50 text-yellow-700 rounded-md border border-yellow-200">
-                        <p className="font-medium">⏳ You haven't voted yet</p>
+                        <p className="font-medium">⏳ You haven't evaluated yet</p>
                         <p className="text-sm">As a judge, your evaluation is needed to help determine the contest results.</p>
                       </div>
                     ) : null}
+                  </div>
+                )}
+                
+                {/* Judge completion overview */}
+                {judgeCompletionStatus.totalJudges > 0 && (
+                  <div className="mt-3 p-3 bg-blue-50 text-blue-700 rounded-md border border-blue-200">
+                    <p className="font-medium">
+                      Judge Progress: {judgeCompletionStatus.completedJudges}/{judgeCompletionStatus.totalJudges} completed
+                    </p>
+                    <div className="mt-2 text-sm">
+                      {judgeCompletionStatus.judgeDetails.map((judge, index) => (
+                        <div key={index} className="flex items-center space-x-2">
+                          <span className={judge.completed ? 'text-green-600' : 'text-gray-500'}>
+                            {judge.completed ? '✓' : '○'}
+                          </span>
+                          <span>
+                            {judge.name} ({judge.type === 'human' ? 'Human' : 'AI'})
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
                 

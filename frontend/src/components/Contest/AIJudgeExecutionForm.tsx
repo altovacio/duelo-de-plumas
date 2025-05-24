@@ -126,6 +126,9 @@ const AIJudgeExecutionForm: React.FC<AIJudgeExecutionFormProps> = ({
   };
   
   const executeJudge = async (data: FormData) => {
+    // Close confirmation modal immediately
+    setShowConfirmation(false);
+    
     setIsExecuting(true);
     setError(null);
     setProgress(0);
@@ -174,6 +177,19 @@ const AIJudgeExecutionForm: React.FC<AIJudgeExecutionFormProps> = ({
       {error && (
         <div className="bg-red-50 text-red-700 p-3 rounded mb-4">
           {error}
+        </div>
+      )}
+      
+      {isExecuting && (
+        <div className="bg-blue-50 text-blue-700 p-3 rounded mb-4">
+          <p className="font-medium">Executing AI Judge...</p>
+          <p className="text-sm">Please wait while the AI evaluates all submissions. This may take a few moments.</p>
+          <div className="mt-2 w-full bg-blue-200 rounded-full h-2">
+            <div 
+              className="bg-blue-600 h-2 rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${progress}%` }}
+            ></div>
+          </div>
         </div>
       )}
       

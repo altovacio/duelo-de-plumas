@@ -40,7 +40,7 @@ def login_user(username, password):
 def assign_user_credits(token, user_id, credits):
     headers = {"Authorization": f"Bearer {token}"}
     payload = {"credits": credits, "description": 'admin_adjustment'}
-    response = requests.post(f"{BASE_URL}/admin/users/{user_id}/credits", headers=headers, json=payload)
+    response = requests.patch(f"{BASE_URL}/admin/users/{user_id}/credits", headers=headers, json=payload)
     return print_response(response, f"Assign Credits to User {user_id}")
 
 # --- Generic Resource Creation ---

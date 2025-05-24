@@ -301,9 +301,9 @@ if __name__ == "__main__":
     else:
         print("\nSkipping Admin actions as admin token was not obtained.")
 
-    # NEW: Step g) User1 creates a test contest, submits 4 texts, and assigns human + AI judges
+    # NEW: Step g) User1 creates a test contest, submits 8 texts, and assigns human + AI judges
     print("\n=== Step G: User1 Complete Contest Setup ===")
-    if user1_token and user1_id and len(user1_text_ids) >= 4:
+    if user1_token and user1_id and len(user1_text_ids) >= 8:
         # Create a test contest for judging
         contest_response = create_contest_api(
             user1_token,
@@ -315,9 +315,9 @@ if __name__ == "__main__":
         if contest_response and "id" in contest_response:
             test_contest_id = contest_response["id"]
             
-            # Submit 4 texts to the contest
-            print(f"\n--- Submitting 4 texts to contest {test_contest_id} ---")
-            for i in range(4):
+            # Submit 8 texts to the contest
+            print(f"\n--- Submitting 8 texts to contest {test_contest_id} ---")
+            for i in range(8):
                 if i < len(user1_text_ids):
                     submit_text_to_contest_api(user1_token, test_contest_id, user1_text_ids[i])
             
@@ -330,7 +330,7 @@ if __name__ == "__main__":
                 assign_ai_judge_to_contest_api(user1_token, test_contest_id, user1_judge_agent_id)
             
             print(f"\n✅ Contest {test_contest_id} is ready for testing with:")
-            print(f"   - 4 submitted texts")
+            print(f"   - 8 submitted texts")
             print(f"   - 1 human judge (user1: {user1_id})")
             if user1_judge_agent_id:
                 print(f"   - 1 AI judge (agent: {user1_judge_agent_id})")

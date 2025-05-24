@@ -196,18 +196,6 @@ class JudgeService:
         )
     
     @staticmethod
-    async def execute_human_vote(
-        db: AsyncSession,
-        contest_id: int,
-        vote_data: VoteCreate,
-        user_id: int
-    ) -> Vote:
-        """Entry point for human judge voting (single vote - legacy compatibility)"""
-        judge_context = await JudgeService._create_human_judge_context(db, contest_id, user_id)
-        votes = await JudgeService.create_judge_votes(db, contest_id, [vote_data], judge_context)
-        return votes[0]
-    
-    @staticmethod
     async def execute_human_votes(
         db: AsyncSession,
         contest_id: int,

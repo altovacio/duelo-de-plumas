@@ -3,12 +3,8 @@
 This document lists known technical debt, areas for refactoring, and potential future improvements.
 
 ## ONGOING
-assign judges
 credits - In admin dashboard, they are starting to work but no transactions are being shown. Also the total spent is rounded and misaligned
-Contest created by Unknown
-Remove model from AI judge in the assign judges
-After judges finish and the contest is sent to closed, refresh that view.
-
+Credits- The total in admin dashboard is reduced when the users spend them. 
 ## TODO
 ### Dashboard
 My PArticipation: is broken
@@ -50,10 +46,6 @@ The Credit Monitoring page needs to be fully implemented to provide administrato
 
 This implementation will enable administrators to properly monitor and manage the credit system, ensuring both transparency for users and cost control for the platform.
 
-### Admin:
-Edit contest modal should be exactly the same as in the dashboard. Lets make that a react component.
--Things could get large. Ask the AI. Pagination?
--Still much mocked data
 
 
 
@@ -69,7 +61,6 @@ dashboard links do not point to the tab in question
 Submitting texts, grey out or at least return the already submitted error.
 Change defaults for contest creations. 
 Make easier change contest status
-Contest creator unknown
 Username display in user submissions and in contest author.
 -About Terms Privacy Footer
 

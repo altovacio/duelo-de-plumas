@@ -92,6 +92,9 @@ const ContestDetailPage: React.FC = () => {
     const [availableJudgeAgents, setAvailableJudgeAgents] = useState<Agent[]>([]);
     const [isLoadingJudgeAgents, setIsLoadingJudgeAgents] = useState(false);
 
+    // Add state for judges data
+    const [contestJudges, setContestJudges] = useState<any[]>([]);
+
     // Add state for more detailed voting status
     const [judgeCompletionStatus, setJudgeCompletionStatus] = useState<{
       totalJudges: number;
@@ -371,11 +374,13 @@ const ContestDetailPage: React.FC = () => {
       try {
         setIsLoadingJudgeAgents(true);
         // Get contest judges to filter only registered AI agents
-        const contestJudges = await contestService.getContestJudges(parseInt(id || '1'));
+        const contestJudgesData = await contestService.getContestJudges(parseInt(id || '1'));
+        setContestJudges(contestJudgesData); // Store judges data
+        
         const agents = await getAgents();
         
         // Filter to only include agents that are registered as judges for this contest
-        const registeredAgentIds = contestJudges
+        const registeredAgentIds = contestJudgesData
           .filter(judge => judge.agent_judge_id)
           .map(judge => judge.agent_judge_id);
         
@@ -388,6 +393,7 @@ const ContestDetailPage: React.FC = () => {
         console.error('Error fetching judge agents:', err);
         toast.error('Failed to load AI judges. Please try again.');
         setAvailableJudgeAgents([]);
+        setContestJudges([]);
       } finally {
         setIsLoadingJudgeAgents(false);
       }
@@ -1013,6 +1019,7 @@ const ContestDetailPage: React.FC = () => {
                 onSuccess={() => handleJudgingSuccess(true)}
                 onCancel={() => setShowAIJudgeModal(false)}
                 availableAgents={availableJudgeAgents}
+                judges={contestJudges}
               />
             </div>
           </div>

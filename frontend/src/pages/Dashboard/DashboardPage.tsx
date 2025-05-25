@@ -39,15 +39,17 @@ const DashboardPage: React.FC = () => {
   // State for submissions modal
   const [isSubmissionsModalOpen, setIsSubmissionsModalOpen] = useState(false);
   const [selectedContestForSubmissions, setSelectedContestForSubmissions] = useState<ContestType | null>(null);
-  const [submissionsForSelectedContest, setSubmissionsForSelectedContest] = useState<ContestSubmissionType[]>([]);
+  const [contestSubmissions, setContestSubmissions] = useState<ContestSubmissionType[]>([]);
   const [isLoadingSubmissions, setIsLoadingSubmissions] = useState(false);
-  const [errorSubmissions, setErrorSubmissions] = useState<string | null>(null);
+  const [selectedSubmissionForModal, setSelectedSubmissionForModal] = useState<ContestSubmissionType | null>(null);
+  const [showFullSubmissionModal, setShowFullSubmissionModal] = useState(false);
   
-  // State for viewing full submission content
-  const [isFullContentModalOpen, setIsFullContentModalOpen] = useState(false);
-  const [selectedSubmissionForContent, setSelectedSubmissionForContent] = useState<ContestSubmissionType | null>(null);
-
-  // State for removing a submission
+  // State for full text modal
+  const [selectedTextForFullModal, setSelectedTextForFullModal] = useState<TextType | null>(null);
+  const [showFullTextModal, setShowFullTextModal] = useState(false);
+  
+  // State for submission management
+  const [errorSubmissions, setErrorSubmissions] = useState<string | null>(null);
   const [isRemovingSubmissionId, setIsRemovingSubmissionId] = useState<number | null>(null);
   
   // Agent state
@@ -75,6 +77,9 @@ const DashboardPage: React.FC = () => {
   const [textSearchQuery, setTextSearchQuery] = useState('');
   const [filteredTexts, setFilteredTexts] = useState<TextType[]>([]);
   const [isCreateTextDropdownOpen, setIsCreateTextDropdownOpen] = useState(false);
+
+  // Dashboard data state
+  const [dashboardData, setDashboardData] = useState<any>(null);
 
   // Fetch data based on active tab
   useEffect(() => {
@@ -169,6 +174,16 @@ const DashboardPage: React.FC = () => {
         setIsLoading(false);
       }
     }
+  };
+
+  const handleOpenTextFullModal = (text: TextType) => {
+    setSelectedTextForFullModal(text);
+    setShowFullTextModal(true);
+  };
+
+  const handleCloseTextFullModal = () => {
+    setShowFullTextModal(false);
+    setSelectedTextForFullModal(null);
   };
 
   // Contest management functions
@@ -379,11 +394,12 @@ const DashboardPage: React.FC = () => {
       setIsLoading(true);
       setError(null);
       
-      const dashboardData = await getDashboardData();
+      const dashboardDataResponse = await getDashboardData();
+      setDashboardData(dashboardDataResponse);
       
       // Update contests data if available
-      if (dashboardData.author_contests) {
-        setContestsData(dashboardData.author_contests);
+      if (dashboardDataResponse.author_contests) {
+        setContestsData(dashboardDataResponse.author_contests);
       }
       
       // Also fetch texts separately since they're not part of the dashboard endpoint
@@ -404,11 +420,11 @@ const DashboardPage: React.FC = () => {
     setErrorSubmissions(null);
     try {
       const submissions = await getContestSubmissions(contest.id);
-      setSubmissionsForSelectedContest(submissions);
+      setContestSubmissions(submissions);
     } catch (err) {
       console.error('Error fetching submissions:', err);
       setErrorSubmissions('Failed to load submissions. Please try again later.');
-      setSubmissionsForSelectedContest([]); // Clear previous submissions on error
+      setContestSubmissions([]); // Clear previous submissions on error
     } finally {
       setIsLoadingSubmissions(false);
     }
@@ -417,25 +433,25 @@ const DashboardPage: React.FC = () => {
   const handleCloseSubmissionsModal = () => {
     setIsSubmissionsModalOpen(false);
     setSelectedContestForSubmissions(null);
-    setSubmissionsForSelectedContest([]);
+    setContestSubmissions([]);
     setIsLoadingSubmissions(false);
     setErrorSubmissions(null);
   };
 
   const handleOpenFullContentModal = (submission: ContestSubmissionType) => {
-    setSelectedSubmissionForContent(submission);
-    setIsFullContentModalOpen(true);
+    setSelectedSubmissionForModal(submission);
+    setShowFullSubmissionModal(true);
   };
 
   const handleCloseFullContentModal = () => {
-    setIsFullContentModalOpen(false);
-    setSelectedSubmissionForContent(null);
+    setShowFullSubmissionModal(false);
+    setSelectedSubmissionForModal(null);
   };
 
   const handleRemoveSubmission = async (submissionId: number) => {
     if (!selectedContestForSubmissions) return;
 
-    const submissionToRemove = submissionsForSelectedContest.find(s => s.id === submissionId);
+    const submissionToRemove = contestSubmissions.find(s => s.id === submissionId);
     if (!submissionToRemove) return;
 
     if (!window.confirm(`Are you sure you want to remove the submission "${submissionToRemove.title || 'Untitled Submission'}"? This action cannot be undone.`)) {
@@ -447,7 +463,7 @@ const DashboardPage: React.FC = () => {
       await removeSubmissionFromContest(selectedContestForSubmissions.id, submissionId);
       // Refresh the list
       const updatedSubmissions = await getContestSubmissions(selectedContestForSubmissions.id);
-      setSubmissionsForSelectedContest(updatedSubmissions);
+      setContestSubmissions(updatedSubmissions);
       toast.success(`Submission "${submissionToRemove.title || 'Untitled Submission'}" removed successfully.`);
     } catch (err) {
       console.error('Error removing submission:', err);
@@ -584,8 +600,19 @@ const DashboardPage: React.FC = () => {
                   </div>
                   <div className="ml-3">
                     <p className="text-sm text-yellow-700">
-                      You have <span className="font-medium">0 urgent actions</span> pending.
+                      You have <span className="font-medium">{dashboardData?.urgent_actions?.length || 0} urgent actions</span> pending.
                     </p>
+                    {dashboardData?.urgent_actions && dashboardData.urgent_actions.length > 0 && (
+                      <ul className="mt-2 text-sm text-yellow-700">
+                        {dashboardData.urgent_actions.map((action: any, index: number) => (
+                          <li key={index} className="mt-1">
+                            • <Link to={`/contests/${action.contest_id}`} className="underline hover:text-yellow-900">
+                              Judge contest: {action.contest_title}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 </div>
               </div>
@@ -672,15 +699,17 @@ const DashboardPage: React.FC = () => {
                             <select
                               value={contest.status}
                               onChange={(e) => handleStatusChange(contest.id, e.target.value as 'open' | 'evaluation' | 'closed')}
-                              className={`px-2.5 py-1 rounded text-xs font-medium border-0 ${
-                                contest.status === 'open' ? 'bg-green-100 text-green-800' :
-                                contest.status === 'evaluation' ? 'bg-yellow-100 text-yellow-800' :
-                                'bg-blue-100 text-blue-800'
-                              }`}
+                              className="px-2.5 py-1 rounded text-xs font-medium border border-gray-300 bg-white text-gray-800"
+                              style={{
+                                backgroundColor: contest.status === 'open' ? '#dcfce7' : 
+                                               contest.status === 'evaluation' ? '#fef3c7' : '#dbeafe',
+                                color: contest.status === 'open' ? '#166534' :
+                                       contest.status === 'evaluation' ? '#92400e' : '#1e40af'
+                              }}
                             >
-                              <option value="open">Open</option>
-                              <option value="evaluation">Evaluation</option>
-                              <option value="closed">Closed</option>
+                              <option value="open" style={{ backgroundColor: '#dcfce7', color: '#166534' }}>Open</option>
+                              <option value="evaluation" style={{ backgroundColor: '#fef3c7', color: '#92400e' }}>Evaluation</option>
+                              <option value="closed" style={{ backgroundColor: '#dbeafe', color: '#1e40af' }}>Closed</option>
                             </select>
                           </td>
                           <td className="px-3 py-4 text-sm">
@@ -834,7 +863,12 @@ const DashboardPage: React.FC = () => {
                       {filteredTexts.map((text) => (
                         <tr key={text.id}>
                           <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900">
-                            {text.title}
+                            <button
+                              onClick={() => handleOpenTextFullModal(text)}
+                              className="text-indigo-600 hover:text-indigo-900 hover:underline text-left"
+                            >
+                              {text.title}
+                            </button>
                           </td>
                           <td className="px-3 py-4 text-sm text-gray-500">
                             {text.content.length > 50 
@@ -1193,11 +1227,11 @@ const DashboardPage: React.FC = () => {
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
                 </div>
-              ) : submissionsForSelectedContest.length === 0 ? (
+              ) : contestSubmissions.length === 0 ? (
                 <p className="text-gray-500 text-center py-10">No submissions found for this contest.</p>
               ) : (
                 <div className="space-y-4">
-                  {submissionsForSelectedContest.map((submission) => (
+                  {contestSubmissions.map((submission) => (
                     <div key={submission.id} className="p-4 border border-gray-200 rounded-md shadow-sm bg-white">
                       <h4 className="text-md font-semibold text-indigo-700 mb-1">{submission.title || 'Untitled Submission'}</h4>
                       <p className="text-xs text-gray-500 mb-1">
@@ -1247,15 +1281,15 @@ const DashboardPage: React.FC = () => {
       )}
 
       {/* Full Submission Content Modal (Nested inside DashboardPage return) */}
-      {isFullContentModalOpen && selectedSubmissionForContent && (
+      {showFullSubmissionModal && selectedSubmissionForModal && (
         <FullTextModal
-          isOpen={isFullContentModalOpen}
+          isOpen={showFullSubmissionModal}
           onClose={handleCloseFullContentModal}
-          title={selectedSubmissionForContent.title || 'Submission Content'}
-          content={selectedSubmissionForContent.content}
-          author={typeof selectedSubmissionForContent.author === 'string' 
-            ? selectedSubmissionForContent.author 
-            : selectedSubmissionForContent.author?.username
+          title={selectedSubmissionForModal.title || 'Submission Content'}
+          content={selectedSubmissionForModal.content}
+          author={typeof selectedSubmissionForModal.author === 'string' 
+            ? selectedSubmissionForModal.author 
+            : selectedSubmissionForModal.author?.username
           }
         />
       )}
@@ -1271,6 +1305,17 @@ const DashboardPage: React.FC = () => {
           contestId={selectedContestForJudges.id}
           contestTitle={selectedContestForJudges.title}
           judgeRestrictions={selectedContestForJudges.judge_restrictions}
+        />
+      )}
+
+      {/* Full Text Modal for My Texts */}
+      {showFullTextModal && selectedTextForFullModal && (
+        <FullTextModal
+          isOpen={showFullTextModal}
+          onClose={handleCloseTextFullModal}
+          title={selectedTextForFullModal.title}
+          content={selectedTextForFullModal.content}
+          author={selectedTextForFullModal.author}
         />
       )}
     </div>

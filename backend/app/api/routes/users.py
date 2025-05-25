@@ -84,6 +84,36 @@ async def get_user_judge_contests(
     
     return response_list
 
+@router.get("/author-contests", response_model=List[ContestResponse])
+async def get_user_author_contests(
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user)
+):
+    """
+    Get all contests where the current user has submitted texts as an author.
+    More efficient than fetching all submissions and extracting contests.
+    """
+    contests = await ContestService.get_contests_where_user_is_author(
+        db=db,
+        user_id=current_user.id,
+        skip=skip,
+        limit=limit
+    )
+    
+    # Transform the Contest models to ContestResponse
+    response_list = []
+    for contest_orm in contests:
+        # Fetch details including counts for each contest
+        contest_data_with_counts = await ContestRepository.get_contest_with_counts(db=db, contest_id=contest_orm.id)
+        if contest_data_with_counts:
+            # Reflect whether a password is set on each contest
+            contest_data_with_counts['has_password'] = bool(contest_data_with_counts.get('password'))
+            response_list.append(ContestResponse.model_validate(contest_data_with_counts))
+    
+    return response_list
+
 @router.get("/{user_id}/public", response_model=UserPublicResponse)
 async def get_user_public(
     user_id: int,

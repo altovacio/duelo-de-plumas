@@ -51,7 +51,7 @@ const JudgeManagementModal: React.FC<JudgeManagementModalProps> = ({
       const judgesData = await getContestJudges(contestId);
       setJudges(judgesData);
       
-      // Also load AI agents for the second tab
+      // Refresh available AI agents after judges are updated to ensure proper filtering
       fetchAvailableAIAgents();
     } catch (err: any) {
       console.error('Error fetching judges:', err);
@@ -79,6 +79,7 @@ const JudgeManagementModal: React.FC<JudgeManagementModalProps> = ({
       const judgeAgents = agents.filter(agent => agent.type === 'judge');
       
       // Filter out agents that are already assigned as judges
+      // Use the current judges state to filter properly
       const availableAgents = judgeAgents.filter(agent => 
         !judges.some(judge => judge.agent_judge_id === agent.id)
       );
@@ -87,6 +88,7 @@ const JudgeManagementModal: React.FC<JudgeManagementModalProps> = ({
     } catch (err) {
       console.error('Error fetching AI agents:', err);
       // Don't set error state to avoid disrupting the main judges view
+      setAvailableAIAgents([]);
     } finally {
       setIsLoadingAgents(false);
     }
@@ -392,10 +394,13 @@ const JudgeManagementModal: React.FC<JudgeManagementModalProps> = ({
                     {availableAIAgents.map(agent => (
                       <li key={agent.id} className="flex justify-between items-center p-3 hover:bg-gray-50">
                         <div>
-                          <span className="font-medium">{agent.name}</span>
-                          <span className="text-xs ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full">
-                            {agent.model}
-                          </span>
+                          <div className="flex items-center">
+                            <span className="font-medium">{agent.name}</span>
+                            <span className="text-xs ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full">
+                              {agent.model}
+                            </span>
+                            {/* Remove voting status tags from available agents - they aren't judges yet */}
+                          </div>
                           <p className="text-sm text-gray-500 mt-1">{agent.description}</p>
                         </div>
                         <button
@@ -438,6 +443,16 @@ const JudgeManagementModal: React.FC<JudgeManagementModalProps> = ({
                           {judge.agent_judge_id && (
                             <span className="ml-2 text-xs px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full">
                               AI
+                            </span>
+                          )}
+                          {judge.has_voted && (
+                            <span className="ml-2 text-xs px-2 py-0.5 bg-green-100 text-green-800 rounded-full">
+                              ✓ Voted
+                            </span>
+                          )}
+                          {!judge.has_voted && judge.agent_judge_id && (
+                            <span className="ml-2 text-xs px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded-full">
+                              Pending
                             </span>
                           )}
                         </div>

@@ -12,6 +12,7 @@ interface AIJudgeExecutionFormProps {
   onSuccess: () => void;
   onCancel: () => void;
   availableAgents: Agent[];
+  judges?: any[]; // Optional judges data to show voting status
 }
 
 interface FormData {
@@ -25,7 +26,8 @@ const AIJudgeExecutionForm: React.FC<AIJudgeExecutionFormProps> = ({
   averageTextLength,
   onSuccess,
   onCancel,
-  availableAgents
+  availableAgents,
+  judges = []
 }) => {
   console.log('[AIJudgeExecutionForm] Component loaded with agent selection fix v2.0');
   console.log('Available agents on component load:', availableAgents);
@@ -210,11 +212,25 @@ const AIJudgeExecutionForm: React.FC<AIJudgeExecutionFormProps> = ({
                 onChange={e => field.onChange(Number(e.target.value))}
                 className="w-full px-3 py-2 border rounded-lg"
               >
-                {availableAgents.map(agent => (
-                  <option key={agent.id} value={agent.id}>
-                    {agent.name} - {agent.description}
-                  </option>
-                ))}
+                {/* Sort agents by voting status - pending first, then already voted */}
+                {availableAgents
+                  .sort((a, b) => {
+                    // Check if agent has voted by looking in judges data
+                    const aHasVoted = judges.find(j => j.agent_judge_id === a.id)?.has_voted || false;
+                    const bHasVoted = judges.find(j => j.agent_judge_id === b.id)?.has_voted || false;
+                    if (aHasVoted === bHasVoted) return 0;
+                    return aHasVoted ? 1 : -1; // Pending (not voted) first
+                  })
+                  .map(agent => {
+                    // Check if this agent has already voted
+                    const hasVoted = judges.find(j => j.agent_judge_id === agent.id)?.has_voted || false;
+                    const statusText = hasVoted ? ' ✓ Voted' : ' (Pending)';
+                    return (
+                      <option key={agent.id} value={agent.id}>
+                        {agent.name} - {agent.description}{statusText}
+                      </option>
+                    );
+                  })}
                 {availableAgents.length === 0 && (
                   <option disabled value={0}>No AI judges available</option>
                 )}

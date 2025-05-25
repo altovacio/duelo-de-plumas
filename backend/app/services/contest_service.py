@@ -594,6 +594,17 @@ class ContestService:
         return await ContestRepository.get_contests_for_judge(db, user_judge_id=user_id, skip=skip, limit=limit)
 
     @staticmethod
+    async def get_contests_where_user_is_author(db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100) -> List[Contest]:
+        """Get contests where the specified user has submitted texts as an author."""
+        # Validate user exists (optional, but good practice)
+        user_repo = UserRepository(db)
+        author_user = await user_repo.get_by_id(user_id)
+        if not author_user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"User with id {user_id} not found.")
+
+        return await ContestRepository.get_contests_for_author(db, user_id=user_id, skip=skip, limit=limit)
+
+    @staticmethod
     async def get_contest_submissions(
         db: AsyncSession,
         contest_id: int,

@@ -322,4 +322,23 @@ class ContestRepository:
             ContestJudge.user_judge_id == user_judge_id # Filter by user judge ID
         ).order_by(Contest.id.desc()).offset(skip).limit(limit)
         result = await db.execute(stmt)
+        return result.scalars().all()
+    
+    @staticmethod
+    async def get_contests_for_author(db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100) -> List[Contest]:
+        """Get all contests where the given user has submitted texts as an author."""
+        from app.db.models.contest_text import ContestText
+        from app.db.models.text import Text
+        
+        stmt = (
+            select(Contest)
+            .join(ContestText, Contest.id == ContestText.contest_id)
+            .join(Text, ContestText.text_id == Text.id)
+            .filter(Text.owner_id == user_id)
+            .distinct()
+            .order_by(Contest.id.desc())
+            .offset(skip)
+            .limit(limit)
+        )
+        result = await db.execute(stmt)
         return result.scalars().all() 

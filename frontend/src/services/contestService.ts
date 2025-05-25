@@ -175,28 +175,40 @@ export const removeJudgeFromContest = async (contestId: number, judgeAssignmentI
   await apiClient.delete(`/contests/${contestId}/judges/${judgeAssignmentId}`);
 };
 
-// Get contests where the current user is participating (as author)
-export const getAuthorParticipation = async (): Promise<Contest[]> => {
+// Get contests where the current user is an author (using the optimized endpoint)
+export const getAuthorContests = async (skip: number = 0, limit: number = 100): Promise<Contest[]> => {
   try {
-    // This should get contests where user has submitted as an author
-    const response = await apiClient.get('/contests', { params: { author: 'me' } });
+    const response = await apiClient.get('/users/author-contests', { 
+      params: { skip, limit } 
+    });
     return response.data;
   } catch (error) {
-    // If there's an error, return empty array to avoid breaking the UI
-    console.error("Error fetching author participation:", error);
+    console.error("Error fetching author contests:", error);
     return [];
   }
 };
 
-// Get contests where the current user is a judge (human or through AI)
+// Get contests where the current user is participating (as author) - using optimized endpoint
+export const getAuthorParticipation = async (): Promise<Contest[]> => {
+  // Use the new optimized endpoint that does efficient SQL joins on the backend
+  // instead of fetching all submissions and making individual contest API calls
+  return getAuthorContests();
+};
+
+// Get contests where the current user is a judge (human or through AI) - using proper endpoint
 export const getJudgeParticipation = async (): Promise<Contest[]> => {
+  return getJudgeContests();
+};
+
+// Get contests where the current user is a judge (using the proper endpoint)
+export const getJudgeContests = async (skip: number = 0, limit: number = 100): Promise<Contest[]> => {
   try {
-    // This should get contests where user is assigned as a judge
-    const response = await apiClient.get('/contests', { params: { judge: 'me' } });
+    const response = await apiClient.get('/users/judge-contests', { 
+      params: { skip, limit } 
+    });
     return response.data;
   } catch (error) {
-    // If there's an error, return empty array to avoid breaking the UI
-    console.error("Error fetching judge participation:", error);
+    console.error("Error fetching judge contests:", error);
     return [];
   }
 }; 

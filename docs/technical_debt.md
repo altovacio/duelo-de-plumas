@@ -6,6 +6,7 @@ This document lists known technical debt, areas for refactoring, and potential f
 AI input/output log
 Review Writer I/O
 Review Judge I/O
+When deleting a user the transactions are lost from admin
 
 ## TODO
 purchase credits? verify. We have a function for that, but not an endpoint nor a defined method.
@@ -23,6 +24,12 @@ Submitting texts, grey out or at least return the already submitted error.
 Change defaults for contest creations. 
 Username display in user submissions and in contest author.
 -About Terms Privacy Footer
+select inload optimization
+other optimizations
+
+
+🔧 Alternative: Fix the SPA Routing Issue
+If you want to fix the direct URL typing issue completely, you would need to configure your web server (nginx, Apache, etc.) to serve the React app for all routes that don't exist on the server. This is typically done with a "catch-all" rule that serves index.html for any route that doesn't match a file. 🎉
 
 
 ## Admin Backend Endpoints Needed

@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 import uvicorn
 
 # Import routers
-from app.api.routes import auth, users, texts, contests, votes, admin, dashboard, agents, llm_models
+from app.api.routes import auth, users, texts, contests, votes, admin, dashboard, agents, llm_models, debug_logs
 # Import other routers as they become available
 
 from app.core.config import settings
@@ -53,6 +53,7 @@ app.include_router(admin.router, prefix="/admin", tags=["admin"])
 app.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
 app.include_router(agents.router, prefix="/agents", tags=["agents"])
 app.include_router(llm_models.router, prefix="/models", tags=["llm_models"])
+app.include_router(debug_logs.router, prefix="", tags=["debug_logs"])  # No prefix since routes already include /admin
 # Include other routers as they become available
 
 @app.get("/")

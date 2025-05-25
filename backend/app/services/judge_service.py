@@ -463,7 +463,12 @@ class JudgeService:
             model=request.model,
             personality_prompt=agent.prompt,
             contest_description=contest.description,
-            texts=texts_for_ai
+            texts=texts_for_ai,
+            # Debug parameters
+            db_session=db,
+            user_id=judge_context.user_id,
+            agent_id=judge_context.agent_id,
+            contest_id=request.contest_id
         )
         
         # Parse AI response into vote data

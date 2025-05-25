@@ -1,4 +1,5 @@
 import re
+import time
 from typing import List, Dict, Tuple, Optional, Any
 import logging # Added standard logging
 
@@ -21,7 +22,12 @@ class SimpleChatCompletionJudgeStrategy(JudgeStrategyInterface):
         contest_description: str,
         texts: List[Dict[str, Any]],
         temperature: Optional[float], # Now optional, AIService can pass None
-        max_tokens: Optional[int]     # Now optional
+        max_tokens: Optional[int],     # Now optional
+        # Debug logging parameters (optional)
+        db_session=None,
+        user_id: Optional[int] = None,
+        agent_id: Optional[int] = None,
+        contest_id: Optional[int] = None
     ) -> Tuple[List[Dict[str, Any]], int, int]: # parsed_votes, prompt_tokens, completion_tokens
 
         texts_to_judge_prompt_block = []
@@ -44,6 +50,9 @@ class SimpleChatCompletionJudgeStrategy(JudgeStrategyInterface):
         current_temperature = temperature
         current_max_tokens = max_tokens
 
+        # Track execution time for debug logging
+        start_time = time.time()
+
         llm_response, prompt_tokens, completion_tokens = await provider.generate_text(
             model_id=model_id,
             prompt=full_prompt,
@@ -52,9 +61,46 @@ class SimpleChatCompletionJudgeStrategy(JudgeStrategyInterface):
             max_tokens=current_max_tokens
         )
 
+        execution_time_ms = int((time.time() - start_time) * 1000)
+        
         parsed_votes = self._parse_judge_llm_response(llm_response, texts)
         
-                        # Debug logging        logger.info(f"Judge Strategy Debug - Original texts count: {len(texts)}")        logger.info(f"Judge Strategy Debug - Parsed votes count: {len(parsed_votes)}")        print(f"DEBUG: Judge Strategy - Original texts count: {len(texts)}")        print(f"DEBUG: Judge Strategy - Parsed votes count: {len(parsed_votes)}")        for i, vote in enumerate(parsed_votes):            logger.info(f"Judge Strategy Debug - Vote {i+1}: text_id={vote.get('text_id')}, text_place={vote.get('text_place')}, comment_preview={vote.get('comment', '')[:50]}...")            print(f"DEBUG: Judge Strategy - Vote {i+1}: text_id={vote.get('text_id')}, text_place={vote.get('text_place')}, comment_preview={vote.get('comment', '')[:50]}...")
+        # Debug logging (development only)
+        if db_session is not None:
+            from app.utils.debug_logger import AIDebugLogger
+            from app.utils.ai_models import estimate_cost_usd
+            
+            # Calculate cost
+            cost_usd = estimate_cost_usd(model_id, prompt_tokens, completion_tokens)
+            
+            # Prepare strategy input for logging
+            strategy_input = {
+                "personality_prompt": personality_prompt,
+                "contest_description": contest_description,
+                "texts_count": len(texts),
+                "texts_summary": [
+                    {"id": text.get("id"), "title": text.get("title"), "length": len(text.get("content", ""))}
+                    for text in texts
+                ],
+                "temperature": temperature,
+                "max_tokens": max_tokens
+            }
+            
+            await AIDebugLogger.log_judge_operation(
+                db=db_session,
+                user_id=user_id,
+                agent_id=agent_id,
+                contest_id=contest_id,
+                model_id=model_id,
+                strategy_input=strategy_input,
+                llm_prompt=full_prompt,
+                llm_response=llm_response,
+                parsed_output=parsed_votes,
+                execution_time_ms=execution_time_ms,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                cost_usd=cost_usd
+            )
         
         return parsed_votes, prompt_tokens, completion_tokens
 

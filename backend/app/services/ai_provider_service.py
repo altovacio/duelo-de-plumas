@@ -360,7 +360,7 @@ class AnthropicProvider(AIProviderInterface):
             "model": model_id,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": temperature,
-            "max_tokens": max_tokens or 1024
+            "max_tokens": max_tokens or 2048
         }
         
         if system_message:

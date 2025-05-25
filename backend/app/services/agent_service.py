@@ -228,6 +228,10 @@ class AgentService:
                 user_guidance_title=request.title,
                 user_guidance_description=request.description,
                 contest_description=request.contest_description,
+                # Debug parameters
+                db_session=db,
+                user_id=current_user_id,
+                agent_id=agent.id
             )
             
             actual_credits_used = estimate_credits(request.model, actual_prompt_tokens, actual_completion_tokens)

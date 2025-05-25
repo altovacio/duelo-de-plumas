@@ -78,7 +78,11 @@ class AIService:
         contest_description: Optional[str] = None,
         temperature: Optional[float] = None, 
         max_tokens: Optional[int] = None,
-        strategy_name: str = "simple_chat_completion" 
+        strategy_name: str = "simple_chat_completion",
+        # Debug logging parameters (optional)
+        db_session=None,
+        user_id: Optional[int] = None,
+        agent_id: Optional[int] = None
     ) -> Tuple[str, int, int]:
         
         provider = cls._get_provider(model)
@@ -106,7 +110,11 @@ class AIService:
                 user_guidance_title=user_guidance_title,
                 user_guidance_description=user_guidance_description,
                 temperature=actual_temperature, 
-                max_tokens=actual_max_tokens
+                max_tokens=actual_max_tokens,
+                # Pass debug logging parameters
+                db_session=db_session,
+                user_id=user_id,
+                agent_id=agent_id
             )
             
             return generated_content, prompt_tokens, completion_tokens
@@ -129,7 +137,12 @@ class AIService:
         texts: List[Dict[str, Any]],
         temperature: Optional[float] = None, 
         max_tokens: Optional[int] = None,    
-        strategy_name: str = "simple_chat_completion"
+        strategy_name: str = "simple_chat_completion",
+        # Debug logging parameters (optional)
+        db_session=None,
+        user_id: Optional[int] = None,
+        agent_id: Optional[int] = None,
+        contest_id: Optional[int] = None
     ) -> Tuple[List[Dict[str, Any]], int, int]:
         
         provider = cls._get_provider(model)
@@ -156,7 +169,12 @@ class AIService:
                 contest_description=contest_description,
                 texts=texts,
                 temperature=actual_temperature,
-                max_tokens=actual_max_tokens   
+                max_tokens=actual_max_tokens,
+                # Pass debug logging parameters
+                db_session=db_session,
+                user_id=user_id,
+                agent_id=agent_id,
+                contest_id=contest_id
             )
 
             total_tokens = prompt_tokens + completion_tokens

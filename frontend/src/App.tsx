@@ -20,6 +20,7 @@ import AdminUsersPage from './pages/Admin/AdminUsersPage';
 import AdminAgentsPage from './pages/Admin/AdminAgentsPage';
 import AdminMonitoringPage from './pages/Admin/AdminMonitoringPage';
 import AdminContestsPage from './pages/Admin/AdminContestsPage';
+import AdminAIDebugLogsPage from './pages/Admin/AdminAIDebugLogsPage';
 
 function App() {
   const loadUser = useAuthStore((state) => state.loadUser);
@@ -60,6 +61,7 @@ function App() {
           <Route path="/admin/agents" element={<MainLayout><AdminAgentsPage /></MainLayout>} />
           <Route path="/admin/monitoring" element={<MainLayout><AdminMonitoringPage /></MainLayout>} />
           <Route path="/admin/contests" element={<MainLayout><AdminContestsPage /></MainLayout>} />
+          <Route path="/admin/ai-debug-logs" element={<MainLayout><AdminAIDebugLogsPage /></MainLayout>} />
         </Route>
 
         {/* Fallback route */}

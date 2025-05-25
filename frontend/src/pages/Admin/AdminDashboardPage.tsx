@@ -73,6 +73,14 @@ const AdminDashboardPage: React.FC = () => {
         </Link>
       </div>
       
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+        <Link to="/admin/ai-debug-logs" className="bg-orange-50 border border-orange-200 rounded-lg shadow p-6 hover:shadow-md transition-shadow">
+          <h2 className="text-xl font-semibold mb-2 text-orange-800">🔍 AI Debug Logs</h2>
+          <p className="text-orange-700">View LLM inputs/outputs (Dev only)</p>
+          <p className="text-sm text-orange-600 mt-2">Development debugging tool</p>
+        </Link>
+      </div>
+      
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-xl font-semibold mb-4">Platform Overview</h2>
         

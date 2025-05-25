@@ -1,3 +1,4 @@
+import time
 from typing import Tuple, Optional, List, Dict, Any
 from app.services.ai_strategies.base_strategy import WriterStrategyInterface
 from app.services.ai_provider_service import AIProviderInterface
@@ -16,7 +17,11 @@ class SimpleChatCompletionWriterStrategy(WriterStrategyInterface):
         user_guidance_title: Optional[str],
         user_guidance_description: Optional[str],
         temperature: float,
-        max_tokens: Optional[int]
+        max_tokens: Optional[int],
+        # Debug logging parameters (optional)
+        db_session=None,
+        user_id: Optional[int] = None,
+        agent_id: Optional[int] = None
     ) -> Tuple[str, int, int]: # generated_content, prompt_tokens, completion_tokens
         
         input_prompt_parts = []
@@ -48,6 +53,9 @@ class SimpleChatCompletionWriterStrategy(WriterStrategyInterface):
         # as instructions are baked into the full_prompt.
         system_message_for_provider = None
 
+        # Track execution time for debug logging
+        start_time = time.time()
+        
         generated_content, prompt_tokens, completion_tokens = await provider.generate_text(
             model_id=model_id,
             prompt=full_prompt,
@@ -55,4 +63,40 @@ class SimpleChatCompletionWriterStrategy(WriterStrategyInterface):
             temperature=temperature,
             max_tokens=max_tokens
         )
+        
+        execution_time_ms = int((time.time() - start_time) * 1000)
+        
+        # Debug logging (development only)
+        if db_session is not None:
+            from app.utils.debug_logger import AIDebugLogger
+            from app.utils.ai_models import estimate_cost_usd
+            
+            # Calculate cost
+            cost_usd = estimate_cost_usd(model_id, prompt_tokens, completion_tokens)
+            
+            # Prepare strategy input for logging
+            strategy_input = {
+                "personality_prompt": personality_prompt,
+                "contest_description": contest_description,
+                "user_guidance_title": user_guidance_title,
+                "user_guidance_description": user_guidance_description,
+                "temperature": temperature,
+                "max_tokens": max_tokens
+            }
+            
+            await AIDebugLogger.log_writer_operation(
+                db=db_session,
+                user_id=user_id,
+                agent_id=agent_id,
+                model_id=model_id,
+                strategy_input=strategy_input,
+                llm_prompt=full_prompt,
+                llm_response=generated_content,
+                parsed_output=generated_content,  # For writer, output = response
+                execution_time_ms=execution_time_ms,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                cost_usd=cost_usd
+            )
+        
         return generated_content, prompt_tokens, completion_tokens 

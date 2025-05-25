@@ -17,6 +17,7 @@ from app.db.models.vote import Vote
 from app.db.models.agent import Agent
 from app.db.models.agent_execution import AgentExecution
 from app.db.models.credit_transaction import CreditTransaction
+from app.db.models.ai_debug_log import AIDebugLog
 
 from app.db.database import Base
 from app.core.config import settings

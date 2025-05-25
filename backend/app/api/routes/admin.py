@@ -23,7 +23,7 @@ async def get_all_users(
 ):
     """Get all users (admin only)."""
     user_service = UserService(db)
-    return await user_service.get_all_users(skip=skip, limit=limit)
+    return await user_service.get_users(skip=skip, limit=limit)
 
 
 @router.patch("/users/{user_id}/credits", response_model=CreditTransactionResponse)

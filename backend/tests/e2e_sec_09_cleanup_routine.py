@@ -121,17 +121,19 @@ async def test_09_05_user1_deletes_judge1_ai_judge(client: AsyncClient): # MODIF
     # This makes verifying remaining votes from judge1 difficult with current test flow.
     # For now, we check costs are not affected (meaning no refund/charge for deleting an agent).
 
-    user1_details_before_resp = await client.get(f"/users/me", headers=test_data["user1_headers"])
+    user1_details_before_resp = await client.get("/users/me", headers=test_data["user1_headers"])
     assert user1_details_before_resp.status_code == 200
-    initial_credits_user1 = UserResponse(**user1_details_before_resp.json()).credits
+    user1_details_before_data = user1_details_before_resp.json()
+    initial_credits_user1 = user1_details_before_data['credits']
 
     response = await client.delete(f"/agents/{judge1_id}", headers=test_data["user1_headers"])
     assert response.status_code == 204, f"User 1 failed to delete judge1: {response.text}"
     print(f"User 1 successfully deleted judge1 (ID: {judge1_id}). Associated votes (if any on other contests) should remain.")
 
-    user1_details_after_resp = await client.get(f"/users/me", headers=test_data["user1_headers"])
+    user1_details_after_resp = await client.get("/users/me", headers=test_data["user1_headers"])
     assert user1_details_after_resp.status_code == 200
-    final_credits_user1 = UserResponse(**user1_details_after_resp.json()).credits
+    user1_details_after_data = user1_details_after_resp.json()
+    final_credits_user1 = user1_details_after_data['credits']
     assert final_credits_user1 == initial_credits_user1, "User 1 credits changed after deleting their AI judge."
     print(f"User 1 credits confirmed unchanged after deleting judge1. Before: {initial_credits_user1}, After: {final_credits_user1}.")
 
@@ -218,8 +220,12 @@ async def test_09_10_admin_deletes_user1(client: AsyncClient): # MODIFIED: async
     assert response.status_code == 204, f"Admin failed to delete User 1: {response.text}"
     print(f"Admin successfully deleted User 1 (ID: {user1_id}). Associated submissions are expected to be deleted.")
     
-    get_response = await client.get(f"/users/{user1_id}", headers=test_data["admin_headers"])
-    assert get_response.status_code == 404, f"User 1 (ID: {user1_id}) should be deleted (404), but got {get_response.status_code}"
+    # Verify user is deleted by checking admin users list
+    users_resp = await client.get("/admin/users", headers=test_data["admin_headers"])
+    assert users_resp.status_code == 200
+    users_data = users_resp.json()
+    user1_exists = any(u['id'] == user1_id for u in users_data)
+    assert not user1_exists, f"User 1 (ID: {user1_id}) should be deleted but still exists in admin users list"
     if "user1_id" in test_data: del test_data["user1_id"]
     if "user1_headers" in test_data: del test_data["user1_headers"] # Invalidate token
 
@@ -234,8 +240,12 @@ async def test_09_11_admin_deletes_user2(client: AsyncClient): # MODIFIED: async
     assert response.status_code == 204, f"Admin failed to delete User 2: {response.text}"
     print(f"Admin successfully deleted User 2 (ID: {user2_id}). Associated submissions are expected to be deleted.")
 
-    get_response = await client.get(f"/users/{user2_id}", headers=test_data["admin_headers"])
-    assert get_response.status_code == 404, f"User 2 (ID: {user2_id}) should be deleted (404), but got {get_response.status_code}"
+    # Verify user is deleted by checking admin users list
+    users_resp = await client.get("/admin/users", headers=test_data["admin_headers"])
+    assert users_resp.status_code == 200
+    users_data = users_resp.json()
+    user2_exists = any(u['id'] == user2_id for u in users_data)
+    assert not user2_exists, f"User 2 (ID: {user2_id}) should be deleted but still exists in admin users list"
     if "user2_id" in test_data: del test_data["user2_id"]
     if "user2_headers" in test_data: del test_data["user2_headers"] # Invalidate token
 

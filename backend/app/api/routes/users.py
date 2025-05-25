@@ -152,7 +152,7 @@ async def update_user_credits(
     service = UserService(db)
     return await service.update_user_credits(user_id, credit_data)
 
-@router.delete("/{user_id}")
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(
     user_id: int,
     db: AsyncSession = Depends(get_db),
@@ -160,5 +160,5 @@ async def delete_user(
 ):
     """Delete a user (admin only)."""
     service = UserService(db)
-    await service.delete_user(user_id)
-    return {"message": "User deleted successfully"} 
+    await service.delete_user(user_id, current_user)
+    return None 

@@ -111,7 +111,7 @@ async def test_04_06_user1_uses_writer1_no_credits_fails(client: AsyncClient): #
     assert "user1_headers" in test_data and "user1_id" in test_data, "User 1 token/ID not found."
     assert "writer1_id" in test_data, "Writer 1 ID not found."
 
-    user_response = await client.get(f"/users/{test_data['user1_id']}", headers=test_data["user1_headers"]) # Changed
+    user_response = await client.get("/users/me", headers=test_data["user1_headers"]) # Changed
     assert user_response.status_code == 200
     initial_credits = UserResponse(**user_response.json()).credits
     # This assertion might be too strict if previous tests could alter credits.
@@ -131,7 +131,7 @@ async def test_04_06_user1_uses_writer1_no_credits_fails(client: AsyncClient): #
     )
     assert response.status_code == 402, f"User 1 using writer1 with no credits should fail (402 Payment Required), got {response.status_code}: {response.text}"
     
-    user_response_after = await client.get(f"/users/{test_data['user1_id']}", headers=test_data["user1_headers"]) # Changed
+    user_response_after = await client.get("/users/me", headers=test_data["user1_headers"]) # Changed
     assert user_response_after.status_code == 200
     assert UserResponse(**user_response_after.json()).credits == initial_credits
     print("User 1 using writer1 with no credits failed as expected (402), credits unchanged.")
@@ -167,13 +167,13 @@ async def test_04_07_admin_assigns_credits(client: AsyncClient): # Changed
     # We cannot assert new_balance directly from the transaction response
 
     # Verify final balances by querying user data
-    user1_final_resp = await client.get(f"/users/{test_data['user1_id']}", headers=test_data["admin_headers"]) # Use admin headers to view
-    assert user1_final_resp.status_code == 200
-    assert UserResponse(**user1_final_resp.json()).credits == 50 # Assert final balance
-
-    user2_final_resp = await client.get(f"/users/{test_data['user2_id']}", headers=test_data["admin_headers"]) # Use admin headers to view
-    assert user2_final_resp.status_code == 200
-    assert UserResponse(**user2_final_resp.json()).credits == 100 # Assert final balance
+    users_resp = await client.get("/admin/users", headers=test_data["admin_headers"]) # Use admin headers to view
+    assert users_resp.status_code == 200
+    users_data = users_resp.json()
+    user1_data = next(u for u in users_data if u['id'] == test_data['user1_id'])
+    user2_data = next(u for u in users_data if u['id'] == test_data['user2_id'])
+    assert user1_data['credits'] == 50 # Assert final balance
+    assert user2_data['credits'] == 100 # Assert final balance
 
 @pytest.mark.run(after='test_04_07_admin_assigns_credits')
 async def test_04_08_user1_uses_writer1_with_credits_succeeds(client: AsyncClient): # Changed
@@ -181,7 +181,7 @@ async def test_04_08_user1_uses_writer1_with_credits_succeeds(client: AsyncClien
     assert "user1_headers" in test_data and "user1_id" in test_data, "User 1 token/ID not found."
     assert "writer1_id" in test_data, "Writer 1 ID not found."
 
-    user_response_before = await client.get(f"/users/{test_data['user1_id']}", headers=test_data["user1_headers"]) # Changed
+    user_response_before = await client.get("/users/me", headers=test_data["user1_headers"]) # Changed
     initial_credits_user1 = UserResponse(**user_response_before.json()).credits
     assert initial_credits_user1 > 0, "User 1 has no credits before attempting AI generation."
 
@@ -213,13 +213,15 @@ async def test_04_08_user1_uses_writer1_with_credits_succeeds(client: AsyncClien
     assert new_text.owner_id == test_data["user1_id"]
     print(f"User 1 created AI-generated Text 1.2 (ID: {test_data['text1_2_id']}) successfully.")
 
-    user_response_after = await client.get(f"/users/{test_data['user1_id']}", headers=test_data["user1_headers"]) # Changed
+    user_response_after = await client.get("/users/me", headers=test_data["user1_headers"]) # Changed
     final_credits_user1 = UserResponse(**user_response_after.json()).credits
     assert final_credits_user1 == initial_credits_user1 - credits_used_user1, f"User 1 credit balance did not decrease correctly. initial: {initial_credits_user1}, final: {final_credits_user1}, credits used: {credits_used_user1}."
     print(f"User 1 credits decreased from {initial_credits_user1} to {final_credits_user1} (cost: {credits_used_user1}).")
 
-    user_response_user2 = await client.get(f"/users/{test_data['user2_id']}", headers=test_data["admin_headers"]) # Changed
-    initial_credits_user2 = UserResponse(**user_response_user2.json()).credits 
+    users_resp_user2 = await client.get("/admin/users", headers=test_data["admin_headers"]) # Changed
+    users_data_user2 = users_resp_user2.json()
+    user2_data = next(u for u in users_data_user2 if u['id'] == test_data['user2_id'])
+    initial_credits_user2 = user2_data['credits'] 
     print(f"User 2 credits remain: {initial_credits_user2}. This test does not modify them.")
 
 @pytest.mark.run(after='test_04_08_user1_uses_writer1_with_credits_succeeds')
@@ -248,7 +250,7 @@ async def test_04_10_user2_uses_global_writer_succeeds(client: AsyncClient): # C
     assert "user2_headers" in test_data and "user2_id" in test_data, "User 2 token/ID not found."
     assert "writer_global_id" in test_data, "Global Writer ID not found."
 
-    user_response_before = await client.get(f"/users/{test_data['user2_id']}", headers=test_data["user2_headers"]) # Changed
+    user_response_before = await client.get("/users/me", headers=test_data["user2_headers"]) # Changed
     initial_credits_user2 = UserResponse(**user_response_before.json()).credits
     assert initial_credits_user2 > 0, "User 2 has no credits before attempting AI generation."
 
@@ -279,7 +281,7 @@ async def test_04_10_user2_uses_global_writer_succeeds(client: AsyncClient): # C
     assert new_text_user2.owner_id == test_data["user2_id"]
     print(f"User 2 created AI-generated Text 2.2 (ID: {test_data['text2_2_id']}) successfully.")
 
-    user_response_after_user2 = await client.get(f"/users/{test_data['user2_id']}", headers=test_data["user2_headers"]) # Changed
+    user_response_after_user2 = await client.get("/users/me", headers=test_data["user2_headers"]) # Changed
     final_credits_user2 = UserResponse(**user_response_after_user2.json()).credits
     assert final_credits_user2 == initial_credits_user2 - credits_used_user2, "User 2 credit balance did not decrease correctly."
     print(f"User 2 credits decreased from {initial_credits_user2} to {final_credits_user2} (cost: {credits_used_user2}).")
@@ -332,7 +334,7 @@ async def test_04_14_admin_uses_writer_global_succeeds(client: AsyncClient): # C
     assert "admin_headers" in test_data and "admin_id" in test_data, "Admin token/ID not found."
     assert "writer_global_id" in test_data, "Global Writer ID not found."
 
-    user_response_before = await client.get(f"/users/{test_data['admin_id']}", headers=test_data["admin_headers"]) # Changed
+    user_response_before = await client.get("/users/me", headers=test_data["admin_headers"]) # Changed
     initial_credits_admin = UserResponse(**user_response_before.json()).credits
     # Admin has fixed credits, but good to ensure they are positive for testing if costs apply
     # assert initial_credits_admin > 0, "Admin has no credits before attempting AI generation."
@@ -362,7 +364,7 @@ async def test_04_14_admin_uses_writer_global_succeeds(client: AsyncClient): # C
     assert new_text_admin.owner_id == test_data["admin_id"]
     print(f"Admin created AI-generated Text 3.2 (ID: {test_data['text3_2_id']}) successfully.")
 
-    user_response_after = await client.get(f"/users/{test_data['admin_id']}", headers=test_data["admin_headers"]) # Changed
+    user_response_after = await client.get("/users/me", headers=test_data["admin_headers"]) # Changed
     final_credits_admin = UserResponse(**user_response_after.json()).credits
     # Assuming admin credits are not deducted for now (e.g., 1000 stays 1000 or similar logic)
     # This might need adjustment based on actual admin credit logic
@@ -377,9 +379,11 @@ async def test_04_15_admin_uses_user1_writer1_succeeds(client: AsyncClient): # C
     assert "user1_id" in test_data, "User 1 ID not found." # For credit check
 
     # Check User 1's credits before to ensure they are not affected
-    user1_response_before = await client.get(f"/users/{test_data['user1_id']}", headers=test_data["admin_headers"])
-    assert user1_response_before.status_code == 200
-    initial_credits_user1 = UserResponse(**user1_response_before.json()).credits
+    users_resp_before = await client.get("/admin/users", headers=test_data["admin_headers"])
+    assert users_resp_before.status_code == 200
+    users_data_before = users_resp_before.json()
+    user1_data_before = next(u for u in users_data_before if u['id'] == test_data['user1_id'])
+    initial_credits_user1 = user1_data_before['credits']
 
     execute_payload = AgentExecuteWriter(
         agent_id=test_data["writer1_id"],
@@ -410,9 +414,11 @@ async def test_04_15_admin_uses_user1_writer1_succeeds(client: AsyncClient): # C
     print(f"Admin created AI-generated Text 3.3 (ID: {test_data['text3_3_id']}) using writer1 successfully.")
 
     # Verify User 1's credits were NOT affected
-    user1_response_after = await client.get(f"/users/{test_data['user1_id']}", headers=test_data["admin_headers"])
-    assert user1_response_after.status_code == 200
-    final_credits_user1 = UserResponse(**user1_response_after.json()).credits
+    users_resp_after = await client.get("/admin/users", headers=test_data["admin_headers"])
+    assert users_resp_after.status_code == 200
+    users_data_after = users_resp_after.json()
+    user1_data_after = next(u for u in users_data_after if u['id'] == test_data['user1_id'])
+    final_credits_user1 = user1_data_after['credits']
     assert final_credits_user1 == initial_credits_user1, "User 1's credits should not change when admin uses their agent."
     print(f"User 1 credits remain unchanged at {final_credits_user1} after admin used writer1.")
 
@@ -430,7 +436,7 @@ async def test_04_16_user1_creates_text1_4_with_writer1_and_submits_to_contest1(
     assert "contest1_id" in test_data, "Contest 1 ID not found."
 
     # Get User 1's initial credits
-    user_response_before = await client.get(f"/users/{test_data['user1_id']}", headers=test_data["user1_headers"])
+    user_response_before = await client.get("/users/me", headers=test_data["user1_headers"])
     assert user_response_before.status_code == 200
     initial_credits_user1 = UserResponse(**user_response_before.json()).credits
     assert initial_credits_user1 > 0, "User 1 has no credits before attempting AI generation for Text 1.4."
@@ -458,7 +464,7 @@ async def test_04_16_user1_creates_text1_4_with_writer1_and_submits_to_contest1(
     print(f"User 1 created AI-generated Text 1.4 (ID: {test_data['text1_4_id']}) with cost {credits_used_text1_4}.")
 
     # Verify User 1's credit balance decreased
-    user_response_after_gen = await client.get(f"/users/{test_data['user1_id']}", headers=test_data["user1_headers"])
+    user_response_after_gen = await client.get("/users/me", headers=test_data["user1_headers"])
     assert user_response_after_gen.status_code == 200
     final_credits_user1_after_gen = UserResponse(**user_response_after_gen.json()).credits
     assert final_credits_user1_after_gen == initial_credits_user1 - credits_used_text1_4, "User 1 credit balance did not decrease correctly after Text 1.4 generation."

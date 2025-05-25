@@ -348,9 +348,11 @@ async def test_05_14_user1_removes_own_ai_submission_c1_t1_2_no_refund(client: A
     assert "submission_c1_t1_2_id" in test_data, "Submission ID for User 1's text1_2 in contest1 not found."
     submission_id_to_delete = test_data["submission_c1_t1_2_id"]
 
-    user1_before_resp = await client.get(f"/users/{test_data['user1_id']}", headers=test_data["admin_headers"])
-    assert user1_before_resp.status_code == 200
-    user1_credits_before = UserResponse(**user1_before_resp.json()).credits
+    users_resp = await client.get("/admin/users", headers=test_data["admin_headers"])
+    assert users_resp.status_code == 200
+    users_data = users_resp.json()
+    user1_data_before = next(u for u in users_data if u['id'] == test_data['user1_id'])
+    user1_credits_before = user1_data_before['credits']
 
     contest_before_resp = await client.get(f"/contests/{test_data['contest1_id']}")
     assert contest_before_resp.status_code == 200
@@ -363,9 +365,11 @@ async def test_05_14_user1_removes_own_ai_submission_c1_t1_2_no_refund(client: A
     assert response.status_code == 204, f"User 1 removing own AI submission {submission_id_to_delete} from contest1 failed: {response.text}"
     print(f"User 1 successfully removed own AI submission {submission_id_to_delete} from contest1.")
 
-    user1_after_resp = await client.get(f"/users/{test_data['user1_id']}", headers=test_data["admin_headers"])
-    assert user1_after_resp.status_code == 200
-    user1_credits_after = UserResponse(**user1_after_resp.json()).credits
+    users_resp_after = await client.get("/admin/users", headers=test_data["admin_headers"])
+    assert users_resp_after.status_code == 200
+    users_data_after = users_resp_after.json()
+    user1_data_after = next(u for u in users_data_after if u['id'] == test_data['user1_id'])
+    user1_credits_after = user1_data_after['credits']
     assert user1_credits_after == user1_credits_before, \
         f"User 1 credits should not change after removing AI submission. Before: {user1_credits_before}, After: {user1_credits_after}"
 
@@ -387,9 +391,17 @@ async def test_05_15_user2_removes_own_submission_c1_t2_1_succeeds(client: Async
     assert "submission_id_c1_t2_1" in test_data, "Submission ID for User 2's text2_1 in contest1 not found."
     submission_id_to_delete = test_data["submission_id_c1_t2_1"]
     
-    user2_before_resp = await client.get(f"/users/{test_data['user2_id']}", headers=test_data["admin_headers"])
-    assert user2_before_resp.status_code == 200
-    user2_credits_before = UserResponse(**user2_before_resp.json()).credits
+    users_resp = await client.get("/admin/users", headers=test_data["admin_headers"])
+
+    
+    assert users_resp.status_code == 200
+
+    
+    users_data = users_resp.json()
+
+    
+    user2_before_data = next(u for u in users_data if u['id'] == test_data['user2_id'])
+    user2_credits_before = user2_before_data['credits']
 
     contest_before_resp = await client.get(f"/contests/{test_data['contest1_id']}")
     assert contest_before_resp.status_code == 200
@@ -402,9 +414,11 @@ async def test_05_15_user2_removes_own_submission_c1_t2_1_succeeds(client: Async
     assert response.status_code == 204, f"User 2 removing own submission {submission_id_to_delete} from contest1 failed: {response.text}"
     print(f"User 2 successfully removed own submission {submission_id_to_delete} from contest1.")
 
-    user2_after_resp = await client.get(f"/users/{test_data['user2_id']}", headers=test_data["admin_headers"])
-    assert user2_after_resp.status_code == 200
-    user2_credits_after = UserResponse(**user2_after_resp.json()).credits
+    users_resp_after = await client.get("/admin/users", headers=test_data["admin_headers"])
+    assert users_resp_after.status_code == 200
+    users_data_after = users_resp_after.json()
+    user2_after_data = next(u for u in users_data_after if u['id'] == test_data['user2_id'])
+    user2_credits_after = user2_after_data['credits']
     # Project spec: "Un dueño puede en cualquier momento retirar un texto suyo." - no mention of credit refund for manual text submission removal.
     # Test plan implies no refund or doesn't specify. Let's assume no refund for now unless submission had a cost.
     # If submitting a manual text cost credits, a refund might be expected.
@@ -429,9 +443,17 @@ async def test_05_16_user1_removes_own_submission_c2_t1_1_succeeds(client: Async
     assert "submission_c2_t1_1_id" in test_data, "Submission ID for User 1's text1_1 in contest2 not found."
     submission_id_to_delete = test_data["submission_c2_t1_1_id"]
 
-    user1_before_resp = await client.get(f"/users/{test_data['user1_id']}", headers=test_data["admin_headers"])
-    assert user1_before_resp.status_code == 200
-    user1_credits_before = UserResponse(**user1_before_resp.json()).credits
+    users_resp = await client.get("/admin/users", headers=test_data["admin_headers"])
+
+
+    assert users_resp.status_code == 200
+
+
+    users_data = users_resp.json()
+
+
+    user1_before_data = next(u for u in users_data if u['id'] == test_data['user1_id'])
+    user1_credits_before = user1_before_data['credits']
 
     contest2_before_resp = await client.get(
         f"/contests/{test_data['contest2_id']}", 
@@ -451,9 +473,17 @@ async def test_05_16_user1_removes_own_submission_c2_t1_1_succeeds(client: Async
     assert response.status_code == 204, f"User 1 removing submission {submission_id_to_delete} from contest2 failed: {response.text}"
     print(f"User 1 successfully removed submission {submission_id_to_delete} from contest2.")
 
-    user1_after_resp = await client.get(f"/users/{test_data['user1_id']}", headers=test_data["admin_headers"])
-    assert user1_after_resp.status_code == 200
-    user1_credits_after = UserResponse(**user1_after_resp.json()).credits
+    users_resp = await client.get("/admin/users", headers=test_data["admin_headers"])
+
+
+    assert users_resp.status_code == 200
+
+
+    users_data = users_resp.json()
+
+
+    user1_after_data = next(u for u in users_data if u['id'] == test_data['user1_id'])
+    user1_credits_after = user1_after_data['credits']
     assert user1_credits_after == user1_credits_before, \
         f"User 1 credits should not change. Before: {user1_credits_before}, After: {user1_credits_after}"
 
@@ -479,9 +509,11 @@ async def test_05_17_user1_removes_user2_submission_c1_t2_2_succeeds(client: Asy
     assert "submission_c1_t2_2_id" in test_data, "Submission ID for User 2's text2_2 in contest1 not found."
     submission_id_to_delete = test_data["submission_c1_t2_2_id"]
 
-    user2_before_resp = await client.get(f"/users/{test_data['user2_id']}", headers=test_data["admin_headers"])
-    assert user2_before_resp.status_code == 200
-    user2_credits_before = UserResponse(**user2_before_resp.json()).credits
+    users_resp = await client.get("/admin/users", headers=test_data["admin_headers"])
+    assert users_resp.status_code == 200
+    users_data = users_resp.json()
+    user2_before_data = next(u for u in users_data if u['id'] == test_data['user2_id'])
+    user2_credits_before = user2_before_data['credits']
 
     contest1_before_resp = await client.get(f"/contests/{test_data['contest1_id']}")
     assert contest1_before_resp.status_code == 200
@@ -494,9 +526,17 @@ async def test_05_17_user1_removes_user2_submission_c1_t2_2_succeeds(client: Asy
     assert response.status_code == 204, f"User 1 removing User 2's submission {submission_id_to_delete} from contest1 failed: {response.text}"
     print(f"User 1 successfully removed User 2's submission {submission_id_to_delete} from contest1.")
 
-    user2_after_resp = await client.get(f"/users/{test_data['user2_id']}", headers=test_data["admin_headers"])
-    assert user2_after_resp.status_code == 200
-    user2_credits_after = UserResponse(**user2_after_resp.json()).credits
+    users_resp = await client.get("/admin/users", headers=test_data["admin_headers"])
+
+
+    assert users_resp.status_code == 200
+
+
+    users_data = users_resp.json()
+
+
+    user2_after_data = next(u for u in users_data if u['id'] == test_data['user2_id'])
+    user2_credits_after = user2_after_data['credits']
     assert user2_credits_after == user2_credits_before, \
         f"User 2 credits should not change. Before: {user2_credits_before}, After: {user2_credits_after}"
 
@@ -516,9 +556,17 @@ async def test_05_18_user1_resubmits_ai_text1_2_to_contest1(client: AsyncClient)
     assert "contest1_id" in test_data, "Contest 1 ID not found."
     # submission_c1_t1_2_id was deleted, so this is a new submission of the same text
 
-    user1_before_resp = await client.get(f"/users/{test_data['user1_id']}", headers=test_data["admin_headers"])
-    assert user1_before_resp.status_code == 200
-    user1_credits_before = UserResponse(**user1_before_resp.json()).credits
+    users_resp = await client.get("/admin/users", headers=test_data["admin_headers"])
+
+
+    assert users_resp.status_code == 200
+
+
+    users_data = users_resp.json()
+
+
+    user1_before_data = next(u for u in users_data if u['id'] == test_data['user1_id'])
+    user1_credits_before = user1_before_data['credits']
 
     contest_before_resp = await client.get(f"/contests/{test_data['contest1_id']}")
     assert contest_before_resp.status_code == 200
@@ -536,9 +584,17 @@ async def test_05_18_user1_resubmits_ai_text1_2_to_contest1(client: AsyncClient)
     test_data["submission_c1_t1_2_resubmitted_id"] = submission_data["submission_id"] # New ID
     print(f"User 1 successfully re-submitted AI Text 1.2 to contest1. New Submission ID: {submission_data['submission_id']}.")
 
-    user1_after_resp = await client.get(f"/users/{test_data['user1_id']}", headers=test_data["admin_headers"])
-    assert user1_after_resp.status_code == 200
-    user1_credits_after = UserResponse(**user1_after_resp.json()).credits
+    users_resp = await client.get("/admin/users", headers=test_data["admin_headers"])
+
+
+    assert users_resp.status_code == 200
+
+
+    users_data = users_resp.json()
+
+
+    user1_after_data = next(u for u in users_data if u['id'] == test_data['user1_id'])
+    user1_credits_after = user1_after_data['credits']
     assert user1_credits_after == user1_credits_before, \
         f"User 1 credits should not change for AI text resubmission. Before: {user1_credits_before}, After: {user1_credits_after}"
 
@@ -559,9 +615,17 @@ async def test_05_19_admin_removes_user1_ai_submission_no_refund(client: AsyncCl
     assert "submission_c1_t1_2_resubmitted_id" in test_data, "Resubmitted AI submission ID not found."
     submission_id_to_delete = test_data["submission_c1_t1_2_resubmitted_id"]
 
-    user1_before_resp = await client.get(f"/users/{test_data['user1_id']}", headers=test_data["admin_headers"])
-    assert user1_before_resp.status_code == 200
-    user1_credits_before = UserResponse(**user1_before_resp.json()).credits
+    users_resp = await client.get("/admin/users", headers=test_data["admin_headers"])
+
+
+    assert users_resp.status_code == 200
+
+
+    users_data = users_resp.json()
+
+
+    user1_before_data = next(u for u in users_data if u['id'] == test_data['user1_id'])
+    user1_credits_before = user1_before_data['credits']
 
     contest1_before_resp = await client.get(f"/contests/{test_data['contest1_id']}")
     assert contest1_before_resp.status_code == 200
@@ -574,9 +638,17 @@ async def test_05_19_admin_removes_user1_ai_submission_no_refund(client: AsyncCl
     assert response.status_code == 204, f"Admin removing User 1's AI submission {submission_id_to_delete} failed: {response.text}"
     print(f"Admin successfully removed User 1's AI submission {submission_id_to_delete} from contest1.")
 
-    user1_after_resp = await client.get(f"/users/{test_data['user1_id']}", headers=test_data["admin_headers"])
-    assert user1_after_resp.status_code == 200
-    user1_credits_after = UserResponse(**user1_after_resp.json()).credits
+    users_resp = await client.get("/admin/users", headers=test_data["admin_headers"])
+
+
+    assert users_resp.status_code == 200
+
+
+    users_data = users_resp.json()
+
+
+    user1_after_data = next(u for u in users_data if u['id'] == test_data['user1_id'])
+    user1_credits_after = user1_after_data['credits']
     assert user1_credits_after == user1_credits_before, \
         f"User 1 credits should not change. Before: {user1_credits_before}, After: {user1_credits_after}"
 

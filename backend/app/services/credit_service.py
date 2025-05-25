@@ -40,8 +40,8 @@ class CreditService:
         # Create a credit transaction record
         transaction_create = CreditTransactionCreate(
             user_id=user_id,
-            amount=credit_update.credits, # Positive for addition, negative for subtraction
-            transaction_type="addition" if credit_update.credits > 0 else "deduction",
+            amount=credit_update.credits, # Positive for purchases/refunds, negative for consumption
+            transaction_type="admin_adjustment",  # Admin operations are always admin_adjustment
             description=credit_update.description
         )
         db_transaction = await CreditRepository.create_transaction(db, transaction_create)
@@ -94,8 +94,8 @@ class CreditService:
         # Create a credit transaction record
         transaction_create = CreditTransactionCreate(
             user_id=user_id,
-            amount=-amount,  # Negative amount for deduction in transaction log
-            transaction_type="deduction",
+            amount=-amount,  # Negative amount for consumption in transaction log
+            transaction_type="consumption",
             description=description,
             ai_model=ai_model,
             tokens_used=tokens_used,
@@ -149,4 +149,79 @@ class CreditService:
             return True # Or raise error, depends on desired behavior
 
         result = user.credits >= required_credits
-        return result 
+        return result
+    
+    @staticmethod
+    async def add_purchase_credits(
+        db: AsyncSession,
+        user_id: int,
+        amount: int,
+        description: str
+    ) -> CreditTransaction:
+        """
+        Add credits to a user's account from a purchase and record the transaction.
+        """
+        if amount <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Purchase amount must be positive."
+            )
+            
+        user_repo = UserRepository(db)
+        user = await user_repo.get_by_id(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with id {user_id} not found"
+            )
+        
+        # Update user's credit balance
+        await user_repo.update_credits(user_id, UserCredit(amount=amount, description=description))
+        
+        # Create a credit transaction record
+        transaction_create = CreditTransactionCreate(
+            user_id=user_id,
+            amount=amount,
+            transaction_type="purchase",
+            description=description
+        )
+        db_transaction = await CreditRepository.create_transaction(db, transaction_create)
+        return db_transaction
+    
+    @staticmethod
+    async def process_refund(
+        db: AsyncSession,
+        user_id: int,
+        amount: int,
+        description: str
+    ) -> CreditTransaction:
+        """
+        Process a refund for a user and record the transaction.
+        Refunds add credits back to the user's account.
+        """
+        if amount <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Refund amount must be positive."
+            )
+            
+        user_repo = UserRepository(db)
+        user = await user_repo.get_by_id(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with id {user_id} not found"
+            )
+        
+        # Update user's credit balance
+        await user_repo.update_credits(user_id, UserCredit(amount=amount, description=description))
+        
+        # Create a credit transaction record
+        transaction_create = CreditTransactionCreate(
+            user_id=user_id,
+            amount=amount,
+            transaction_type="refund",
+            description=description
+        )
+        db_transaction = await CreditRepository.create_transaction(db, transaction_create)
+        return db_transaction 

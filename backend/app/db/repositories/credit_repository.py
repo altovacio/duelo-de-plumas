@@ -70,47 +70,47 @@ class CreditRepository:
     @staticmethod
     async def get_credit_usage_summary(db: AsyncSession) -> CreditUsageSummary:
         """Get a summary of credit usage across the system."""
-        # Total credits used
-        total_credits_used_stmt = select(func.sum(CreditTransaction.amount)).filter(
-            CreditTransaction.transaction_type == "deduction"
+        # Total credits consumed
+        total_credits_consumed_stmt = select(func.sum(func.abs(CreditTransaction.amount))).filter(
+            CreditTransaction.transaction_type == "consumption"
         )
-        total_credits_used_result = await db.execute(total_credits_used_stmt)
-        total_credits_used = total_credits_used_result.scalar_one_or_none() or 0
+        total_credits_consumed_result = await db.execute(total_credits_consumed_stmt)
+        total_credits_used = total_credits_consumed_result.scalar_one_or_none() or 0
         
-        # Credits used by AI model
+        # Credits consumed by AI model
         usage_by_model_stmt = select(
             CreditTransaction.ai_model,
-            func.sum(CreditTransaction.amount).label("total")
+            func.sum(func.abs(CreditTransaction.amount)).label("total")
         ).filter(
-            CreditTransaction.transaction_type == "deduction",
+            CreditTransaction.transaction_type == "consumption",
             CreditTransaction.ai_model.is_not(None)
         ).group_by(CreditTransaction.ai_model)
         usage_by_model_result = await db.execute(usage_by_model_stmt)
         usage_by_model_rows = usage_by_model_result.all()
-        usage_by_model = {model: abs(total) for model, total in usage_by_model_rows}
+        usage_by_model = {model: total for model, total in usage_by_model_rows}
         
-        # Credits used by user
+        # Credits consumed by user
         usage_by_user_stmt = select(
             User.username,
-            func.sum(CreditTransaction.amount).label("total")
+            func.sum(func.abs(CreditTransaction.amount)).label("total")
         ).join(
             User, User.id == CreditTransaction.user_id
         ).filter(
-            CreditTransaction.transaction_type == "deduction"
+            CreditTransaction.transaction_type == "consumption"
         ).group_by(User.username)
         usage_by_user_result = await db.execute(usage_by_user_stmt)
         usage_by_user_rows = usage_by_user_result.all()
-        usage_by_user = {username: abs(total) for username, total in usage_by_user_rows}
+        usage_by_user = {username: total for username, total in usage_by_user_rows}
         
-        # Average cost per operation
-        operations_count_stmt = select(func.count(CreditTransaction.id)).filter(
-            CreditTransaction.transaction_type == "deduction",
+        # Average cost per consumption operation
+        consumption_count_stmt = select(func.count(CreditTransaction.id)).filter(
+            CreditTransaction.transaction_type == "consumption",
             CreditTransaction.ai_model.is_not(None)
         )
-        operations_count_result = await db.execute(operations_count_stmt)
-        operations_count = operations_count_result.scalar_one_or_none() or 1
+        consumption_count_result = await db.execute(consumption_count_stmt)
+        consumption_count = consumption_count_result.scalar_one_or_none() or 1
         
-        average_cost = abs(total_credits_used) / operations_count if operations_count > 0 else 0
+        average_cost = abs(total_credits_used) / consumption_count if consumption_count > 0 else 0
         
         # Total tokens used
         total_tokens_used_stmt = select(func.sum(CreditTransaction.tokens_used)).filter(
@@ -121,7 +121,7 @@ class CreditRepository:
         
         # Compute real cost in USD using the stored real_cost_usd field
         real_cost_stmt = select(func.sum(CreditTransaction.real_cost_usd)).filter(
-            CreditTransaction.transaction_type == "deduction",
+            CreditTransaction.transaction_type == "consumption",
             CreditTransaction.real_cost_usd.is_not(None)
         )
         real_cost_result = await db.execute(real_cost_stmt)

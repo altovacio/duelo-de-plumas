@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 class CreditTransactionBase(BaseModel):
     amount: int
-    transaction_type: str  # "addition", "deduction"
+    transaction_type: str  # "purchase", "consumption", "refund", "admin_adjustment"
     description: str
 
 

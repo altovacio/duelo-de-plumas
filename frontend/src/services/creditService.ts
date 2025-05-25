@@ -6,8 +6,9 @@ export interface CreditTransaction {
   amount: number;
   transaction_type: 'purchase' | 'consumption' | 'refund' | 'admin_adjustment';
   description: string;
-  related_entity_type?: 'agent' | 'contest' | 'text';
-  related_entity_id?: number;
+  ai_model?: string;
+  tokens_used?: number;
+  real_cost_usd?: number;
   created_at: string;
 }
 

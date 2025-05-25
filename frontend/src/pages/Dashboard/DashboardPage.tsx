@@ -13,6 +13,8 @@ import apiClient from '../../utils/apiClient';
 import JudgeManagementModal from '../../components/Contest/JudgeManagementModal';
 import { useAuthStore } from '../../store/authStore';
 import FullTextModal from '../../components/Common/FullTextModal';
+import { getCurrentUser } from '../../services/authService';
+import { getUserCreditTransactions, type CreditTransaction } from '../../services/creditService';
 
 type TabType = 'overview' | 'contests' | 'texts' | 'agents' | 'participation' | 'credits';
 
@@ -81,6 +83,11 @@ const DashboardPage: React.FC = () => {
   // Dashboard data state
   const [dashboardData, setDashboardData] = useState<any>(null);
 
+  // Transaction history state
+  const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
+  const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
+  const [transactionError, setTransactionError] = useState<string | null>(null);
+
   // Fetch data based on active tab
   useEffect(() => {
     if (activeTab === 'texts') {
@@ -95,8 +102,8 @@ const DashboardPage: React.FC = () => {
     } else if (activeTab === 'participation') {
       fetchParticipation();
     } else if (activeTab === 'credits') {
-      // Credits tab - user data is already up-to-date via auth system
-      // No need to refresh user data here
+      // Fetch transaction history for credits tab
+      fetchTransactions();
     }
   }, [activeTab]);
 
@@ -484,22 +491,34 @@ const DashboardPage: React.FC = () => {
       setIsLoadingParticipation(true);
       setError(null);
       
-      // Use the correct API endpoints from contestService
-      const [authorData, judgeData] = await Promise.all([
+      const [authorContests, judgeContests] = await Promise.all([
         getAuthorParticipation(),
         getJudgeParticipation()
       ]);
       
       setParticipationContests({
-        asAuthor: authorData,
-        asJudge: judgeData
+        asAuthor: authorContests,
+        asJudge: judgeContests
       });
-      
-      setIsLoadingParticipation(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching participation data:', err);
       setError('Failed to load participation data');
+    } finally {
       setIsLoadingParticipation(false);
+    }
+  };
+
+  const fetchTransactions = async () => {
+    try {
+      setIsLoadingTransactions(true);
+      setTransactionError(null);
+      const transactionData = await getUserCreditTransactions();
+      setTransactions(transactionData);
+    } catch (err: any) {
+      console.error('Error fetching transactions:', err);
+      setTransactionError('Failed to load transaction history');
+    } finally {
+      setIsLoadingTransactions(false);
     }
   };
 
@@ -591,18 +610,19 @@ const DashboardPage: React.FC = () => {
           {activeTab === 'overview' && (
             <div>
               <h2 className="text-xl font-medium mb-4">Dashboard Overview</h2>
-              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm text-yellow-700">
-                      You have <span className="font-medium">{dashboardData?.urgent_actions?.length || 0} urgent actions</span> pending.
-                    </p>
-                    {dashboardData?.urgent_actions && dashboardData.urgent_actions.length > 0 && (
+              {/* Only show urgent actions section if there are actually urgent actions */}
+              {dashboardData?.urgent_actions && dashboardData.urgent_actions.length > 0 && (
+                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <p className="text-sm text-yellow-700">
+                        You have <span className="font-medium">{dashboardData.urgent_actions.length} urgent action{dashboardData.urgent_actions.length === 1 ? '' : 's'}</span> pending.
+                      </p>
                       <ul className="mt-2 text-sm text-yellow-700">
                         {dashboardData.urgent_actions.map((action: any, index: number) => (
                           <li key={index} className="mt-1">
@@ -612,10 +632,10 @@ const DashboardPage: React.FC = () => {
                           </li>
                         ))}
                       </ul>
-                    )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-white border border-gray-200 rounded-lg p-4">
                   <h3 className="font-medium text-gray-700">Credit Balance</h3>
@@ -1154,8 +1174,89 @@ const DashboardPage: React.FC = () => {
                   {user?.credits !== undefined ? `${user.credits} credits` : 'Loading...'}
                 </p>
               </div>
-              <h3 className="font-medium text-gray-700 mb-2">Transaction History</h3>
-              <p className="text-gray-500 italic">No transaction history available.</p>
+              
+              <h3 className="font-medium text-gray-700 mb-4">Transaction History</h3>
+              
+              {transactionError && (
+                <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <p className="text-sm text-red-700">{transactionError}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {isLoadingTransactions ? (
+                <div className="flex justify-center items-center h-32">
+                  <svg className="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                </div>
+              ) : transactions.length > 0 ? (
+                <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
+                  <table className="min-w-full divide-y divide-gray-300">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th scope="col" className="py-3 pl-4 pr-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Date</th>
+                        <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Type</th>
+                        <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Amount</th>
+                        <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Description</th>
+                        <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">AI Model</th>
+                        <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Tokens</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 bg-white">
+                      {transactions.map((transaction) => (
+                        <tr key={transaction.id}>
+                          <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-900">
+                            {new Date(transaction.created_at).toLocaleString()}
+                          </td>
+                          <td className="px-3 py-4 text-sm">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              transaction.transaction_type === 'purchase' ? 'bg-green-100 text-green-800' :
+                              transaction.transaction_type === 'refund' ? 'bg-blue-100 text-blue-800' :
+                              transaction.transaction_type === 'admin_adjustment' ? 'bg-purple-100 text-purple-800' :
+                              'bg-red-100 text-red-800'
+                            }`}>
+                              {transaction.transaction_type === 'purchase' ? 'Purchase' :
+                               transaction.transaction_type === 'consumption' ? 'Consumption' :
+                               transaction.transaction_type === 'refund' ? 'Refund' :
+                               'Admin Adjustment'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-4 text-sm font-medium">
+                            <span className={transaction.amount >= 0 ? 'text-green-600' : 'text-red-600'}>
+                              {transaction.amount >= 0 ? '+' : ''}{transaction.amount}
+                            </span>
+                          </td>
+                          <td className="px-3 py-4 text-sm text-gray-900">{transaction.description}</td>
+                          <td className="px-3 py-4 text-sm text-gray-500">
+                            {transaction.ai_model || '-'}
+                          </td>
+                          <td className="px-3 py-4 text-sm text-gray-500">
+                            {transaction.tokens_used ? transaction.tokens_used.toLocaleString() : '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">No transactions</h3>
+                  <p className="mt-1 text-sm text-gray-500">You haven't made any credit transactions yet.</p>
+                </div>
+              )}
             </div>
           )}
         </div>

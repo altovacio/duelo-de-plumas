@@ -43,4 +43,13 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     username: Optional[str] = None
-    user_id: Optional[int] = None 
+    user_id: Optional[int] = None
+
+class UserAdminResponse(BaseModel):
+    """User response for admin use - includes email"""
+    id: int
+    username: str
+    email: str
+    
+    class Config:
+        from_attributes = True 

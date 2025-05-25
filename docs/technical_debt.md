@@ -3,6 +3,9 @@
 This document lists known technical debt, areas for refactoring, and potential future improvements.
 
 ## ONGOING
+AI input/output log
+Review Writer I/O
+Review Judge I/O
 
 ## TODO
 purchase credits? verify. We have a function for that, but not an endpoint nor a defined method.

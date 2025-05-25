@@ -4,7 +4,7 @@ from httpx import AsyncClient # Changed from fastapi.testclient import TestClien
 import logging
 
 from app.core.config import settings
-from app.schemas.user import UserCreate, UserLogin, UserResponse, UserCredit, Token
+from app.schemas.user import UserCreate, UserLogin, UserResponse, UserCredit, Token, UserAdminResponse
 from tests.shared_test_state import test_data
 from tests.conftest import generate_unique_username, generate_unique_email # Import helpers
 
@@ -117,24 +117,30 @@ async def test_01_06_admin_verifies_users(client: AsyncClient): # Changed to asy
     assert "admin_headers" in test_data, "Admin token not found."
     assert "user1_id" in test_data and "user2_id" in test_data, "User IDs not found."
 
-    response_user1 = await client.get( # Added await
-        f"/users/{test_data['user1_id']}",
+    # Use the new /users/by-ids endpoint to get user details
+    response_users = await client.post(
+        "/users/by-ids",
+        json=[test_data["user1_id"], test_data["user2_id"]],
         headers=test_data["admin_headers"]
     )
-    assert response_user1.status_code == 200, f"Admin fetching User 1 failed: {response_user1.text}"
-    user1_data = UserResponse(**response_user1.json())
+    assert response_users.status_code == 200, f"Admin fetching users failed: {response_users.text}"
+    users_data = [UserAdminResponse(**user) for user in response_users.json()]
+    
+    # Find user1 and user2 in the response
+    user1_data = next((user for user in users_data if user.id == test_data["user1_id"]), None)
+    user2_data = next((user for user in users_data if user.id == test_data["user2_id"]), None)
+    
+    assert user1_data is not None, "User 1 not found in response"
+    assert user2_data is not None, "User 2 not found in response"
+    
     assert user1_data.id == test_data["user1_id"]
-    assert user1_data.credits == 0
+    assert user1_data.username == test_data["user1_username"]
+    assert user1_data.email == test_data["user1_email"]
     print(f"Admin verified User 1 ({user1_data.username}) details successfully.")
 
-    response_user2 = await client.get( # Added await
-        f"/users/{test_data['user2_id']}",
-        headers=test_data["admin_headers"]
-    )
-    assert response_user2.status_code == 200, f"Admin fetching User 2 failed: {response_user2.text}"
-    user2_data = UserResponse(**response_user2.json())
     assert user2_data.id == test_data["user2_id"]
-    assert user2_data.credits == 0
+    assert user2_data.username == test_data["user2_username"]
+    assert user2_data.email == test_data["user2_email"]
     print(f"Admin verified User 2 ({user2_data.username}) details successfully.")
 
 # --- End of Test Section 1 ---

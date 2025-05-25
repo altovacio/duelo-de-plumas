@@ -13,17 +13,17 @@ class CreditTransaction(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     amount = Column(Integer, nullable=False)  # Positive for additions, negative for deductions
-    transaction_type = Column(String, nullable=False)  # "addition", "deduction"
+    transaction_type = Column(String, nullable=False)  # "purchase", "consumption", "refund", "admin_adjustment"
     description = Column(String, nullable=False)
     ai_model = Column(String, nullable=True)  # If transaction related to AI usage
     tokens_used = Column(Integer, nullable=True)  # If transaction related to AI usage
     real_cost_usd = Column(Float, nullable=True)  # Actual cost in USD calculated using estimate_cost_usd
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
-    # Relationship with User, using foreign_keys and lazy loading to avoid circular issues
+    # Relationship with User (lazy loaded by default)
     user = relationship(
         "User", 
         back_populates="credit_transactions",
         foreign_keys=[user_id],
-        lazy="noload"
+        lazy="noload"  # Don't load by default to avoid N+1 queries
     ) 

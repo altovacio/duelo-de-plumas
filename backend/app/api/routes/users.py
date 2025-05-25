@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
 from app.db.database import get_db
-from app.schemas.user import UserResponse, UserUpdate, UserCredit, UserPublicResponse
+from app.schemas.user import UserResponse, UserUpdate, UserCredit, UserPublicResponse, UserAdminResponse
 from app.schemas.credit import CreditTransactionResponse
 from app.services.user_service import UserService
 from app.api.routes.auth import get_current_user, get_current_admin_user, get_optional_current_user
@@ -55,64 +55,55 @@ async def search_users(
     users = await service.search_users(q, limit)
     return users
 
+@router.post("/by-ids", response_model=List[UserAdminResponse])
+async def get_users_by_ids(
+    user_ids: List[int],
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_admin_user)
+):
+    """
+    Get multiple users by their IDs. Returns user information including email.
+    Only administrators can access this endpoint.
+    """
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+    
+    if len(user_ids) > 100:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot request more than 100 users at once"
+        )
+        
+    service = UserService(db)
+    users = await service.get_users_by_ids(user_ids)
+    return users
+
 @router.get("/judge-contests", response_model=List[ContestResponse])
-async def get_user_judge_contests(
-    skip: int = 0,
-    limit: int = 100,
+async def get_judge_contests(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_current_user)
 ):
-    """
-    Get all contests where the current user is a judge.
-    """
-    contests = await ContestService.get_contests_where_user_is_judge(
-        db=db,
-        user_id=current_user.id,
-        skip=skip,
-        limit=limit
-    )
-    
-    # Transform the Contest models to ContestResponse
-    response_list = []
-    for contest_orm in contests:
-        # Fetch details including counts for each contest
-        contest_data_with_counts = await ContestRepository.get_contest_with_counts(db=db, contest_id=contest_orm.id)
-        if contest_data_with_counts:
-            # Reflect whether a password is set on each contest
-            contest_data_with_counts['has_password'] = bool(contest_data_with_counts.get('password'))
-            response_list.append(ContestResponse.model_validate(contest_data_with_counts))
-    
-    return response_list
+    """Get contests where the current user is a judge."""
+    contest_repo = ContestRepository(db)
+    contests = await contest_repo.get_contests_for_judge(current_user.id, skip, limit)
+    return contests
 
 @router.get("/author-contests", response_model=List[ContestResponse])
-async def get_user_author_contests(
-    skip: int = 0,
-    limit: int = 100,
+async def get_author_contests(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_current_user)
 ):
-    """
-    Get all contests where the current user has submitted texts as an author.
-    More efficient than fetching all submissions and extracting contests.
-    """
-    contests = await ContestService.get_contests_where_user_is_author(
-        db=db,
-        user_id=current_user.id,
-        skip=skip,
-        limit=limit
-    )
-    
-    # Transform the Contest models to ContestResponse
-    response_list = []
-    for contest_orm in contests:
-        # Fetch details including counts for each contest
-        contest_data_with_counts = await ContestRepository.get_contest_with_counts(db=db, contest_id=contest_orm.id)
-        if contest_data_with_counts:
-            # Reflect whether a password is set on each contest
-            contest_data_with_counts['has_password'] = bool(contest_data_with_counts.get('password'))
-            response_list.append(ContestResponse.model_validate(contest_data_with_counts))
-    
-    return response_list
+    """Get contests where the current user is an author (has submitted texts)."""
+    contest_repo = ContestRepository(db)
+    contests = await contest_repo.get_contests_for_author(current_user.id, skip, limit)
+    return contests
 
 @router.get("/{user_id}/public", response_model=UserPublicResponse)
 async def get_user_public(
@@ -127,49 +118,49 @@ async def get_user_public(
     user = await service.get_user(user_id)
     return user
 
-@router.get("/{user_id}", response_model=UserResponse)
-async def get_user(
-    user_id: int,
+@router.get("/{user_id}/credits/transactions", response_model=List[CreditTransactionResponse])
+async def get_user_credit_transactions(
+    user_id: int = Path(..., description="User ID"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
-    current_user: UserModel = Depends(get_current_user)
+    current_user: UserModel = Depends(get_current_admin_user)
 ):
-    """
-    Get a specific user. Users can view their own details, administrators can view all.
-    """
-    # Check permissions (users can only see their own details, admins can see all)
-    if user_id != current_user.id and not current_user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions"
-        )
-        
-    service = UserService(db)
-    user = await service.get_user(user_id)
-    return user
+    """Get credit transactions for a specific user (admin only)."""
+    from app.services.credit_service import CreditService
+    
+    transactions = await CreditService.get_user_transactions(db, user_id, skip, limit)
+    return transactions
 
-@router.put("/{user_id}", response_model=UserResponse)
+@router.patch("/{user_id}", response_model=UserResponse)
 async def update_user(
     user_id: int,
     user_data: UserUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_current_user)
 ):
-    """
-    Update a user. Users can only update their own details, administrators can update all.
-    """
+    """Update a user. Users can update themselves, admins can update anyone."""
     service = UserService(db)
-    user = await service.update_user(user_id, user_data, current_user)
-    return user
+    return await service.update_user(user_id, user_data, current_user)
 
-@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.patch("/{user_id}/credits", response_model=UserResponse)
+async def update_user_credits(
+    user_id: int,
+    credit_data: UserCredit,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_admin_user)
+):
+    """Update a user's credits (admin only)."""
+    service = UserService(db)
+    return await service.update_user_credits(user_id, credit_data)
+
+@router.delete("/{user_id}")
 async def delete_user(
     user_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_current_admin_user)
 ):
-    """
-    Delete a user. Only administrators can delete users.
-    """
+    """Delete a user (admin only)."""
     service = UserService(db)
-    await service.delete_user(user_id, current_user)
-    return None 
+    await service.delete_user(user_id)
+    return {"message": "User deleted successfully"} 

@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
+from typing import List
 
 from app.db.repositories.user_repository import UserRepository
 from app.schemas.user import UserCreate, UserUpdate, UserCredit, UserResponse
@@ -27,6 +28,10 @@ class UserService:
     async def search_users(self, query: str, limit: int = 10):
         """Search users by username or email."""
         return await self.repository.search_users(query, limit)
+        
+    async def get_users_by_ids(self, user_ids: List[int]):
+        """Get multiple users by their IDs."""
+        return await self.repository.get_users_by_ids(user_ids)
         
     async def create_user(self, user_data: UserCreate):
         """Create a new user."""

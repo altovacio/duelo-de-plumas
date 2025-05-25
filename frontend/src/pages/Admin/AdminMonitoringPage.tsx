@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import BackButton from '../../components/ui/BackButton';
 import { getCreditUsageSummary, getCreditsTransactions, type CreditTransaction, type CreditUsageSummary } from '../../services/creditService';
+import { getUsersByIds, AdminUser } from '../../services/userService';
 
 const AdminMonitoringPage: React.FC = () => {
   const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
@@ -11,6 +12,9 @@ const AdminMonitoringPage: React.FC = () => {
   const [transactionTypeFilter, setTransactionTypeFilter] = useState<string>('all');
   const [modelFilter, setModelFilter] = useState<string>('all');
   const [usageSummary, setUsageSummary] = useState<CreditUsageSummary | null>(null);
+  
+  // Cache user information
+  const [userCache, setUserCache] = useState<Map<number, AdminUser>>(new Map());
 
   useEffect(() => {
     const fetchCreditData = async () => {
@@ -19,6 +23,34 @@ const AdminMonitoringPage: React.FC = () => {
         // Fetch real credit transaction data from the API
         const transactionData = await getCreditsTransactions();
         setTransactions(transactionData);
+
+        // Get unique user IDs from transactions
+        const uniqueUserIds = Array.from(new Set(transactionData.map(t => t.user_id).filter(Boolean)));
+        
+        // Fetch user information efficiently
+        if (uniqueUserIds.length > 0) {
+          const userInfos = await getUsersByIds(uniqueUserIds);
+          
+          // Create user cache
+          const newUserCache = new Map<number, AdminUser>();
+          userInfos.forEach(user => {
+            newUserCache.set(user.id, user);
+          });
+          
+          // Add fallback for any missing users (though this should be rare now)
+          uniqueUserIds.forEach(userId => {
+            if (!newUserCache.has(userId)) {
+              const fallbackUser: AdminUser = {
+                id: userId,
+                username: `User #${userId}`,
+                email: 'Unknown'
+              };
+              newUserCache.set(userId, fallbackUser);
+            }
+          });
+          
+          setUserCache(newUserCache);
+        }
 
         // Also fetch credit usage summary
         const summary = await getCreditUsageSummary();
@@ -33,6 +65,15 @@ const AdminMonitoringPage: React.FC = () => {
 
     fetchCreditData();
   }, []);
+
+  // Get user info from cache
+  const getUserInfo = (userId: number): AdminUser => {
+    return userCache.get(userId) || {
+      id: userId,
+      username: `User #${userId}`,
+      email: 'Unknown'
+    };
+  };
 
   // Filter transaction data
   const filteredTransactions = transactions.filter(transaction => {
@@ -75,12 +116,8 @@ const AdminMonitoringPage: React.FC = () => {
     return true;
   });
 
-  // Get unique users
-  const uniqueUsers = Array.from(new Set(transactions.map(t => t.user_id)))
-    .map(userId => ({
-      id: userId,
-      username: `User #${userId}`  // In the future, we could add actual usernames
-    }));
+  // Get unique users for filter dropdown
+  const uniqueUsers = Array.from(userCache.values());
 
   // Get unique models
   const uniqueModels = Array.from(new Set(transactions.map(t => t.ai_model).filter(Boolean)));
@@ -223,7 +260,7 @@ const AdminMonitoringPage: React.FC = () => {
               <thead className="bg-gray-50">
                 <tr>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    User ID
+                    User
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Type
@@ -250,44 +287,52 @@ const AdminMonitoringPage: React.FC = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredTransactions.length > 0 ? (
-                  filteredTransactions.map((transaction) => (
-                    <tr key={transaction.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        User #{transaction.user_id}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          transaction.transaction_type === 'purchase' ? 'bg-green-100 text-green-800' :
-                          transaction.transaction_type === 'consumption' ? 'bg-red-100 text-red-800' :
-                          transaction.transaction_type === 'refund' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
-                        }`}>
-                          {transaction.transaction_type === 'purchase' ? 'Purchase' :
-                          transaction.transaction_type === 'consumption' ? 'Consumption' :
-                          transaction.transaction_type === 'refund' ? 'Refund' : 'Admin Adjustment'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <span className={transaction.amount >= 0 ? 'text-green-600' : 'text-red-600'}>
-                          {transaction.amount >= 0 ? '+' : ''}{transaction.amount}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
-                        {transaction.description}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {transaction.ai_model || '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {transaction.tokens_used ? transaction.tokens_used.toLocaleString() : '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
-                        ${transaction.real_cost_usd?.toFixed(4) || '0.0000'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(transaction.created_at).toLocaleString()}
-                      </td>
-                    </tr>
-                  ))
+                  filteredTransactions.map((transaction) => {
+                    const userInfo = getUserInfo(transaction.user_id);
+                    return (
+                      <tr key={transaction.id}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <div className="font-medium text-gray-900">
+                            {userInfo.username}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {userInfo.email}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            transaction.transaction_type === 'purchase' ? 'bg-green-100 text-green-800' :
+                            transaction.transaction_type === 'consumption' ? 'bg-red-100 text-red-800' :
+                            transaction.transaction_type === 'refund' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
+                          }`}>
+                            {transaction.transaction_type === 'purchase' ? 'Purchase' :
+                            transaction.transaction_type === 'consumption' ? 'Consumption' :
+                            transaction.transaction_type === 'refund' ? 'Refund' : 'Admin Adjustment'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <span className={transaction.amount >= 0 ? 'text-green-600' : 'text-red-600'}>
+                            {transaction.amount >= 0 ? '+' : ''}{transaction.amount}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
+                          {transaction.description}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {transaction.ai_model || '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {transaction.tokens_used ? transaction.tokens_used.toLocaleString() : '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
+                          ${transaction.real_cost_usd?.toFixed(4) || '0.0000'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {new Date(transaction.created_at).toLocaleString()}
+                        </td>
+                      </tr>
+                    );
+                  })
                 ) : (
                   <tr>
                     <td colSpan={8} className="px-6 py-4 text-center text-gray-500">

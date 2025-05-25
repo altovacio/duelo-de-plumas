@@ -13,9 +13,23 @@ export interface User {
   // Add other fields as returned by GET /admin/users
 }
 
+// Admin-specific user interface with guaranteed email
+export interface AdminUser {
+  id: number;
+  username: string;
+  email: string;
+}
+
 // Function to search for users by username or email
 export const searchUsers = async (query: string): Promise<User[]> => {
   const response = await apiClient.get('/users/search', { params: { q: query } });
+  return response.data;
+};
+
+// Function to get multiple users by their IDs (admin only) - includes email
+export const getUsersByIds = async (userIds: number[]): Promise<AdminUser[]> => {
+  if (userIds.length === 0) return [];
+  const response = await apiClient.post('/users/by-ids', userIds);
   return response.data;
 };
 

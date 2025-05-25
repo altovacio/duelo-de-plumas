@@ -1,6 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import update, delete
+from typing import List
 
 from app.db.models.user import User
 from app.schemas.user import UserCreate, UserUpdate, UserCredit
@@ -43,6 +44,15 @@ class UserRepository:
                 (User.username.ilike(search_pattern)) | 
                 (User.email.ilike(search_pattern))
             ).limit(limit)
+        )
+        return result.scalars().all()
+        
+    async def get_users_by_ids(self, user_ids: List[int]):
+        """Get multiple users by their IDs."""
+        if not user_ids:
+            return []
+        result = await self.db.execute(
+            select(User).where(User.id.in_(user_ids))
         )
         return result.scalars().all()
         

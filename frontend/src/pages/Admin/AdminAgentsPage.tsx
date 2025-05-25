@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { getAgents, Agent, updateAgent, deleteAgent } from '../../services/agentService';
+import { getUsersByIds, AdminUser } from '../../services/userService';
 import BackButton from '../../components/ui/BackButton';
 import AgentFormModal from '../../components/Agent/AgentFormModal';
 
@@ -14,24 +15,48 @@ const AdminAgentsPage: React.FC = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   
-  // List of unique users who own agents (for filtering)
-  const [uniqueUsers, setUniqueUsers] = useState<{id: number, name: string}[]>([]);
+  // Cache user information
+  const [userCache, setUserCache] = useState<Map<number, AdminUser>>(new Map());
+  const [uniqueUsers, setUniqueUsers] = useState<AdminUser[]>([]);
 
   useEffect(() => {
     const fetchAgents = async () => {
       setIsLoading(true);
       try {
-        // Get all agents, both public and private
+        // Get all agents
         const allAgents = await getAgents();
         setAgents(allAgents);
         
-        // Extract unique users for filtering
-        const users = Array.from(new Set(allAgents.map(agent => agent.owner_id)))
-          .map(id => ({
-            id,
-            name: `User #${id}`
-          }));
-        setUniqueUsers(users);
+        // Get unique user IDs
+        const uniqueUserIds = Array.from(new Set(allAgents.map(agent => agent.owner_id)));
+        
+        // Fetch user information efficiently
+        const userInfos = await getUsersByIds(uniqueUserIds);
+        
+        // Create user cache and unique users list
+        const newUserCache = new Map<number, AdminUser>();
+        const uniqueUsersList: AdminUser[] = [];
+        
+        userInfos.forEach(user => {
+          newUserCache.set(user.id, user);
+          uniqueUsersList.push(user);
+        });
+        
+        // Add fallback for any missing users (though this should be rare now)
+        uniqueUserIds.forEach(userId => {
+          if (!newUserCache.has(userId)) {
+            const fallbackUser: AdminUser = {
+              id: userId,
+              username: `User #${userId}`,
+              email: 'Unknown'
+            };
+            newUserCache.set(userId, fallbackUser);
+            uniqueUsersList.push(fallbackUser);
+          }
+        });
+        
+        setUserCache(newUserCache);
+        setUniqueUsers(uniqueUsersList);
       } catch (error) {
         console.error('Error fetching agents:', error);
         toast.error('Failed to load AI agents');
@@ -98,6 +123,15 @@ const AdminAgentsPage: React.FC = () => {
   const openDeleteModal = (agent: Agent) => {
     setSelectedAgent(agent);
     setIsDeleteModalOpen(true);
+  };
+
+  // Get user info from cache
+  const getUserInfo = (userId: number): AdminUser => {
+    return userCache.get(userId) || {
+      id: userId,
+      username: `User #${userId}`,
+      email: 'Unknown'
+    };
   };
 
   // Filter agents based on search query, type filter, and user filter
@@ -167,7 +201,7 @@ const AdminAgentsPage: React.FC = () => {
               >
                 <option value="all">All Users</option>
                 {uniqueUsers.map(user => (
-                  <option key={user.id} value={user.id}>{user.name}</option>
+                  <option key={user.id} value={user.id}>{user.username}</option>
                 ))}
               </select>
             </div>
@@ -211,53 +245,61 @@ const AdminAgentsPage: React.FC = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredAgents.length > 0 ? (
-                  filteredAgents.map((agent) => (
-                    <tr key={agent.id}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="font-medium text-gray-900">{agent.name}</div>
-                        <div className="text-sm text-gray-500">{agent.description.substring(0, 50)}...</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          agent.type === 'writer' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
-                        }`}>
-                          {agent.type.charAt(0).toUpperCase() + agent.type.slice(1)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {agent.model}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        User #{agent.owner_id}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          agent.is_public ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'
-                        }`}>
-                          {agent.is_public ? 'Public' : 'Private'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(agent.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
-                        <div className="flex justify-center space-x-2">
-                          <button
-                            onClick={() => openEditModal(agent)}
-                            className="text-indigo-600 hover:text-indigo-900"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => openDeleteModal(agent)}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                  filteredAgents.map((agent) => {
+                    const userInfo = getUserInfo(agent.owner_id);
+                    return (
+                      <tr key={agent.id}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="font-medium text-gray-900">{agent.name}</div>
+                          <div className="text-sm text-gray-500">{agent.description.substring(0, 50)}...</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            agent.type === 'writer' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
+                          }`}>
+                            {agent.type.charAt(0).toUpperCase() + agent.type.slice(1)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {agent.model}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <div className="font-medium text-gray-900">
+                            {userInfo.username}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {userInfo.email}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            agent.is_public ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'
+                          }`}>
+                            {agent.is_public ? 'Public' : 'Private'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {new Date(agent.created_at).toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                          <div className="flex justify-center space-x-2">
+                            <button
+                              onClick={() => openEditModal(agent)}
+                              className="text-indigo-600 hover:text-indigo-900"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => openDeleteModal(agent)}
+                              className="text-red-600 hover:text-red-900"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 ) : (
                   <tr>
                     <td colSpan={7} className="px-6 py-4 text-center text-gray-500">

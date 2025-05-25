@@ -31,7 +31,7 @@ async def test_03_01_user1_creates_public_contest1_and_assigns_judge(client: Asy
     contest1_data = ContestResponse(**response.json())
     assert contest1_data.title == contest_in.title
     assert not contest1_data.is_private
-    assert contest1_data.creator_id == test_data["user1_id"]
+    assert contest1_data.creator.id == test_data["user1_id"]
     test_data["contest1_id"] = contest1_data.id
     print(f"User 1 created public contest1 (ID: {test_data['contest1_id']}) successfully.")
 
@@ -71,7 +71,7 @@ async def test_03_02_admin_creates_private_contest2_and_assigns_judges(client: A
     contest2_data = ContestResponse(**response.json())
     assert contest2_data.title == contest_in.title
     assert contest2_data.is_private
-    assert contest2_data.creator_id == test_data["admin_id"]
+    assert contest2_data.creator.id == test_data["admin_id"]
     test_data["contest2_id"] = contest2_data.id
     print(f"Admin created private contest2 (ID: {test_data['contest2_id']}) successfully.")
 
@@ -115,7 +115,7 @@ async def test_03_03_user2_creates_contest3(client: AsyncClient): # Changed
     assert response.status_code == 201, f"User 2 creating contest3 failed: {response.text}"
     contest3_data = ContestResponse(**response.json())
     assert contest3_data.title == contest_in.title
-    assert contest3_data.creator_id == test_data["user2_id"]
+    assert contest3_data.creator.id == test_data["user2_id"]
     test_data["contest3_id"] = contest3_data.id
     print(f"User 2 created public contest3 (ID: {test_data['contest3_id']}) successfully.")
 

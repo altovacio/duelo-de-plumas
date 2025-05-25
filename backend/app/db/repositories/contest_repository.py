@@ -316,16 +316,53 @@ class ContestRepository:
         return True
     
     @staticmethod
-    async def get_contests_for_judge(db: AsyncSession, user_judge_id: int, skip: int = 0, limit: int = 100) -> List[Contest]:
+    async def get_contests_for_judge(db: AsyncSession, user_judge_id: int, skip: int = 0, limit: int = 100) -> List[dict]:
         """Get all contests where the given user_id is a judge."""
-        stmt = select(Contest).join(ContestJudge, Contest.id == ContestJudge.contest_id).filter(
-            ContestJudge.user_judge_id == user_judge_id # Filter by user judge ID
-        ).order_by(Contest.id.desc()).offset(skip).limit(limit)
+        stmt = (
+            select(Contest)
+            .join(ContestJudge, Contest.id == ContestJudge.contest_id)
+            .filter(ContestJudge.user_judge_id == user_judge_id)
+            .options(selectinload(Contest.creator))  # Load creator relationship
+            .order_by(Contest.id.desc())
+            .offset(skip)
+            .limit(limit)
+        )
         result = await db.execute(stmt)
-        return result.scalars().all()
+        contests = result.scalars().all()
+        
+        # Convert ORM objects to dictionaries with creator information and counts
+        contest_dicts = []
+        for contest in contests:
+            contest_data = {column.key: getattr(contest, column.key) for column in Contest.__table__.columns}
+            
+            # Add creator information
+            if contest.creator:
+                contest_data["creator"] = {
+                    "id": contest.creator.id,
+                    "username": contest.creator.username
+                }
+            else:
+                contest_data["creator"] = {
+                    "id": contest_data["creator_id"],
+                    "username": "Unknown"
+                }
+            
+            # Remove creator_id since we now use the creator object
+            contest_data.pop("creator_id", None)
+            
+            # Add counts (for now, set to 0 - could be optimized later with subqueries)
+            contest_data["text_count"] = 0
+            contest_data["participant_count"] = 0
+            
+            # Add has_password field
+            contest_data["has_password"] = bool(contest_data.get("password"))
+            
+            contest_dicts.append(contest_data)
+        
+        return contest_dicts
     
     @staticmethod
-    async def get_contests_for_author(db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100) -> List[Contest]:
+    async def get_contests_for_author(db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100) -> List[dict]:
         """Get all contests where the given user has submitted texts as an author."""
         from app.db.models.contest_text import ContestText
         from app.db.models.text import Text
@@ -335,10 +372,42 @@ class ContestRepository:
             .join(ContestText, Contest.id == ContestText.contest_id)
             .join(Text, ContestText.text_id == Text.id)
             .filter(Text.owner_id == user_id)
+            .options(selectinload(Contest.creator))  # Load creator relationship
             .distinct()
             .order_by(Contest.id.desc())
             .offset(skip)
             .limit(limit)
         )
         result = await db.execute(stmt)
-        return result.scalars().all() 
+        contests = result.scalars().all()
+        
+        # Convert ORM objects to dictionaries with creator information and counts
+        contest_dicts = []
+        for contest in contests:
+            contest_data = {column.key: getattr(contest, column.key) for column in Contest.__table__.columns}
+            
+            # Add creator information
+            if contest.creator:
+                contest_data["creator"] = {
+                    "id": contest.creator.id,
+                    "username": contest.creator.username
+                }
+            else:
+                contest_data["creator"] = {
+                    "id": contest_data["creator_id"],
+                    "username": "Unknown"
+                }
+            
+            # Remove creator_id since we now use the creator object
+            contest_data.pop("creator_id", None)
+            
+            # Add counts (for now, set to 0 - could be optimized later with subqueries)
+            contest_data["text_count"] = 0
+            contest_data["participant_count"] = 0
+            
+            # Add has_password field
+            contest_data["has_password"] = bool(contest_data.get("password"))
+            
+            contest_dicts.append(contest_data)
+        
+        return contest_dicts 

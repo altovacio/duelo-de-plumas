@@ -89,8 +89,7 @@ async def get_judge_contests(
     current_user: UserModel = Depends(get_current_user)
 ):
     """Get contests where the current user is a judge."""
-    contest_repo = ContestRepository(db)
-    contests = await contest_repo.get_contests_for_judge(current_user.id, skip, limit)
+    contests = await ContestRepository.get_contests_for_judge(db, current_user.id, skip, limit)
     return contests
 
 @router.get("/author-contests", response_model=List[ContestResponse])
@@ -101,8 +100,7 @@ async def get_author_contests(
     current_user: UserModel = Depends(get_current_user)
 ):
     """Get contests where the current user is an author (has submitted texts)."""
-    contest_repo = ContestRepository(db)
-    contests = await contest_repo.get_contests_for_author(current_user.id, skip, limit)
+    contests = await ContestRepository.get_contests_for_author(db, current_user.id, skip, limit)
     return contests
 
 @router.get("/{user_id}/public", response_model=UserPublicResponse)

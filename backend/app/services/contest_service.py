@@ -582,7 +582,7 @@ class ContestService:
         return result.scalars().all()
 
     @staticmethod
-    async def get_contests_where_user_is_judge(db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100) -> List[Contest]:
+    async def get_contests_where_user_is_judge(db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100) -> List[dict]:
         """Get contests where the specified user is a judge."""
         # Validate user exists (optional, but good practice)
         user_repo = UserRepository(db)
@@ -594,7 +594,7 @@ class ContestService:
         return await ContestRepository.get_contests_for_judge(db, user_judge_id=user_id, skip=skip, limit=limit)
 
     @staticmethod
-    async def get_contests_where_user_is_author(db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100) -> List[Contest]:
+    async def get_contests_where_user_is_author(db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100) -> List[dict]:
         """Get contests where the specified user has submitted texts as an author."""
         # Validate user exists (optional, but good practice)
         user_repo = UserRepository(db)

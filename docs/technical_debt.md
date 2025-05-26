@@ -3,26 +3,23 @@
 This document lists known technical debt, areas for refactoring, and potential future improvements.
 
 ## ONGOING
-AI input/output log
-Review Writer I/O
-Review Judge I/O
-When deleting a user the transactions are lost from admin
+
+
 
 ## TODO
 purchase credits? verify. We have a function for that, but not an endpoint nor a defined method.
+When deleting a user the transactions are lost from admin
+What should we do when the parsing or AI execution fails? Retries, exceptions (if the platform is broken, prevent the users from spending resources? Refund?)
 
 AI writer: remove from header??
 
 
 ### else
 Login revamp
-contest details display
-Arrows in view all in home are counterintuitive
 mobile responsiveness
 dashboard links do not point to the tab in question
-Submitting texts, grey out or at least return the already submitted error.
 Change defaults for contest creations. 
-Username display in user submissions and in contest author.
+Username display in user submissions?.
 -About Terms Privacy Footer
 select inload optimization
 other optimizations

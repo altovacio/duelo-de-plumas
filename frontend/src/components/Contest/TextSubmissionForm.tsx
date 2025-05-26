@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Text } from '../../services/textService';
 import { getUserTexts } from '../../services/textService';
-import { submitTextToContest } from '../../services/contestService';
+import { submitTextToContest, getContestMySubmissions } from '../../services/contestService';
 
 interface TextSubmissionFormProps {
   contestId: number;
@@ -10,6 +10,8 @@ interface TextSubmissionFormProps {
   password?: string;
   onSuccess: () => void;
   onCancel: () => void;
+  judgeRestrictions?: boolean;
+  isUserJudge?: boolean;
 }
 
 const TextSubmissionForm: React.FC<TextSubmissionFormProps> = ({
@@ -17,20 +19,36 @@ const TextSubmissionForm: React.FC<TextSubmissionFormProps> = ({
   isPrivate,
   password,
   onSuccess,
-  onCancel
+  onCancel,
+  judgeRestrictions = false,
+  isUserJudge = false
 }) => {
   const navigate = useNavigate();
   const [texts, setTexts] = useState<Text[]>([]);
   const [selectedTextId, setSelectedTextId] = useState<number | ''>('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [submittedTextIds, setSubmittedTextIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     const fetchTexts = async () => {
       try {
         setIsLoading(true);
+        
+        // Fetch user's texts
         const userTexts = await getUserTexts();
         setTexts(userTexts);
+        
+        // Fetch user's submissions for this contest
+        try {
+          const mySubmissions = await getContestMySubmissions(contestId);
+          const submittedIds = new Set(mySubmissions.map(submission => submission.text_id));
+          setSubmittedTextIds(submittedIds);
+        } catch (submissionErr) {
+          console.warn('Could not fetch user submissions:', submissionErr);
+          // Don't set error for this, as it might be expected if no submissions exist
+        }
+        
         setIsLoading(false);
       } catch (err) {
         console.error('Error fetching texts:', err);
@@ -40,7 +58,7 @@ const TextSubmissionForm: React.FC<TextSubmissionFormProps> = ({
     };
 
     fetchTexts();
-  }, []);
+  }, [contestId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,6 +100,8 @@ const TextSubmissionForm: React.FC<TextSubmissionFormProps> = ({
           {error}
         </div>
       )}
+
+
       
       <form onSubmit={handleSubmit}>
         <div className="mb-4">
@@ -94,19 +114,33 @@ const TextSubmissionForm: React.FC<TextSubmissionFormProps> = ({
           ) : texts.length === 0 ? (
             <p className="text-gray-500 mb-2">You don't have any texts yet. Create one first.</p>
           ) : (
-            <select
-              id="text-select"
-              className="w-full p-2 border rounded-md"
-              value={selectedTextId}
-              onChange={(e) => setSelectedTextId(Number(e.target.value))}
-            >
-              <option value="">-- Select a text --</option>
-              {texts.map((text) => (
-                <option key={text.id} value={text.id}>
-                  {text.title}
-                </option>
-              ))}
-            </select>
+            <>
+              <select
+                id="text-select"
+                className="w-full p-2 border rounded-md"
+                value={selectedTextId}
+                onChange={(e) => setSelectedTextId(Number(e.target.value))}
+              >
+                <option value="">-- Select a text --</option>
+                {texts.map((text) => {
+                  const isSubmitted = submittedTextIds.has(text.id);
+                  return (
+                    <option 
+                      key={text.id} 
+                      value={text.id}
+                      disabled={isSubmitted}
+                    >
+                      {text.title}{isSubmitted ? ' (Already submitted to this contest)' : ''}
+                    </option>
+                  );
+                })}
+              </select>
+              {submittedTextIds.size > 0 && (
+                <p className="mt-2 text-sm text-gray-600">
+                  <span className="font-medium">Note:</span> Texts marked as "Already submitted" cannot be submitted again unless withdrawn first.
+                </p>
+              )}
+            </>
           )}
         </div>
         
@@ -130,8 +164,13 @@ const TextSubmissionForm: React.FC<TextSubmissionFormProps> = ({
             
             <button
               type="submit"
-              className="py-2 px-4 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:bg-indigo-300"
-              disabled={!selectedTextId || isLoading}
+              className={`py-2 px-4 rounded-md ${
+                judgeRestrictions && isUserJudge
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-indigo-300'
+              }`}
+              disabled={!selectedTextId || isLoading || (judgeRestrictions && isUserJudge)}
+              title={judgeRestrictions && isUserJudge ? 'Judges cannot submit texts to this contest due to judge restrictions' : ''}
             >
               {isLoading ? 'Submitting...' : 'Submit Text'}
             </button>

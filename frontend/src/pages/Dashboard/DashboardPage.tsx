@@ -9,18 +9,18 @@ import { getAgents, createAgent, updateAgent, deleteAgent, cloneAgent, Agent as 
 import { getDashboardData } from '../../services/dashboardService';
 import { toast } from 'react-hot-toast';
 import { Link } from 'react-router-dom';
-import apiClient from '../../utils/apiClient';
+
 import JudgeManagementModal from '../../components/Contest/JudgeManagementModal';
 import { useAuthStore } from '../../store/authStore';
 import FullTextModal from '../../components/Common/FullTextModal';
-import { getCurrentUser } from '../../services/authService';
+
 import { getUserCreditTransactions, type CreditTransaction } from '../../services/creditService';
 
 type TabType = 'overview' | 'contests' | 'texts' | 'agents' | 'participation' | 'credits';
 
 const DashboardPage: React.FC = () => {
   const { user } = useAuth();
-  const setUser = useAuthStore(state => state.setUser);
+
   const loadUser = useAuthStore(state => state.loadUser);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   
@@ -879,47 +879,47 @@ const DashboardPage: React.FC = () => {
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200 bg-white">
-                      {filteredTexts.map((text) => (
-                        <tr key={text.id}>
-                          <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900">
-                            <button
-                              onClick={() => handleOpenTextFullModal(text)}
-                              className="text-indigo-600 hover:text-indigo-900 hover:underline text-left"
-                            >
-                              {text.title}
-                            </button>
-                          </td>
-                          <td className="px-3 py-4 text-sm text-gray-500">
-                            {text.content.length > 50 
-                              ? `${text.content.substring(0, 50)}...` 
-                              : text.content}
-                          </td>
-                          <td className="px-3 py-4 text-sm text-gray-500">
-                            {text.author}
-                          </td>
-                          <td className="px-3 py-4 text-sm text-gray-500">
-                            {new Date(text.created_at).toLocaleDateString()}
-                          </td>
-                          <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium">
-                            <button 
-                              className="text-indigo-600 hover:text-indigo-900 mr-4"
-                              onClick={() => handleOpenEditTextModal(text)}
-                            >
-                              Edit
-                            </button>
-                            <button 
-                              className="text-red-600 hover:text-red-900"
-                              onClick={() => handleDeleteText(text.id)}
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                        <tbody className="divide-y divide-gray-200 bg-white">
+                          {filteredTexts.map((text) => (
+                            <tr key={text.id}>
+                              <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900">
+                                <button
+                                  onClick={() => handleOpenTextFullModal(text)}
+                                  className="text-indigo-600 hover:text-indigo-900 hover:underline text-left"
+                                >
+                                  {text.title}
+                                </button>
+                              </td>
+                              <td className="px-3 py-4 text-sm text-gray-500">
+                                {text.content.length > 50 
+                                  ? `${text.content.substring(0, 50)}...` 
+                                  : text.content}
+                              </td>
+                              <td className="px-3 py-4 text-sm text-gray-500">
+                                {text.author}
+                              </td>
+                              <td className="px-3 py-4 text-sm text-gray-500">
+                                {new Date(text.created_at).toLocaleDateString()}
+                              </td>
+                              <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium">
+                                <button 
+                                  className="text-indigo-600 hover:text-indigo-900 mr-4"
+                                  onClick={() => handleOpenEditTextModal(text)}
+                                >
+                                  Edit
+                                </button>
+                                <button 
+                                  className="text-red-600 hover:text-red-900"
+                                  onClick={() => handleDeleteText(text.id)}
+                                >
+                                  Delete
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
               ) : (
                 <p className="text-gray-500 italic">No texts found matching your search. Create a new text to get started!</p>
               )}

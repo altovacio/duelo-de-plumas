@@ -124,42 +124,39 @@ This document outlines the major frontend development tasks for Duelo de Plumas 
     *   [x] Save generated text functionality with integration to text management
 
 4.  **Viewing Contest Results:**
-    *   [t] Display ranked lists based on voting results:
+    *   [x] Display ranked lists based on voting results:
         *   Fetch results using `GET /contests/{contest_id}/votes` endpoint
         *   Implement algorithm to calculate final rankings based on judge votes
         *   Create podium visualization for 1st, 2nd, and 3rd place
-    *   [t] Show author names and judge comments:
+    *   [x] Show author names and judge comments:
         *   Render comments using `react-markdown`
         *   Display author information only for closed contests
-    *   [t] Create detailed view for each text:
+    *   [x] Create detailed view for each text:
         *   Show all judge comments for a specific text
         *   Display voting breakdown
     *   [t] Handle "TEXTO RETIRADO":
         *   Properly display placeholder for withdrawn texts
         *   Maintain ranking integrity when texts are withdrawn
-    *   [t] Create toggle views between different judge results:
-        *   Allow switching between human and AI judge perspectives
-        *   Implement filters for different voting criteria
 
 **Phase 5: Administrator Panel**
 
 1.  **Admin Dashboard (`/admin`).**
 2.  **User Management (`/admin/users`):**
-    *   [t] Interface for assigning credits to users.
-    *   [t] Track and display credit allocation history.
+    *   [x] Interface for assigning credits to users.
+    *   [x] Track and display credit allocation history.
 3.  **Global AI Agent Management (`/admin/ai-agents`).**
 4.  **Site & Credit Monitoring (`/admin/monitoring`):**
-    *   [t] Detailed reports of AI usage costs.
-    *   [t] Credit consumption analytics by user.
-    *   [t] Tools to analyze credit consumption patterns.
+    *   [x] Detailed reports of AI usage costs.
+    *   [x] Credit consumption analytics by user.
+    *   [x] Tools to analyze credit consumption patterns.
 5.  **Contest Oversight (`/admin/contests`).**
 
 **Phase 6: Styling, UX Enhancements & Finalization**
 
 1.  **Global Styling & Theming** (Auric proportions, sleek, minimalistic using Tailwind CSS).
 2.  **Markdown Editor Integration:**
-    *   [ ] Ensure `react-markdown` is used for all Markdown rendering.
-    *   [ ] Ensure `react-md-editor` is used for Markdown input where rich editing is provided.
+    *   [x] Ensure `react-markdown` is used for all Markdown rendering.
+    *   [x] Ensure `react-md-editor` is used for Markdown input where rich editing is provided.
 3.  **Responsiveness.**
 4.  **User Experience (UX) Polish** (feedback, intuitive flows, accessibility).
 5.  **Error Handling.**

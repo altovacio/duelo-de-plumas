@@ -745,6 +745,55 @@ const ContestDetailPage: React.FC = () => {
             <pre className="whitespace-pre-wrap">{contest.full_description || contest.description}</pre>
           </div>
         </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-sm mb-8">
+          <h2 className="text-xl font-bold mb-4">Contest Rules</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex items-center space-x-3">
+              <div className={`w-3 h-3 rounded-full ${contest.author_restrictions ? 'bg-red-500' : 'bg-green-500'}`}></div>
+              <div>
+                <p className="font-medium text-gray-900">
+                  {contest.author_restrictions ? 'Single Submission' : 'Multiple Submissions'}
+                </p>
+                <p className="text-sm text-gray-600">
+                  {contest.author_restrictions 
+                    ? 'Each participant can submit only one text' 
+                    : 'Participants can submit multiple texts'
+                  }
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-3">
+              <div className={`w-3 h-3 rounded-full ${contest.judge_restrictions ? 'bg-red-500' : 'bg-green-500'}`}></div>
+              <div>
+                <p className="font-medium text-gray-900">
+                  {contest.judge_restrictions ? 'Judges Cannot Participate' : 'Judges Can Participate'}
+                </p>
+                <p className="text-sm text-gray-600">
+                  {contest.judge_restrictions 
+                    ? 'Assigned judges cannot submit texts as participants' 
+                    : 'Judges can also submit texts as participants'
+                  }
+                </p>
+              </div>
+            </div>
+            
+
+            
+            {contest.end_date && (
+              <div className="flex items-center space-x-3">
+                <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                <div>
+                  <p className="font-medium text-gray-900">Contest Deadline</p>
+                  <p className="text-sm text-gray-600">
+                    Ends on {new Date(contest.end_date).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
         
         {contest.status === 'open' && (
           <div className="bg-white p-6 rounded-lg shadow-sm mb-8">
@@ -800,7 +849,13 @@ const ContestDetailPage: React.FC = () => {
                         </p>
                         <button 
                           onClick={handleSubmitText}
-                          className="inline-block px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                          className={`inline-block px-4 py-2 rounded-lg ${
+                            contest.judge_restrictions && isJudge
+                              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                              : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                          }`}
+                          disabled={contest.judge_restrictions && isJudge}
+                          title={contest.judge_restrictions && isJudge ? 'Judges cannot submit texts to this contest due to judge restrictions' : ''}
                         >
                           Submit Text
                         </button>
@@ -983,6 +1038,8 @@ const ContestDetailPage: React.FC = () => {
                 password={password}
                 onSuccess={handleSubmissionSuccess}
                 onCancel={() => setShowSubmitTextModal(false)}
+                judgeRestrictions={contest?.judge_restrictions}
+                isUserJudge={isJudge}
               />
             </div>
           </div>

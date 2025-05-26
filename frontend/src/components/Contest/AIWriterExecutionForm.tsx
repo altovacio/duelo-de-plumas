@@ -30,6 +30,7 @@ const AIWriterExecutionForm: React.FC<AIWriterExecutionFormProps> = ({
   const [models, setModels] = useState<LLMModel[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [progress, setProgress] = useState<number>(0);
   const { user } = useAuthStore();
   const credits = user?.credits || 0;
 
@@ -118,6 +119,24 @@ const AIWriterExecutionForm: React.FC<AIWriterExecutionFormProps> = ({
     // Cleanup timeout if dependencies change before timeout completes
     return () => clearTimeout(timeoutId);
   }, [prompt, title, selectedAgentId, selectedModelId, contestDescription]);
+
+  // Simulate AI execution progress
+  useEffect(() => {
+    let progressInterval: NodeJS.Timeout;
+    
+    if (isSubmitting) {
+      progressInterval = setInterval(() => {
+        setProgress(prev => {
+          // Cap at 90% until we get a real success response
+          return prev < 90 ? prev + 5 : prev;
+        });
+      }, 1000);
+    }
+    
+    return () => {
+      if (progressInterval) clearInterval(progressInterval);
+    };
+  }, [isSubmitting]);
   
   const onSubmit = async (data: FormData) => {
     setPendingFormData(data);
@@ -125,8 +144,12 @@ const AIWriterExecutionForm: React.FC<AIWriterExecutionFormProps> = ({
   };
   
   const executeAIWriter = async (data: FormData) => {
+    // Close confirmation modal immediately
+    setShowConfirmation(false);
+    
     setIsSubmitting(true);
     setError(null);
+    setProgress(0);
     
     try {
       const selectedAgentObject = availableAgents.find(agent => agent.id === data.agentId);
@@ -152,8 +175,15 @@ const AIWriterExecutionForm: React.FC<AIWriterExecutionFormProps> = ({
       
       const result = await executeWriterAgent(requestPayload);
       
+      // Set progress to 100% on success
+      setProgress(100);
+      
       if (result.result_id) {
-        onSuccess(result.result_id);
+        // Allow the progress bar to reach 100% before closing
+        setTimeout(() => {
+          setIsSubmitting(false);
+          onSuccess(result.result_id!);
+        }, 1000);
       } else {
         throw new Error('No text ID returned from the API');
       }
@@ -194,6 +224,19 @@ const AIWriterExecutionForm: React.FC<AIWriterExecutionFormProps> = ({
       {error && (
         <div className="bg-red-50 text-red-700 p-3 rounded mb-4">
           {error}
+        </div>
+      )}
+
+      {isSubmitting && (
+        <div className="bg-blue-50 text-blue-700 p-3 rounded mb-4">
+          <p className="font-medium">Generating Text with AI Writer...</p>
+          <p className="text-sm">Please wait while the AI creates your text. This may take a few moments.</p>
+          <div className="mt-2 w-full bg-blue-200 rounded-full h-2">
+            <div 
+              className="bg-blue-600 h-2 rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${progress}%` }}
+            ></div>
+          </div>
         </div>
       )}
       

@@ -249,12 +249,24 @@ class AgentService:
             exec_status = "completed"
 
             if generated_content_text is not None:
+                # Parse title and content from the generated text
+                from app.utils.text_parsing import extract_title_and_content, clean_text_content
+                
+                parsed_title, parsed_content = extract_title_and_content(
+                    generated_content_text, 
+                    fallback_title=request.title
+                )
+                
+                # Use the parsed title if available, otherwise fall back to request title
+                final_title = parsed_title if parsed_title and parsed_title != "Generated Text" else (request.title or "Untitled")
+                final_content = clean_text_content(parsed_content) if parsed_content else generated_content_text
+                
                 # Construct author string
                 author_str = f"{user.username} (via AI Agent: {agent.name} | Model: {request.model})"
                 
                 text_create_data = TextCreate(
-                    title=request.title or f"Untitled",
-                    content=generated_content_text,
+                    title=final_title,
+                    content=final_content,
                     author=author_str, # Use the constructed author string
                     # Removed author_id as TextCreate expects 'author'
                     # author_id=current_user_id, 

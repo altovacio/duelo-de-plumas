@@ -8,7 +8,7 @@ After reviewing the codebase, I can confirm that both AI services (writer and ju
 
 #### ✅ Writer Service
 - **Location**: `backend/app/services/ai_service.py` - `generate_text()` method
-- **Strategy Used**: `SimpleChatCompletionWriterStrategy` from `app.services.ai_strategies.writer_strategies`
+- **Strategy Used**: `WriterStrategy` from `app.services.ai_strategies.writer_strategies`
 - **Strategy Interface**: Implements `WriterStrategyInterface`
 - **Current Flow**: AIService → WriterStrategy → AIProvider → LLM
 

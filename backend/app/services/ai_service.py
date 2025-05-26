@@ -17,15 +17,13 @@ from app.services.ai_provider_service import (
     AIProviderInterface
 )
 from app.core.config import settings
-from app.utils.judge_prompts import JUDGE_BASE_PROMPT
-from app.utils.writer_prompts import WRITER_BASE_PROMPT
 
 # Configure logger
 logger = logging.getLogger(__name__)
 
 # Import strategies
-from app.services.ai_strategies.writer_strategies import SimpleChatCompletionWriterStrategy
-from app.services.ai_strategies.judge_strategies import SimpleChatCompletionJudgeStrategy
+from app.services.ai_strategies.writer_strategies import WriterStrategy
+from app.services.ai_strategies.judge_strategies import JudgeStrategy
 from app.services.ai_strategies.base_strategy import WriterStrategyInterface, JudgeStrategyInterface
 
 # This is a placeholder for actual LLM integration
@@ -78,7 +76,7 @@ class AIService:
         contest_description: Optional[str] = None,
         temperature: Optional[float] = None, 
         max_tokens: Optional[int] = None,
-        strategy_name: str = "simple_chat_completion",
+        strategy_name: str = "default",
         # Debug logging parameters (optional)
         db_session=None,
         user_id: Optional[int] = None,
@@ -87,14 +85,14 @@ class AIService:
         
         provider = cls._get_provider(model)
         
-        # Strategy selection (can be made more dynamic later)
+        # Strategy selection for future extensibility
         writer_strategy: WriterStrategyInterface
-        if strategy_name == "simple_chat_completion":
-            writer_strategy = SimpleChatCompletionWriterStrategy()
+        if strategy_name == "default" or strategy_name == "structured":
+            writer_strategy = WriterStrategy()
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Unknown writer strategy: {strategy_name}"
+                detail=f"Unknown writer strategy: {strategy_name}. Available strategies: default, structured"
             )
 
         # Determine actual parameters to use, falling back to config defaults
@@ -137,7 +135,7 @@ class AIService:
         texts: List[Dict[str, Any]],
         temperature: Optional[float] = None, 
         max_tokens: Optional[int] = None,    
-        strategy_name: str = "simple_chat_completion",
+        strategy_name: str = "default",
         # Debug logging parameters (optional)
         db_session=None,
         user_id: Optional[int] = None,
@@ -148,12 +146,12 @@ class AIService:
         provider = cls._get_provider(model)
 
         judge_strategy: JudgeStrategyInterface
-        if strategy_name == "simple_chat_completion":
-            judge_strategy = SimpleChatCompletionJudgeStrategy()
+        if strategy_name == "default" or strategy_name == "structured":
+            judge_strategy = JudgeStrategy()
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Unknown judge strategy: {strategy_name}"
+                detail=f"Unknown judge strategy: {strategy_name}. Available strategies: default, structured"
             )
         
         # Determine actual parameters to use, falling back to config defaults

@@ -1,5 +1,4 @@
 .
-├── DEBUGGING.md
 ├── README.md
 ├── backend
 │   ├── Dockerfile
@@ -16,6 +15,7 @@
 │   │   │       ├── auth.py
 │   │   │       ├── contests.py
 │   │   │       ├── dashboard.py
+│   │   │       ├── debug_logs.py
 │   │   │       ├── llm_models.py
 │   │   │       ├── texts.py
 │   │   │       ├── users.py
@@ -32,6 +32,7 @@
 │   │   │   │   ├── __init__.py
 │   │   │   │   ├── agent.py
 │   │   │   │   ├── agent_execution.py
+│   │   │   │   ├── ai_debug_log.py
 │   │   │   │   ├── contest.py
 │   │   │   │   ├── contest_judge.py
 │   │   │   │   ├── contest_text.py
@@ -63,11 +64,14 @@
 │   │   │   ├── ai_service.py
 │   │   │   ├── ai_strategies
 │   │   │   │   ├── base_strategy.py
+│   │   │   │   ├── judge_prompts.py
 │   │   │   │   ├── judge_strategies.py
+│   │   │   │   ├── writer_prompts.py
 │   │   │   │   └── writer_strategies.py
 │   │   │   ├── auth_service.py
 │   │   │   ├── contest_service.py
 │   │   │   ├── credit_service.py
+│   │   │   ├── judge_service.py
 │   │   │   ├── text_service.py
 │   │   │   ├── user_service.py
 │   │   │   └── vote_service.py
@@ -75,10 +79,12 @@
 │   │       ├── __init__.py
 │   │       ├── ai_model_costs.json
 │   │       ├── ai_models.py
-│   │       ├── judge_prompts.py
+│   │       ├── debug_logger.py
 │   │       ├── markdown_utils.py
-│   │       ├── validation_utils.py
-│   │       └── writer_prompts.py
+│   │       ├── text_parsing.py
+│   │       └── validation_utils.py
+│   ├── docs
+│   │   └── ai_logging_and_parsing_review.md
 │   ├── generate_api_docs.py
 │   ├── init-test-db.sh
 │   ├── migrations
@@ -86,9 +92,8 @@
 │   │   ├── env.py
 │   │   ├── script.py.mako
 │   │   └── versions
-│   │       ├── 38210cf4805b_remove_model_cost_rate_from_credit_.py
-│   │       ├── 851d54183b97_update_ondelete_user_fks_docker.py
-│   │       └── aae8dc883892_add_real_cost_usd_to_credit_transactions.py
+│   │       ├── 558cd0c633c1_initial_migration_with_clean_models.py
+│   │       └── add_ai_debug_logs_table.py
 │   ├── pytest.ini
 │   ├── requirements.txt
 │   ├── scripts
@@ -110,16 +115,21 @@
 │   │   ├── e2e_sec_09_cleanup_routine.py
 │   │   ├── e2e_sec_10_final_state_verification_post_cleanup.py
 │   │   ├── e2e_test_plan_config.py
+│   │   ├── fix_remaining_variables.py
+│   │   ├── fix_syntax_errors.py
+│   │   ├── fix_user_endpoints.py
 │   │   ├── outputs
 │   │   │   └── ai_costs_summary_post_cleanup.json
 │   │   └── shared_test_state.py
 │   └── wait-for-it.sh
+├── docker-compose.prod.yml
 ├── docker-compose.yml
 ├── docs
+│   ├── DEBUGGING.md
+│   ├── ai_logging_proposal.md
 │   ├── api_endpoints_programmatically.md
 │   ├── front_implementation_plan.md
 │   ├── project_description.md
-│   ├── project_structure.md
 │   ├── technical_debt.md
 │   └── tree.md
 ├── examples
@@ -127,9 +137,17 @@
 │   ├── CierraLaUltimaPuerta.txt
 │   ├── ElReinoDeLosColores.txt
 │   └── LeccionDeCocina.txt
+├── fix-ts-errors.sh
 ├── frontend
 │   ├── Dockerfile
+│   ├── Dockerfile.prod
 │   ├── README.md
+│   ├── dist
+│   │   ├── assets
+│   │   │   ├── index-BEJyc3C7.css
+│   │   │   ├── index-BTAPwlsy.js
+│   │   │   └── index-BTAPwlsy.js.map
+│   │   └── index.html
 │   ├── index.html
 │   ├── package-lock.json
 │   ├── package.json
@@ -169,6 +187,7 @@
 │   │   ├── main.tsx
 │   │   ├── pages
 │   │   │   ├── Admin
+│   │   │   │   ├── AdminAIDebugLogsPage.tsx
 │   │   │   │   ├── AdminAgentsPage.tsx
 │   │   │   │   ├── AdminContestsPage.tsx
 │   │   │   │   ├── AdminDashboardPage.tsx
@@ -211,26 +230,12 @@
 │   ├── tsconfig.json
 │   ├── tsconfig.node.json
 │   └── vite.config.ts
-├── minimal-vite-test
-│   ├── README.md
-│   ├── eslint.config.js
-│   ├── index.html
-│   ├── package-lock.json
-│   ├── package.json
-│   ├── public
-│   │   └── vite.svg
-│   ├── src
-│   │   ├── App.css
-│   │   ├── App.tsx
-│   │   ├── assets
-│   │   │   └── react.svg
-│   │   ├── index.css
-│   │   ├── main.tsx
-│   │   └── vite-env.d.ts
-│   ├── tsconfig.app.json
-│   ├── tsconfig.json
-│   ├── tsconfig.node.json
-│   └── vite.config.ts
-└── nginx.conf
+├── nginx.conf
+│   └── default.conf
+└── scripts
+    ├── dev.sh
+    ├── prod.sh
+    ├── test-all-routes.sh
+    └── test-routing.sh
 
-51 directories, 183 files
+51 directories, 188 files

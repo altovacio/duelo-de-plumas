@@ -4,12 +4,11 @@ globs:
 alwaysApply: false
 ---
 -Read [project_description.md](mdc:docs/project_description.md) and [tree.md](mdc:docs/tree.md) before anything.
--Read and keep [front_implementation_plan.md](mdc:docs/front_implementation_plan.md) updated
 -The endpoints available are in [api_endpoints_programmatically.md](mdc:docs/api_endpoints_programmatically.md)
--Avoid generating new endpoints in the backend. First look for the working ones and already implemented. But if you must change the backend, do it.
 -remember, we use docker
 -You cannot see, read or list the .env file, but it exist. If you need info from this file, ask the user.
--You already have permission to read any other file, dont ask for it. If you need to read a file, just read it.
+    -You already have permission to read any other file, dont ask for it. If you need to read a file, just read it.
+-Right now we are not in production, we are in development. We do not need backwards compatibility for anything. 
 
 
 

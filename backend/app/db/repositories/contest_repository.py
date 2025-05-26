@@ -31,6 +31,99 @@ class ContestRepository:
         return db_contest
     
     @staticmethod
+    async def get_contests_with_counts(
+        db: AsyncSession,
+        skip: int = 0,
+        limit: int = 100,
+        status: Optional[str] = None,
+        current_user_id: Optional[int] = None,
+        creator_id: Optional[Union[int, str]] = None
+    ) -> List[dict]:
+        """Get contests with counts in a single optimized query to avoid N+1 problem."""
+        
+        # Subquery for text count per contest
+        text_count_subq = (
+            select(
+                ContestText.contest_id,
+                func.count(func.distinct(ContestText.text_id)).label("text_count")
+            )
+            .group_by(ContestText.contest_id)
+            .subquery()
+        )
+        
+        # Subquery for participant count per contest
+        participant_count_subq = (
+            select(
+                ContestText.contest_id,
+                func.count(func.distinct(Text.owner_id)).label("participant_count")
+            )
+            .join(Text, ContestText.text_id == Text.id)
+            .group_by(ContestText.contest_id)
+            .subquery()
+        )
+        
+        # Main query with left joins to get counts
+        query = (
+            select(
+                Contest,
+                func.coalesce(text_count_subq.c.text_count, 0).label("text_count"),
+                func.coalesce(participant_count_subq.c.participant_count, 0).label("participant_count")
+            )
+            .outerjoin(text_count_subq, Contest.id == text_count_subq.c.contest_id)
+            .outerjoin(participant_count_subq, Contest.id == participant_count_subq.c.contest_id)
+            .options(selectinload(Contest.creator))
+        )
+        
+        # Apply filters
+        if status:
+            query = query.where(Contest.status.ilike(f"%{status}%"))
+            
+        if creator_id is not None:
+            # Handle string values for creator_id by casting to int
+            if isinstance(creator_id, str) and creator_id.isdigit():
+                creator_id = int(creator_id)
+            query = query.where(Contest.creator_id == creator_id)
+        
+        # Execute query with ordering and pagination
+        result = await db.execute(
+            query.order_by(Contest.created_at.desc()).offset(skip).limit(limit)
+        )
+        
+        # Convert results to dictionaries
+        contests_with_counts = []
+        for row in result.all():
+            contest_obj = row.Contest
+            
+            # Convert the Contest ORM instance to a dictionary
+            contest_data = {column.key: getattr(contest_obj, column.key) for column in Contest.__table__.columns}
+            
+            # Add the counts
+            contest_data["text_count"] = row.text_count
+            contest_data["participant_count"] = row.participant_count
+            
+            # Add creator information
+            if contest_obj.creator:
+                contest_data["creator"] = {
+                    "id": contest_obj.creator.id,
+                    "username": contest_obj.creator.username
+                }
+            else:
+                contest_data["creator"] = {
+                    "id": contest_data["creator_id"],
+                    "username": "Unknown"
+                }
+            
+            # Remove creator_id since we now use the creator object
+            contest_data.pop("creator_id", None)
+            
+            # Add has_password field
+            contest_data["has_password"] = bool(contest_data.get("password"))
+            
+            contests_with_counts.append(contest_data)
+        
+        return contests_with_counts
+    
+    @staticmethod
     async def get_contests(
         db: AsyncSession,
         skip: int = 0,
@@ -42,6 +135,9 @@ class ContestRepository:
         """Get a list of contests with optional filtering.
         If status is provided, filter by status.
         If creator_id is provided, filter by creator_id.
+        
+        Note: This method returns Contest ORM objects. For contests with counts,
+        use get_contests_with_counts() instead.
         """
         query = select(Contest).options(selectinload(Contest.creator))
         
@@ -317,10 +413,39 @@ class ContestRepository:
     
     @staticmethod
     async def get_contests_for_judge(db: AsyncSession, user_judge_id: int, skip: int = 0, limit: int = 100) -> List[dict]:
-        """Get all contests where the given user_id is a judge."""
+        """Get all contests where the given user_id is a judge with counts."""
+        
+        # Subquery for text count per contest
+        text_count_subq = (
+            select(
+                ContestText.contest_id,
+                func.count(func.distinct(ContestText.text_id)).label("text_count")
+            )
+            .group_by(ContestText.contest_id)
+            .subquery()
+        )
+        
+        # Subquery for participant count per contest
+        participant_count_subq = (
+            select(
+                ContestText.contest_id,
+                func.count(func.distinct(Text.owner_id)).label("participant_count")
+            )
+            .join(Text, ContestText.text_id == Text.id)
+            .group_by(ContestText.contest_id)
+            .subquery()
+        )
+        
+        # Main query with joins for counts
         stmt = (
-            select(Contest)
+            select(
+                Contest,
+                func.coalesce(text_count_subq.c.text_count, 0).label("text_count"),
+                func.coalesce(participant_count_subq.c.participant_count, 0).label("participant_count")
+            )
             .join(ContestJudge, Contest.id == ContestJudge.contest_id)
+            .outerjoin(text_count_subq, Contest.id == text_count_subq.c.contest_id)
+            .outerjoin(participant_count_subq, Contest.id == participant_count_subq.c.contest_id)
             .filter(ContestJudge.user_judge_id == user_judge_id)
             .options(selectinload(Contest.creator))  # Load creator relationship
             .order_by(Contest.id.desc())
@@ -328,11 +453,11 @@ class ContestRepository:
             .limit(limit)
         )
         result = await db.execute(stmt)
-        contests = result.scalars().all()
         
         # Convert ORM objects to dictionaries with creator information and counts
         contest_dicts = []
-        for contest in contests:
+        for row in result.all():
+            contest = row.Contest
             contest_data = {column.key: getattr(contest, column.key) for column in Contest.__table__.columns}
             
             # Add creator information
@@ -350,9 +475,9 @@ class ContestRepository:
             # Remove creator_id since we now use the creator object
             contest_data.pop("creator_id", None)
             
-            # Add counts (for now, set to 0 - could be optimized later with subqueries)
-            contest_data["text_count"] = 0
-            contest_data["participant_count"] = 0
+            # Add the actual counts from the query
+            contest_data["text_count"] = row.text_count
+            contest_data["participant_count"] = row.participant_count
             
             # Add has_password field
             contest_data["has_password"] = bool(contest_data.get("password"))
@@ -363,14 +488,42 @@ class ContestRepository:
     
     @staticmethod
     async def get_contests_for_author(db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100) -> List[dict]:
-        """Get all contests where the given user has submitted texts as an author."""
+        """Get all contests where the given user has submitted texts as an author with counts."""
         from app.db.models.contest_text import ContestText
         from app.db.models.text import Text
         
+        # Subquery for text count per contest
+        text_count_subq = (
+            select(
+                ContestText.contest_id,
+                func.count(func.distinct(ContestText.text_id)).label("text_count")
+            )
+            .group_by(ContestText.contest_id)
+            .subquery()
+        )
+        
+        # Subquery for participant count per contest
+        participant_count_subq = (
+            select(
+                ContestText.contest_id,
+                func.count(func.distinct(Text.owner_id)).label("participant_count")
+            )
+            .join(Text, ContestText.text_id == Text.id)
+            .group_by(ContestText.contest_id)
+            .subquery()
+        )
+        
+        # Main query with joins for counts
         stmt = (
-            select(Contest)
+            select(
+                Contest,
+                func.coalesce(text_count_subq.c.text_count, 0).label("text_count"),
+                func.coalesce(participant_count_subq.c.participant_count, 0).label("participant_count")
+            )
             .join(ContestText, Contest.id == ContestText.contest_id)
             .join(Text, ContestText.text_id == Text.id)
+            .outerjoin(text_count_subq, Contest.id == text_count_subq.c.contest_id)
+            .outerjoin(participant_count_subq, Contest.id == participant_count_subq.c.contest_id)
             .filter(Text.owner_id == user_id)
             .options(selectinload(Contest.creator))  # Load creator relationship
             .distinct()
@@ -379,11 +532,11 @@ class ContestRepository:
             .limit(limit)
         )
         result = await db.execute(stmt)
-        contests = result.scalars().all()
         
         # Convert ORM objects to dictionaries with creator information and counts
         contest_dicts = []
-        for contest in contests:
+        for row in result.all():
+            contest = row.Contest
             contest_data = {column.key: getattr(contest, column.key) for column in Contest.__table__.columns}
             
             # Add creator information
@@ -401,9 +554,9 @@ class ContestRepository:
             # Remove creator_id since we now use the creator object
             contest_data.pop("creator_id", None)
             
-            # Add counts (for now, set to 0 - could be optimized later with subqueries)
-            contest_data["text_count"] = 0
-            contest_data["participant_count"] = 0
+            # Add the actual counts from the query
+            contest_data["text_count"] = row.text_count
+            contest_data["participant_count"] = row.participant_count
             
             # Add has_password field
             contest_data["has_password"] = bool(contest_data.get("password"))

@@ -67,7 +67,8 @@ class ContestService:
         # If creator is something else, or current_user_id is None, no creator filter is applied unless explicitly passed
         # This maintains existing behavior for general contest listing if creator != 'me'
 
-        contests_orm = await ContestRepository.get_contests(
+        # Use the optimized method that gets contests with counts in a single query
+        contests_with_counts = await ContestRepository.get_contests_with_counts(
             db=db, 
             skip=skip, 
             limit=limit, 
@@ -76,21 +77,10 @@ class ContestService:
             creator_id=creator_id_to_filter  # Pass the determined creator_id for filtering
         )
         
+        # Convert the dictionaries to ContestResponse objects
         response_list = []
-        for contest_orm in contests_orm:
-            # Fetch details including counts for each contest
-            # This uses the already corrected get_contest_with_counts from the repository
-            contest_data_with_counts = await ContestRepository.get_contest_with_counts(db=db, contest_id=contest_orm.id)
-            if contest_data_with_counts:
-                # Reflect whether a password is set on each contest
-                contest_data_with_counts['has_password'] = bool(contest_data_with_counts.get('password'))
-                response_list.append(ContestResponse.model_validate(contest_data_with_counts))
-            else:
-                # This case should ideally not happen if contest_orm.id is valid
-                # Handle defensively: either skip or raise an error
-                # For now, let's log and skip, or one could raise an internal error
-                print(f"Warning: Could not retrieve details for contest id {contest_orm.id} in get_contests list.")
-                # If strictness is required, one might raise HTTPException here
+        for contest_data in contests_with_counts:
+            response_list.append(ContestResponse.model_validate(contest_data))
 
         return response_list
     

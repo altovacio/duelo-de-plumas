@@ -30,9 +30,9 @@ const AIWriterPage: React.FC = () => {
     fetchAgents();
   }, []);
 
-  const handleSuccess = (textId: number) => {
+  const handleSuccess = () => {
     toast.success('Text successfully generated!');
-    // Redirect to text detail or texts tab in dashboard
+    // Redirect to texts tab in dashboard
     navigate('/dashboard?tab=texts');
   };
 

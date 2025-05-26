@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { getContests, Contest as ContestServiceType } from '../../services/contestService';
 import ContestCard from '../../components/Contest/ContestCard';
 
@@ -100,12 +100,10 @@ const ContestListPage: React.FC = () => {
   // Contest Section component for each status group
   const ContestSection = ({ 
     title, 
-    contests, 
-    emptyMessage 
+    contests 
   }: { 
     title: string; 
     contests: ContestServiceType[];
-    emptyMessage: string;
   }) => {
     if (contests.length === 0) return null;
     
@@ -193,19 +191,16 @@ const ContestListPage: React.FC = () => {
           <ContestSection 
             title="Open Contests" 
             contests={openContests} 
-            emptyMessage="No open contests found." 
           />
           
           <ContestSection 
             title="Contests in Evaluation" 
             contests={evaluationContests} 
-            emptyMessage="No contests in evaluation found." 
           />
           
           <ContestSection 
             title="Closed Contests" 
             contests={closedContests} 
-            emptyMessage="No closed contests found." 
           />
         </div>
       )}

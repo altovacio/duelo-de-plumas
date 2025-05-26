@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Agent, executeJudgeAgent } from '../../services/agentService';
-import { getAgents } from '../../services/agentService';
 import { getModels, LLMModel, estimateCost } from '../../services/modelService';
 import { useAuthStore } from '../../store/authStore';
 import { useForm, Controller } from 'react-hook-form';
@@ -123,7 +122,7 @@ const AIJudgeExecutionForm: React.FC<AIJudgeExecutionFormProps> = ({
     };
   }, [isExecuting]);
   
-  const onSubmit = async (data: FormData) => {
+  const onSubmit = async () => {
     setShowConfirmation(true);
   };
   

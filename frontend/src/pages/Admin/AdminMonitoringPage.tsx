@@ -11,7 +11,7 @@ const AdminMonitoringPage: React.FC = () => {
   const [userFilter, setUserFilter] = useState<string>('all');
   const [transactionTypeFilter, setTransactionTypeFilter] = useState<string>('all');
   const [modelFilter, setModelFilter] = useState<string>('all');
-  const [usageSummary, setUsageSummary] = useState<CreditUsageSummary | null>(null);
+  const [, setUsageSummary] = useState<CreditUsageSummary | null>(null);
   
   // Cache user information
   const [userCache, setUserCache] = useState<Map<number, AdminUser>>(new Map());

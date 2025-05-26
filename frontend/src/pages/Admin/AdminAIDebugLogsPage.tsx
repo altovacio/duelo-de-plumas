@@ -93,11 +93,7 @@ const AdminAIDebugLogsPage: React.FC = () => {
     return new Date(timestamp).toLocaleString();
   };
 
-  const formatContent = (content: string | undefined, maxLength: number = 200) => {
-    if (!content) return 'No content logged';
-    if (content.length <= maxLength) return content;
-    return content.substring(0, maxLength) + '...';
-  };
+
 
   if (isLoading) {
     return (

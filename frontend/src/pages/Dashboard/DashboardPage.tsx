@@ -8,10 +8,10 @@ import { getUserContests, createContest, updateContest, deleteContest, Contest a
 import { getAgents, createAgent, updateAgent, deleteAgent, cloneAgent, Agent as AgentType } from '../../services/agentService';
 import { getDashboardData } from '../../services/dashboardService';
 import { toast } from 'react-hot-toast';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
 import JudgeManagementModal from '../../components/Contest/JudgeManagementModal';
-import { useAuthStore } from '../../store/authStore';
+
 import FullTextModal from '../../components/Common/FullTextModal';
 
 import { getUserCreditTransactions, type CreditTransaction } from '../../services/creditService';
@@ -20,9 +20,39 @@ type TabType = 'overview' | 'contests' | 'texts' | 'agents' | 'participation' | 
 
 const DashboardPage: React.FC = () => {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const loadUser = useAuthStore(state => state.loadUser);
-  const [activeTab, setActiveTab] = useState<TabType>('overview');
+
+  
+  // Initialize activeTab from URL parameter or default to 'overview'
+  const getInitialTab = (): TabType => {
+    const tabParam = searchParams.get('tab');
+    const validTabs: TabType[] = ['overview', 'contests', 'texts', 'agents', 'participation', 'credits'];
+    return validTabs.includes(tabParam as TabType) ? (tabParam as TabType) : 'overview';
+  };
+  
+  const [activeTab, setActiveTab] = useState<TabType>(getInitialTab());
+  
+  // Function to handle tab changes and update URL
+  const handleTabChange = (tab: TabType) => {
+    setActiveTab(tab);
+    // Update URL parameter
+    const newSearchParams = new URLSearchParams(searchParams);
+    if (tab === 'overview') {
+      newSearchParams.delete('tab'); // Remove tab param for default tab
+    } else {
+      newSearchParams.set('tab', tab);
+    }
+    setSearchParams(newSearchParams, { replace: true });
+  };
+  
+  // Listen for URL parameter changes (e.g., browser back/forward)
+  useEffect(() => {
+    const newTab = getInitialTab();
+    if (newTab !== activeTab) {
+      setActiveTab(newTab);
+    }
+  }, [searchParams]);
   
   // Common state
   const [isLoading, setIsLoading] = useState(false);
@@ -51,7 +81,7 @@ const DashboardPage: React.FC = () => {
   const [showFullTextModal, setShowFullTextModal] = useState(false);
   
   // State for submission management
-  const [errorSubmissions, setErrorSubmissions] = useState<string | null>(null);
+  const [, setErrorSubmissions] = useState<string | null>(null);
   const [isRemovingSubmissionId, setIsRemovingSubmissionId] = useState<number | null>(null);
   
   // Agent state
@@ -108,15 +138,6 @@ const DashboardPage: React.FC = () => {
   }, [activeTab]);
 
   // Helper function to refresh user data
-  const refreshUserData = async () => {
-    // Note: User data is automatically kept up-to-date by the auth system
-    // Only refresh if absolutely necessary (e.g., after credit transactions)
-    try {
-      await loadUser();
-    } catch (err) {
-      console.error('Error refreshing user data:', err);
-    }
-  };
 
   // Text management functions
   const fetchTexts = async () => {
@@ -134,11 +155,6 @@ const DashboardPage: React.FC = () => {
     }
   };
 
-  const handleOpenCreateTextModal = () => {
-    setIsEditing(false);
-    setSelectedText(null);
-    setIsTextModalOpen(true);
-  };
 
   const handleOpenEditTextModal = (text: TextType) => {
     setIsEditing(true);
@@ -332,7 +348,6 @@ const DashboardPage: React.FC = () => {
   }) => {
     try {
       // Remember current form submission state for UI message
-      const isCreatingNew = !isEditing;
       
       // Create agent data object that includes all required fields
       // This addresses the model type issue by handling it separately
@@ -568,37 +583,37 @@ const DashboardPage: React.FC = () => {
           <nav className="flex space-x-6">
             <button 
               className={tabClasses('overview')}
-              onClick={() => setActiveTab('overview')}
+              onClick={() => handleTabChange('overview')}
             >
               Overview
             </button>
             <button 
               className={tabClasses('contests')}
-              onClick={() => setActiveTab('contests')}
+              onClick={() => handleTabChange('contests')}
             >
               My Contests
             </button>
             <button 
               className={tabClasses('texts')}
-              onClick={() => setActiveTab('texts')}
+              onClick={() => handleTabChange('texts')}
             >
               My Texts
             </button>
             <button 
               className={tabClasses('agents')}
-              onClick={() => setActiveTab('agents')}
+              onClick={() => handleTabChange('agents')}
             >
               AI Agents
             </button>
             <button 
               className={tabClasses('participation')}
-              onClick={() => setActiveTab('participation')}
+              onClick={() => handleTabChange('participation')}
             >
               Participation
             </button>
             <button 
               className={tabClasses('credits')}
-              onClick={() => setActiveTab('credits')}
+              onClick={() => handleTabChange('credits')}
             >
               Credits
             </button>
@@ -1405,7 +1420,6 @@ const DashboardPage: React.FC = () => {
           }}
           contestId={selectedContestForJudges.id}
           contestTitle={selectedContestForJudges.title}
-          judgeRestrictions={selectedContestForJudges.judge_restrictions}
         />
       )}
 

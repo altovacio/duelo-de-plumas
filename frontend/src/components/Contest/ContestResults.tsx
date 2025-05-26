@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
-import { Text } from '../../services/textService';
 import FullTextModal from '../Common/FullTextModal';
 
 interface ContestResultsProps {
-  contestId: number;
   texts: any[]; // Using any[] because this comes from ContestText with additional fields
 }
 
@@ -18,7 +16,6 @@ interface RankedText {
 }
 
 const ContestResults: React.FC<ContestResultsProps> = ({
-  contestId,
   texts
 }) => {
   const [selectedTextForModal, setSelectedTextForModal] = useState<RankedText | null>(null);
@@ -89,7 +86,7 @@ const ContestResults: React.FC<ContestResultsProps> = ({
       <h2 className="text-xl font-bold mb-4">Contest Results</h2>
       
       <div className="space-y-4">
-        {rankedTexts.map((text, index) => (
+        {rankedTexts.map((text) => (
           <div 
             key={text.id} 
             className={`border rounded-lg p-4 ${

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 
 type RegisterFormData = {
@@ -12,7 +12,6 @@ type RegisterFormData = {
 
 const RegisterPage: React.FC = () => {
   const { register: registerUser, error, clearError, isSubmitting } = useAuth();
-  const navigate = useNavigate();
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
   
   const { 

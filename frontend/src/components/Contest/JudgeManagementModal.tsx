@@ -11,7 +11,6 @@ interface JudgeManagementModalProps {
   onClose: () => void;
   contestId: number;
   contestTitle: string;
-  judgeRestrictions: boolean;
 }
 
 type JudgeType = 'human' | 'ai';
@@ -20,8 +19,7 @@ const JudgeManagementModal: React.FC<JudgeManagementModalProps> = ({
   isOpen,
   onClose,
   contestId,
-  contestTitle,
-  judgeRestrictions
+  contestTitle
 }) => {
   const { user } = useAuth();
   const [judges, setJudges] = useState<ContestJudge[]>([]);

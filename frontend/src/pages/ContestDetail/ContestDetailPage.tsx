@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import * as contestService from '../../services/contestService';
 import TextSubmissionForm from '../../components/Contest/TextSubmissionForm';
@@ -29,33 +29,6 @@ interface ContestPageSpecificData extends Omit<contestService.Contest, 'updated_
   // participant_count and text_count are already fine (snake_case in both)
 }
 
-// Text interface for local use in this component (separate from the service)
-interface ContestText {
-  id: number;
-  title: string;
-  content: string; // Markdown content
-  author?: {
-    id: number;
-    username: string;
-  };
-  owner?: {
-    id: number;
-    username: string;
-  };
-  created_at: string;
-  updated_at?: string; // Add updated_at, can be same as created_at if not available from submission
-  votes?: {
-    rank: number;
-    judge: {
-      id: number;
-      username: string;
-      isAI: boolean;
-      aiModel?: string;
-    };
-    comment: string;
-  }[];
-}
-
 const ContestDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const { isAuthenticated, user } = useAuth();
@@ -67,7 +40,7 @@ const ContestDetailPage: React.FC = () => {
     const [passwordError, setPasswordError] = useState<string | null>(null);
     const [showPasswordModal, setShowPasswordModal] = useState<boolean>(false);
     const fetchInitiatedForCurrentId = useRef(false);
-    const [isFetching, setIsFetching] = useState(false);
+    
     
     // States for modal dialogs
     const [showSubmitTextModal, setShowSubmitTextModal] = useState<boolean>(false);
@@ -90,7 +63,7 @@ const ContestDetailPage: React.FC = () => {
 
     // Add state for available judge agents
     const [availableJudgeAgents, setAvailableJudgeAgents] = useState<Agent[]>([]);
-    const [isLoadingJudgeAgents, setIsLoadingJudgeAgents] = useState(false);
+    
 
     // Add state for judges data
     const [contestJudges, setContestJudges] = useState<any[]>([]);
@@ -372,7 +345,7 @@ const ContestDetailPage: React.FC = () => {
     // Function to fetch available judge agents
     const fetchAvailableJudgeAgents = async () => {
       try {
-        setIsLoadingJudgeAgents(true);
+
         // Get contest judges to filter only registered AI agents
         const contestJudgesData = await contestService.getContestJudges(parseInt(id || '1'));
         setContestJudges(contestJudgesData); // Store judges data
@@ -394,9 +367,9 @@ const ContestDetailPage: React.FC = () => {
         toast.error('Failed to load AI judges. Please try again.');
         setAvailableJudgeAgents([]);
         setContestJudges([]);
-      } finally {
-        setIsLoadingJudgeAgents(false);
-      }
+              } finally {
+          // Loading complete
+        }
     };
 
     // Function to check judge completion status
@@ -1011,7 +984,6 @@ const ContestDetailPage: React.FC = () => {
               <p className="text-gray-500">No texts were submitted to this contest.</p>
             ) : (
               <ContestResults 
-                contestId={parseInt(id || '1')} 
                 texts={texts.map(text => ({
                   id: text.text_id,
                   title: text.title,

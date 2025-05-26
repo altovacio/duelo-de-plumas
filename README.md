@@ -120,3 +120,92 @@ docker-compose up --build -d backend
 docker-compose up -d --force-recreate backend
 ```
 Remember to also manage any `DEBUG` environment variables appropriately for a true production setting (e.g., set `DEBUG=False` in your `.env` file or directly in `docker-compose.yml` for the backend service if applicable).
+
+## Frontend Development and Production
+
+The frontend is a React application built with Vite and TypeScript. It supports both development and production modes with proper client-side routing.
+
+### Development Mode
+
+For development with hot reload and debugging:
+
+```bash
+# Using the convenience script
+./scripts/dev.sh
+
+# Or manually
+docker-compose up --build
+```
+
+The frontend will be available at `http://localhost:3001` with:
+- Hot reload enabled
+- Source maps for debugging
+- Proxy configuration for API calls to backend
+
+### Production Mode
+
+For production deployment with nginx:
+
+```bash
+# Using the convenience script
+./scripts/prod.sh
+
+# Or manually
+docker-compose -f docker-compose.prod.yml up --build
+```
+
+The production build includes:
+- Optimized React build
+- nginx server for static file serving
+- Proper client-side routing support
+- Gzip compression
+- Security headers
+- Static asset caching
+
+### URL Routing
+
+Both development and production modes now properly support:
+- Direct URL access (e.g., `localhost:3001/contests`, `localhost:3001/dashboard`)
+- Browser back/forward navigation
+- Dashboard tab URLs (e.g., `localhost:3001/dashboard?tab=texts`)
+
+### Dashboard Tab Navigation
+
+The dashboard supports URL-based tab navigation:
+- `/dashboard` - Overview tab (default)
+- `/dashboard?tab=contests` - My Contests tab
+- `/dashboard?tab=texts` - My Texts tab
+- `/dashboard?tab=agents` - AI Agents tab
+- `/dashboard?tab=participation` - Participation tab
+- `/dashboard?tab=credits` - Credits tab
+
+When redirecting to a specific tab, use the format: `navigate('/dashboard?tab=texts')`
+
+### Testing
+
+To verify that all routing fixes are working correctly:
+
+```bash
+# Run automated tests
+./scripts/test-all-routes.sh
+
+# Or test individual components
+curl http://localhost:3001/contests        # Should return 200 (React page)
+curl http://localhost:3001/api/health      # Should return 200 (API proxy)
+```
+
+### Troubleshooting
+
+If you encounter routing issues:
+
+1. **500 errors on page routes**: Check that the Vite proxy configuration only handles `/api` routes
+2. **API calls failing**: Verify that all API calls use the `/api` prefix in development
+3. **Admin redirect issues**: Ensure the user has `is_admin: true` in their profile
+4. **Tab not activating**: Check that the URL parameter format is correct (`?tab=tabname`)
+
+### Architecture
+
+- **Development**: Vite dev server with proxy for `/api` routes to backend
+- **Production**: nginx serving static files with proxy for `/api` routes to backend
+- **API calls**: All use `/api` prefix to avoid conflicts with React routes
+- **Client-side routing**: React Router handles all page navigation

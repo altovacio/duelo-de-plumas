@@ -4,9 +4,9 @@
  * Centralized API URL configuration that adapts to different environments
  */
 
-// Default to empty base URL which will be handled by the Vite proxy in development
-// In production, this would be automatically populated by environment variables
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+// Use /api prefix for development (handled by Vite proxy)
+// In production, this would be the full backend URL
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 // Auth endpoints
 export const AUTH_ENDPOINTS = {

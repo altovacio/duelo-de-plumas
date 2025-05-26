@@ -22,6 +22,11 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ requireAdmin = false })
 
   // If admin route but user is not an admin, redirect to dashboard
   if (requireAdmin && !user?.is_admin) {
+    console.log('Admin route access denied:', { 
+      requireAdmin, 
+      user: user ? { id: user.id, username: user.username, is_admin: user.is_admin } : null,
+      location: location.pathname 
+    });
     return <Navigate to="/dashboard" replace />;
   }
 

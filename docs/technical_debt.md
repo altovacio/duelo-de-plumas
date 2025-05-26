@@ -17,7 +17,6 @@ AI writer: remove from header??
 ### else
 Login revamp
 mobile responsiveness
-dashboard links do not point to the tab in question
 Change defaults for contest creations. 
 Username display in user submissions?.
 -About Terms Privacy Footer

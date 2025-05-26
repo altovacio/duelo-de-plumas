@@ -20,14 +20,22 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ requireAdmin = false })
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // If admin route but user is not an admin, redirect to dashboard
-  if (requireAdmin && !user?.is_admin) {
-    console.log('Admin route access denied:', { 
-      requireAdmin, 
-      user: user ? { id: user.id, username: user.username, is_admin: user.is_admin } : null,
-      location: location.pathname 
-    });
-    return <Navigate to="/dashboard" replace />;
+  // For admin routes, wait for user data to load before making the decision
+  if (requireAdmin) {
+    // If user data hasn't loaded yet, show loading
+    if (!user) {
+      return <div className="flex items-center justify-center min-h-screen">Loading user data...</div>;
+    }
+    
+    // Now we can safely check admin status
+    if (!user.is_admin) {
+      console.log('Admin route access denied:', { 
+        requireAdmin, 
+        user: { id: user.id, username: user.username, is_admin: user.is_admin },
+        location: location.pathname 
+      });
+      return <Navigate to="/dashboard" replace />;
+    }
   }
 
   // Render the child routes

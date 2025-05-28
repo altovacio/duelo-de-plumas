@@ -2,11 +2,32 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getContests, Contest as ContestServiceType } from '../../services/contestService';
 import ContestCard from '../../components/Contest/ContestCard';
+import WelcomeModal from '../../components/Onboarding/WelcomeModal';
+import { useAuth } from '../../hooks/useAuth';
+import { useAuthStore } from '../../store/authStore';
 
 const HomePage: React.FC = () => {
   const [recentOpenContests, setRecentOpenContests] = useState<ContestServiceType[]>([]);
   const [recentClosedContests, setRecentClosedContests] = useState<ContestServiceType[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [showWelcomeModal, setShowWelcomeModal] = useState<boolean>(false);
+  
+  const { isAuthenticated, user } = useAuth();
+  const { isFirstLogin, setIsFirstLogin } = useAuthStore();
+
+  // Check for first login and show welcome modal
+  useEffect(() => {
+    if (isAuthenticated && user && isFirstLogin) {
+      setShowWelcomeModal(true);
+    }
+  }, [isAuthenticated, user, isFirstLogin]);
+
+  // Handle closing the welcome modal
+  const handleCloseWelcomeModal = () => {
+    setShowWelcomeModal(false);
+    // Clear the first login flag so it doesn't show again
+    setIsFirstLogin(false);
+  };
 
   useEffect(() => {
     const fetchContestsData = async () => {
@@ -39,6 +60,13 @@ const HomePage: React.FC = () => {
 
   return (
     <div className="space-y-10">
+      {/* Welcome Modal for first-time users */}
+      <WelcomeModal 
+        isOpen={showWelcomeModal}
+        onClose={handleCloseWelcomeModal}
+        isFirstLogin={isFirstLogin}
+      />
+
       {/* Hero section */}
       <section className="text-center py-16 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg">
         <h1 className="text-4xl font-bold mb-4">Welcome to Duelo de Plumas</h1>

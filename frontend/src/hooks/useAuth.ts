@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 export const useAuth = () => {
   const { 
@@ -9,6 +9,7 @@ export const useAuth = () => {
     isAuthenticated, 
     isLoading, 
     error,
+    isFirstLogin,
     login: storeLogin,
     register: storeRegister,
     logout: storeLogout,
@@ -17,6 +18,7 @@ export const useAuth = () => {
   } = useAuthStore();
 
   const navigate = useNavigate();
+  const location = useLocation();
   const hasAttemptedLoad = useRef(false);
 
   // Load user data when component using this hook mounts if tokens exist
@@ -31,9 +33,42 @@ export const useAuth = () => {
   const isAdmin = (): boolean => {
     return !!user?.is_admin;
   };
+
+  // Smart redirect logic
+  const getRedirectPath = (isFirstLogin: boolean): string => {
+    // For first-time users, always go to home to trigger onboarding
+    if (isFirstLogin) {
+      return '/';
+    }
+
+    // Check if there's a redirect path in location state (from protected routes)
+    const from = (location.state as any)?.from?.pathname;
+    if (from && from !== '/login' && from !== '/register') {
+      return from;
+    }
+
+    // Check current path to determine best redirect
+    const currentPath = location.pathname;
+    
+    // If they're on auth pages, redirect based on context
+    if (currentPath === '/login' || currentPath === '/register') {
+      // Check if they were trying to access a specific page
+      const urlParams = new URLSearchParams(location.search);
+      const redirectTo = urlParams.get('redirect');
+      if (redirectTo && redirectTo !== '/login' && redirectTo !== '/register') {
+        return redirectTo;
+      }
+      
+      // Default to home for returning users (dashboard is too overwhelming as first page)
+      return '/';
+    }
+
+    // If they're already on a valid page, stay there
+    return currentPath;
+  };
   
   // Handle login and redirect
-  const handleLogin = async (username: string, password: string, redirectTo: string = '/dashboard'): Promise<void> => {
+  const handleLogin = async (username: string, password: string, fallbackRedirect: string = '/'): Promise<void> => {
     setIsSubmitting(true);
     try {
       // Call the store login function
@@ -42,9 +77,11 @@ export const useAuth = () => {
       // Check authentication state after login attempt
       const currentState = useAuthStore.getState();
       if (!currentState.error && currentState.isAuthenticated) {
+        const redirectPath = getRedirectPath(currentState.isFirstLogin);
+        
         // Add a small delay to ensure the UI updates before navigation
         setTimeout(() => {
-          navigate(redirectTo);
+          navigate(redirectPath, { replace: true });
         }, 300);
       }
     } catch (err) {
@@ -55,7 +92,7 @@ export const useAuth = () => {
   };
   
   // Handle registration and redirect
-  const handleRegister = async (username: string, email: string, password: string, redirectTo: string = '/dashboard'): Promise<void> => {
+  const handleRegister = async (username: string, email: string, password: string, fallbackRedirect: string = '/'): Promise<void> => {
     setIsSubmitting(true);
     try {
       // Call the store register function
@@ -64,9 +101,12 @@ export const useAuth = () => {
       // Check authentication state after registration attempt
       const currentState = useAuthStore.getState();
       if (!currentState.error && currentState.isAuthenticated) {
+        // New registrations should always go to home for onboarding
+        const redirectPath = '/';
+        
         // Add a small delay to ensure the UI updates before navigation
         setTimeout(() => {
-          navigate(redirectTo);
+          navigate(redirectPath, { replace: true });
         }, 300);
       }
     } catch (err) {
@@ -97,6 +137,7 @@ export const useAuth = () => {
     isLoading,
     error,
     isAdmin,
+    isFirstLogin,
     login: handleLogin,
     register: handleRegister,
     logout: handleLogout,

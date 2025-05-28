@@ -136,6 +136,13 @@ async def login(
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    
+    # Check if this is the first login (last_login is None)
+    is_first_login = user.last_login is None
+    
+    # Update last login time
+    user_repo = UserRepository(db)
+    await user_repo.update_last_login(user.id)
         
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
@@ -143,7 +150,7 @@ async def login(
         expires_delta=access_token_expires
     )
     
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {"access_token": access_token, "token_type": "bearer", "is_first_login": is_first_login}
 
 @router.post("/login/json", response_model=Token)
 async def login_json(
@@ -161,6 +168,13 @@ async def login_json(
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    
+    # Check if this is the first login (last_login is None)
+    is_first_login = user.last_login is None
+    
+    # Update last login time
+    user_repo = UserRepository(db)
+    await user_repo.update_last_login(user.id)
         
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
@@ -168,4 +182,4 @@ async def login_json(
         expires_delta=access_token_expires
     )
     
-    return {"access_token": access_token, "token_type": "bearer"} 
+    return {"access_token": access_token, "token_type": "bearer", "is_first_login": is_first_login} 

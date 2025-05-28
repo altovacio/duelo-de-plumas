@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
+import { useAuthStore } from '../../store/authStore';
 import TextFormModal from '../../components/TextEditor/TextFormModal';
 import ContestFormModal from '../../components/Contest/ContestFormModal';
 import AgentFormModal from '../../components/Agent/AgentFormModal';
+import WelcomeModal from '../../components/Onboarding/WelcomeModal';
+import QuickActions from '../../components/Dashboard/QuickActions';
 import { getUserTexts, createText, updateText, deleteText, Text as TextType } from '../../services/textService';
 import { getUserContests, createContest, updateContest, deleteContest, Contest as ContestType, getContestSubmissions, ContestText as ContestSubmissionType, removeSubmissionFromContest, getAuthorParticipation, getJudgeParticipation, getMemberParticipation, getContestMembers, addMemberToContest, removeMemberFromContest, ContestMember, searchUsersByUsername } from '../../services/contestService';
 import { getAgents, createAgent, updateAgent, deleteAgent, cloneAgent, Agent as AgentType } from '../../services/agentService';
@@ -22,7 +25,9 @@ type TabType = 'overview' | 'contests' | 'texts' | 'agents' | 'participation' | 
 
 const DashboardPage: React.FC = () => {
   const { user } = useAuth();
+  const { isFirstLogin, setIsFirstLogin } = useAuthStore();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
 
 
   
@@ -130,6 +135,18 @@ const DashboardPage: React.FC = () => {
   const [contestMembers, setContestMembers] = useState<ContestMember[]>([]);
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
   const [memberError, setMemberError] = useState<string | null>(null);
+
+  // Handle welcome modal for first-time users
+  useEffect(() => {
+    if (isFirstLogin && user) {
+      setShowWelcomeModal(true);
+    }
+  }, [isFirstLogin, user]);
+
+  const handleCloseWelcomeModal = () => {
+    setShowWelcomeModal(false);
+    setIsFirstLogin(false);
+  };
 
   // Fetch data based on active tab
   useEffect(() => {
@@ -700,7 +717,18 @@ const DashboardPage: React.FC = () => {
         <div>
           {activeTab === 'overview' && (
             <div>
-              <h2 className="text-xl font-medium mb-4">Dashboard Overview</h2>
+              <h2 className="text-xl font-medium mb-6">Dashboard Overview</h2>
+              
+              {/* Quick Actions Component */}
+              <div className="mb-8">
+                <QuickActions 
+                  hasTexts={textsData.length > 0}
+                  hasContests={contestsData.length > 0}
+                  hasAgents={ownedAgentsData.length > 0}
+                  urgentActions={dashboardData?.urgent_actions || []}
+                />
+              </div>
+
               {/* Only show urgent actions section if there are actually urgent actions */}
               {dashboardData?.urgent_actions && dashboardData.urgent_actions.length > 0 && (
                 <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
@@ -727,6 +755,8 @@ const DashboardPage: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {/* Traditional stats cards - now secondary */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-white border border-gray-200 rounded-lg p-4">
                   <h3 className="font-medium text-gray-700">Credit Balance</h3>
@@ -1706,6 +1736,13 @@ const DashboardPage: React.FC = () => {
           </div>
         </div>
       )}
+      
+      {/* Welcome Modal for first-time users */}
+      <WelcomeModal 
+        isOpen={showWelcomeModal}
+        onClose={handleCloseWelcomeModal}
+        isFirstLogin={isFirstLogin}
+      />
     </div>
   );
 };

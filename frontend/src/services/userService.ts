@@ -8,7 +8,7 @@ export interface User {
   is_admin?: boolean;
   credits?: number; // For admin views
   created_at?: string;
-  last_seen?: string | null; // For admin views, to be implemented
+  last_login?: string | null; // For admin views - tracks when user last logged in
   contests_created?: number | string; // For admin views, can be N/A when there's an error
   // Add other fields as returned by GET /admin/users
 }
@@ -47,7 +47,7 @@ export const deleteUserByAdmin = async (userId: number): Promise<void> => {
 
 // Function for an admin to get all users
 export const getAdminUsers = async (): Promise<User[]> => {
-  const response = await apiClient.get('/users');
+  const response = await apiClient.get('/admin/users');
   return response.data;
 };
 

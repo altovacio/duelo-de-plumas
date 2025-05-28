@@ -1,6 +1,7 @@
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import WelcomeModal from '../Onboarding/WelcomeModal';
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -9,6 +10,7 @@ interface MainLayoutProps {
 const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const { user, isAuthenticated, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
+  const [showHelpModal, setShowHelpModal] = useState(false);
 
   const handleLogout = async () => {
     await logout();
@@ -33,6 +35,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 {isAdmin() && (
                   <Link to="/admin" className="px-2 py-1 rounded hover:bg-indigo-500">Admin</Link>
                 )}
+                <button 
+                  onClick={() => setShowHelpModal(true)}
+                  className="px-2 py-1 rounded hover:bg-indigo-500 focus:outline-none"
+                  title="Help & Tour"
+                >
+                  ?
+                </button>
                 <button 
                   onClick={handleLogout}
                   className="px-2 py-1 rounded hover:bg-indigo-500 focus:outline-none"
@@ -75,6 +84,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           </div>
         </div>
       </footer>
+
+      {/* Help Modal */}
+      <WelcomeModal 
+        isOpen={showHelpModal}
+        onClose={() => setShowHelpModal(false)}
+        isFirstLogin={false}
+      />
     </div>
   );
 };

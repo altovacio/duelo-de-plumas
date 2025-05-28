@@ -13,7 +13,7 @@ export interface User {
   is_admin?: boolean;
   credits?: number; // For admin views
   created_at?: string;
-  last_seen?: string | null; // For admin views, to be implemented
+  last_login?: string | null; // For admin views - tracks when user last logged in
   contests_created?: number | string; // For admin views, can be N/A when there's an error
   // Add other fields as returned by GET /admin/users
 }
@@ -34,6 +34,28 @@ const modifyUserCredits = async (userId: number, amount: number) => {
   } catch (error) {
     console.error("Error modifying user credits:", error);
     throw error; // Re-throw to be handled by the caller
+  }
+};
+
+// Helper function to format last login time
+const formatLastLogin = (lastLogin: string | null) => {
+  if (!lastLogin) return 'Never';
+  
+  const loginDate = new Date(lastLogin);
+  const now = new Date();
+  const diffInMs = now.getTime() - loginDate.getTime();
+  const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+  const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+  const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+  
+  if (diffInMinutes < 60) {
+    return diffInMinutes <= 1 ? 'Just now' : `${diffInMinutes} minutes ago`;
+  } else if (diffInHours < 24) {
+    return diffInHours === 1 ? '1 hour ago' : `${diffInHours} hours ago`;
+  } else if (diffInDays < 7) {
+    return diffInDays === 1 ? '1 day ago' : `${diffInDays} days ago`;
+  } else {
+    return loginDate.toLocaleDateString();
   }
 };
 
@@ -203,7 +225,7 @@ const AdminUsersPage: React.FC = () => {
                     Joined
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Last Seen
+                    Last Login
                   </th>
                   <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
@@ -237,7 +259,7 @@ const AdminUsersPage: React.FC = () => {
                         {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {user.last_seen ? new Date(user.last_seen).toLocaleDateString() : 'To be implemented'}
+                        {user.last_login ? formatLastLogin(user.last_login) : 'N/A'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
                         <div className="flex justify-center space-x-2">

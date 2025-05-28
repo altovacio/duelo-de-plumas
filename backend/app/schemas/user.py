@@ -14,6 +14,7 @@ class UserResponse(UserBase):
     is_admin: bool
     credits: int
     created_at: datetime
+    last_login: Optional[datetime] = None
     
     class Config:
         from_attributes = True
@@ -40,6 +41,7 @@ class UserCredit(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+    is_first_login: Optional[bool] = False
 
 class TokenData(BaseModel):
     username: Optional[str] = None

@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import update, delete
 from typing import List
+from datetime import datetime
 
 from app.db.models.user import User
 from app.schemas.user import UserCreate, UserUpdate, UserCredit
@@ -120,6 +121,20 @@ class UserRepository:
             update(User)
             .where(User.id == user_id)
             .values(credits=new_credit_balance)
+            .returning(User)
+        )
+        
+        result = await self.db.execute(stmt)
+        await self.db.commit()
+        
+        return result.fetchone()
+        
+    async def update_last_login(self, user_id: int) -> User:
+        """Update a user's last login time."""
+        stmt = (
+            update(User)
+            .where(User.id == user_id)
+            .values(last_login=datetime.utcnow())
             .returning(User)
         )
         

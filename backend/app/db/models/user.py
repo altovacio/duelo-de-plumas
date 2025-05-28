@@ -14,6 +14,7 @@ class User(Base):
     is_admin = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    last_login = Column(DateTime(timezone=True), nullable=True)
     
     texts = relationship("Text", back_populates="owner", cascade="all, delete-orphan")
     contests = relationship("Contest", back_populates="creator", cascade="all, delete-orphan")

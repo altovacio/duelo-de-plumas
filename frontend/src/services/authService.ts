@@ -6,7 +6,7 @@ import { AUTH_ENDPOINTS } from '../utils/apiConfig';
 /**
  * Logs in a user and stores their tokens
  */
-export const login = async (credentials: LoginRequest): Promise<{ user: User; tokens: AuthTokens }> => {
+export const login = async (credentials: LoginRequest): Promise<{ user: User; tokens: AuthTokens; isFirstLogin?: boolean }> => {
   try {
     console.log('Attempting login with username:', credentials.username);
     
@@ -31,7 +31,7 @@ export const login = async (credentials: LoginRequest): Promise<{ user: User; to
     
     const user = userResponse.data;
     
-    return { user, tokens };
+    return { user, tokens, isFirstLogin: tokens.is_first_login };
   } catch (error) {
     console.error('Login error:', error);
     throw error;

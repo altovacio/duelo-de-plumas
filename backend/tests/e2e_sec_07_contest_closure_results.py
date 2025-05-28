@@ -92,22 +92,24 @@ async def test_07_02_winners_computed_visitor_views_contest1_details(client: Asy
 
 @pytest.mark.run(after='test_07_02_winners_computed_visitor_views_contest1_details') # MODIFIED
 async def test_07_03_user1_changes_contest1_to_private(client: AsyncClient): # MODIFIED: async def, AsyncClient
-    """User 1 changes contest1 to private."""
+    """User 1 changes contest1 to password-protected (but still publicly listed)."""
     assert "user1_headers" in test_data, "User 1 token not found."
     assert "contest1_id" in test_data, "Contest 1 ID not found."
     test_data["contest1_password"] = "testprivpass123" # Store password for later tests
 
-    update_payload = ContestUpdate(is_private=True, password=test_data["contest1_password"])
+    # Make it password protected but keep it publicly listed so visitors can access with password
+    update_payload = ContestUpdate(password_protected=True, publicly_listed=True, password=test_data["contest1_password"])
     response = await client.put(
         f"/contests/{test_data['contest1_id']}",
         json=update_payload.model_dump(exclude_unset=True),
         headers=test_data["user1_headers"]
     )
     assert response.status_code == 200, \
-        f"User 1 failed to set contest1 to private: {response.text}"
+        f"User 1 failed to set contest1 to password-protected: {response.text}"
     updated_contest = ContestResponse(**response.json())
-    assert updated_contest.is_private is True, "Contest1 visibility not set to private."
-    print(f"User 1 successfully changed contest1 (ID: {test_data['contest1_id']}) to private.")
+    assert updated_contest.password_protected is True, "Contest1 not set to password protected."
+    assert updated_contest.publicly_listed is True, "Contest1 should remain publicly listed."
+    print(f"User 1 successfully changed contest1 (ID: {test_data['contest1_id']}) to password-protected but publicly listed.")
 
 @pytest.mark.run(after='test_07_03_user1_changes_contest1_to_private')
 async def test_07_04_visitor_views_contest1_details_private_no_pass_fails(client: AsyncClient): # MODIFIED: async def, AsyncClient
@@ -115,8 +117,8 @@ async def test_07_04_visitor_views_contest1_details_private_no_pass_fails(client
     assert "contest1_id" in test_data, "Contest 1 ID not found."
     response = await client.get(f"/contests/{test_data['contest1_id']}")
     assert response.status_code == 403, \
-        f"Viewing private contest1 without password should fail (403), got {response.status_code}: {response.text}"
-    print(f"Visitor attempt to view private contest1 (ID: {test_data['contest1_id']}) without password failed as expected.")
+        f"Viewing password-protected contest1 without password should fail (403), got {response.status_code}: {response.text}"
+    print(f"Visitor attempt to view password-protected contest1 (ID: {test_data['contest1_id']}) without password failed as expected.")
 
 @pytest.mark.run(after='test_07_04_visitor_views_contest1_details_private_no_pass_fails')
 async def test_07_05_visitor_views_contest1_details_private_with_pass_succeeds(client: AsyncClient): # MODIFIED: Renamed, async def, AsyncClient
@@ -126,7 +128,7 @@ async def test_07_05_visitor_views_contest1_details_private_with_pass_succeeds(c
 
     response = await client.get(f"/contests/{test_data['contest1_id']}", params={"password": test_data["contest1_password"]})
     assert response.status_code == 200, \
-        f"Viewing private contest1 with password failed: {response.text}"
+        f"Viewing password-protected contest1 with password failed: {response.text}"
     contest_data = ContestResponse(**response.json())
     assert contest_data.status.lower() == "closed"
     
@@ -135,7 +137,7 @@ async def test_07_05_visitor_views_contest1_details_private_with_pass_succeeds(c
     assert sub_response.status_code == 200
     submissions = sub_response.json()
     if len(submissions) > 0:
-        print(f"Verifying submissions for private contest1 (ID: {test_data['contest1_id']}) accessed with password:")
+        print(f"Verifying submissions for password-protected contest1 (ID: {test_data['contest1_id']}) accessed with password:")
         for sub_data in submissions:
             current_submission_identifier = sub_data.get('text_id', 'UNKNOWN_TEXT_ID')
             submission = ContestTextResponse(**sub_data)
@@ -153,8 +155,8 @@ async def test_07_05_visitor_views_contest1_details_private_with_pass_succeeds(c
                 f"Submission for Text ID {current_submission_identifier} in contest1 should have evaluations/comments. Response: {sub_data}"
             print(f"    Ranking: {submission.ranking}, Evaluations count: {len(evaluations)}")
     else:
-        print("No submissions in private contest1 to verify details.")
-    print(f"Visitor successfully viewed private contest1 (ID: {test_data['contest1_id']}) with correct password and details revealed.")
+        print("No submissions in password-protected contest1 to verify details.")
+    print(f"Visitor successfully viewed password-protected contest1 (ID: {test_data['contest1_id']}) with correct password and details revealed.")
 
 @pytest.mark.run(after='test_07_05_visitor_views_contest1_details_private_with_pass_succeeds')
 async def test_07_06_user1_returns_contest1_to_public(client: AsyncClient): # MODIFIED: async def, AsyncClient
@@ -162,7 +164,7 @@ async def test_07_06_user1_returns_contest1_to_public(client: AsyncClient): # MO
     assert "user1_headers" in test_data, "User 1 token not found."
     assert "contest1_id" in test_data, "Contest 1 ID not found."
 
-    update_payload = ContestUpdate(is_private=False, password=None) # Ensure password is set to None
+    update_payload = ContestUpdate(password_protected=False, publicly_listed=True, password=None) # Ensure password is set to None
     response = await client.put(
         f"/contests/{test_data['contest1_id']}",
         json=update_payload.model_dump(exclude_unset=True, exclude_none=True), # exclude_none=True will remove password if None
@@ -171,7 +173,8 @@ async def test_07_06_user1_returns_contest1_to_public(client: AsyncClient): # MO
     assert response.status_code == 200, \
         f"User 1 failed to set contest1 to public: {response.text}"
     updated_contest = ContestResponse(**response.json())
-    assert updated_contest.is_private is False, "Contest1 visibility not set to public."
+    assert updated_contest.password_protected is False, "Contest1 visibility not set to password protected."
+    assert updated_contest.publicly_listed is True, "Contest1 visibility not set to publicly listed."
     # Check if the API correctly reflects that there's no password.
     # This depends on how 'has_password' is implemented in ContestResponse.
     # Assuming 'has_password' becomes False or is absent.
@@ -254,7 +257,7 @@ async def test_07_08_user1_deletes_text1_1_and_verify_removal_from_contests(clie
         contest2_details_resp = await client.get(f"/contests/{contest2_id}", headers=headers_to_use_c2)
         if contest2_details_resp.status_code == 200:
             contest2_details = ContestResponse(**contest2_details_resp.json())
-            if contest2_details.is_private and "contest2_password" in test_data:
+            if contest2_details.password_protected and "contest2_password" in test_data:
                  params_c2["password"] = test_data["contest2_password"]
         
         sub_response_c2 = await client.get(f"/contests/{contest2_id}/submissions/", headers=headers_to_use_c2, params=params_c2)
@@ -280,7 +283,7 @@ async def test_07_08_user1_deletes_text1_1_and_verify_removal_from_contests(clie
         contest3_details_resp = await client.get(f"/contests/{contest3_id}", headers=headers_to_use_c3)
         if contest3_details_resp.status_code == 200:
             contest3_details = ContestResponse(**contest3_details_resp.json())
-            if contest3_details.is_private and "contest3_password" in test_data: # Assuming contest3 might have a password
+            if contest3_details.password_protected and "contest3_password" in test_data: # Assuming contest3 might have a password
                  params_c3["password"] = test_data["contest3_password"] # Add if applicable
 
         sub_response_c3 = await client.get(f"/contests/{contest3_id}/submissions/", headers=headers_to_use_c3, params=params_c3)

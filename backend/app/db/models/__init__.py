@@ -8,6 +8,7 @@ from app.db.models.agent import Agent
 from app.db.models.credit_transaction import CreditTransaction
 from app.db.models.contest_text import ContestText
 from app.db.models.contest_judge import ContestJudge
+from app.db.models.contest_member import ContestMember
 from app.db.models.agent_execution import AgentExecution
 from app.db.models.vote import Vote
 

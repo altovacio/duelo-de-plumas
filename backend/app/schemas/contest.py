@@ -16,8 +16,9 @@ class ContestCreator(BaseModel):
 class ContestBase(BaseModel):
     title: str
     description: str  # Markdown content
-    is_private: bool = False
-    password: Optional[str] = None  # Only required if is_private is True
+    password_protected: bool = False  # Renamed from is_private
+    password: Optional[str] = None  # Only required if password_protected is True
+    publicly_listed: bool = True  # New field for visibility in public listings
     min_votes_required: Optional[int] = None
 
 
@@ -30,8 +31,9 @@ class ContestCreate(ContestBase):
 class ContestUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
-    is_private: Optional[bool] = None
+    password_protected: Optional[bool] = None  # Renamed from is_private
     password: Optional[str] = None
+    publicly_listed: Optional[bool] = None  # New field
     min_votes_required: Optional[int] = None
     end_date: Optional[datetime] = None
     status: Optional[str] = None  # "open", "evaluation", "closed"
@@ -69,6 +71,22 @@ class JudgeAssignmentResponse(BaseModel):
         from_attributes = True
 
 
+# For managing contest members
+class ContestMemberAdd(BaseModel):
+    user_id: int
+
+
+class ContestMemberResponse(BaseModel):
+    id: int
+    contest_id: int
+    user_id: int
+    username: str  # User's username for display
+    added_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
 class ContestResponse(ContestBase):
     id: int
     creator: ContestCreator  # Creator information - removed creator_id as it's redundant
@@ -89,6 +107,7 @@ class ContestResponse(ContestBase):
 # Now JudgeAssignmentResponse is defined before use here
 class ContestDetailResponse(ContestResponse):
     judges: List[JudgeAssignmentResponse] = []
+    members: List[ContestMemberResponse] = []  # New field for contest members
     # has_password inherited from ContestResponse
     
     class Config:

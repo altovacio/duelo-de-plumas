@@ -3,8 +3,6 @@
 This document lists known technical debt, areas for refactoring, and potential future improvements.
 
 ## ONGOING
--select inload optimization
-
 
 ## TODO
 
@@ -20,7 +18,7 @@ This document lists known technical debt, areas for refactoring, and potential f
 -other optimizations
 -Unit tests
 
--Public listing?
+
 
 ## Frontend
 

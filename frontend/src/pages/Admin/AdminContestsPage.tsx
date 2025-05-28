@@ -265,9 +265,9 @@ const AdminContestsPage: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          contest.is_private ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'
+                          (contest.password_protected || !contest.publicly_listed) ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'
                         }`}>
-                          {contest.is_private ? 'Private' : 'Public'}
+                          {(contest.password_protected || !contest.publicly_listed) ? 'Private' : 'Public'}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -359,7 +359,8 @@ const AdminContestsPage: React.FC = () => {
           initialContest={{
             title: contestToEdit.title,
             description: contestToEdit.description,
-            is_private: contestToEdit.is_private,
+            password_protected: contestToEdit.password_protected,
+            publicly_listed: contestToEdit.publicly_listed,
             password: contestToEdit.password || undefined,
             end_date: contestToEdit.end_date || undefined,
             judge_restrictions: contestToEdit.judge_restrictions,

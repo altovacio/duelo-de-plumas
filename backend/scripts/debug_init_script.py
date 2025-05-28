@@ -44,18 +44,19 @@ def assign_user_credits(token, user_id, credits):
     return print_response(response, f"Assign Credits to User {user_id}")
 
 # --- Generic Resource Creation ---
-def create_contest_api(token, title, description, is_private, password=None):
+def create_contest_api(token, title, description, password_protected=False, publicly_listed=True, password=None):
     headers = {"Authorization": f"Bearer {token}"}
     payload = {
         "title": title,
         "description": description,
-        "is_private": is_private,
+        "password_protected": password_protected,
+        "publicly_listed": publicly_listed,
         "min_votes_required": 1, # Default
         # "end_date": None, # Optional, leave open
         # "judge_restrictions": {}, # Optional
         # "author_restrictions": {} # Optional
     }
-    if is_private and password:
+    if password_protected and password:
         payload["password"] = password
     
     response = requests.post(f"{BASE_URL}/contests/", headers=headers, json=payload)
@@ -155,7 +156,7 @@ if __name__ == "__main__":
             user1_token,
             title="User1 Private Test Contest",
             description="This is a private contest created by user1 for testing. Password is '1'.",
-            is_private=True,
+            password_protected=True,
             password="1"
         )
 
@@ -166,7 +167,8 @@ if __name__ == "__main__":
             user2_token,
             title="User2 Public Test Contest",
             description="This is a public contest created by user2 for testing.",
-            is_private=False
+            password_protected=False,
+            publicly_listed=True
         )
 
     # Step d) user1 and user2 each create a very simple text
@@ -262,7 +264,7 @@ if __name__ == "__main__":
             admin_token,
             title="Admin's Private Test Contest",
             description="This is a private contest created by admin. Password is 'adminpass'.",
-            is_private=True,
+            password_protected=True,
             password="adminpass"
         )
         # Admin creates a public contest
@@ -270,7 +272,16 @@ if __name__ == "__main__":
             admin_token,
             title="Admin's Public Showcase",
             description="This is a public contest created by admin.",
-            is_private=False
+            password_protected=False,
+            publicly_listed=True
+        )
+        # Admin creates a hidden contest (not publicly listed, no password)
+        create_contest_api(
+            admin_token,
+            title="Admin's Hidden Elite Contest",
+            description="This is a hidden contest created by admin. Only members can access it.",
+            password_protected=False,
+            publicly_listed=False
         )
         # Admin creates a text
         create_text_api(
@@ -301,6 +312,26 @@ if __name__ == "__main__":
     else:
         print("\nSkipping Admin actions as admin token was not obtained.")
 
+    # NEW: Step f2) Create hidden contests for user1 and user2
+    print("\n=== Step F2: Create Hidden Contests ===")
+    if user1_token:
+        create_contest_api(
+            user1_token,
+            title="User1's Secret Writers Circle",
+            description="An exclusive hidden contest for selected writers only. Invitation required.",
+            password_protected=False,
+            publicly_listed=False
+        )
+    
+    if user2_token:
+        create_contest_api(
+            user2_token,
+            title="User2's Underground Poetry Slam",
+            description="A hidden poetry contest for the underground scene. Members only.",
+            password_protected=False,
+            publicly_listed=False
+        )
+
     # NEW: Step g) User1 creates a test contest, submits 8 texts, and assigns human + AI judges
     print("\n=== Step G: User1 Complete Contest Setup ===")
     if user1_token and user1_id and len(user1_text_ids) >= 8:
@@ -309,7 +340,8 @@ if __name__ == "__main__":
             user1_token,
             title="User1's Judging Test Contest",
             description="Contest created by user1 for testing the complete judging flow with both human and AI judges.",
-            is_private=False  # Make it public for easier testing
+            password_protected=False,  # Make it public for easier testing
+            publicly_listed=True
         )
         
         if contest_response and "id" in contest_response:

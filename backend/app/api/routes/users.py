@@ -12,6 +12,7 @@ from app.db.models.contest import Contest as ContestModel
 from app.services.contest_service import ContestService
 from app.db.repositories.contest_repository import ContestRepository
 from app.schemas.contest import ContestResponse
+from app.db.repositories.user_repository import UserRepository
 
 router = APIRouter(tags=["users"])
 
@@ -40,19 +41,15 @@ async def get_users(
     users = await service.get_users(skip, limit)
     return users
 
-@router.get("/search", response_model=List[UserPublicResponse])
+@router.get("/search", response_model=List[UserResponse])
 async def search_users(
-    q: str = Query(..., min_length=2, description="Search query (username or email)"),
-    limit: int = Query(10, ge=1, le=50, description="Maximum number of results"),
+    username: str = Query(..., description="Username to search for"),
     db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_current_user)
 ):
-    """
-    Search users by username or email. Returns public user information only.
-    Requires authentication to prevent abuse.
-    """
-    service = UserService(db)
-    users = await service.search_users(q, limit)
+    """Search for users by username."""
+    user_repo = UserRepository(db)
+    users = await user_repo.search_users(username)
     return users
 
 @router.post("/by-ids", response_model=List[UserAdminResponse])
@@ -101,6 +98,17 @@ async def get_author_contests(
 ):
     """Get contests where the current user is an author (has submitted texts)."""
     contests = await ContestRepository.get_contests_for_author(db, current_user.id, skip, limit)
+    return contests
+
+@router.get("/member-contests", response_model=List[ContestResponse])
+async def get_member_contests(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user)
+):
+    """Get contests where the current user is a member."""
+    contests = await ContestRepository.get_contests_for_member(db, current_user.id, skip, limit)
     return contests
 
 @router.get("/{user_id}/public", response_model=UserPublicResponse)

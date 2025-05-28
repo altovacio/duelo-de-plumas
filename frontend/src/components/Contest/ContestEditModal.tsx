@@ -18,7 +18,8 @@ const ContestEditModal: React.FC<ContestEditModalProps> = ({
   // Form state
   const [title, setTitle] = useState(contest.title);
   const [description, setDescription] = useState(contest.description);
-  const [isPrivate, setIsPrivate] = useState(contest.is_private);
+  const [passwordProtected, setPasswordProtected] = useState(contest.password_protected);
+  const [publiclyListed, setPubliclyListed] = useState(contest.publicly_listed);
   const [password, setPassword] = useState('');
   const [status, setStatus] = useState(contest.status);
   const [startDate, setStartDate] = useState(contest.start_date || '');
@@ -31,7 +32,8 @@ const ContestEditModal: React.FC<ContestEditModalProps> = ({
     if (isOpen) {
       setTitle(contest.title);
       setDescription(contest.description);
-      setIsPrivate(contest.is_private);
+      setPasswordProtected(contest.password_protected);
+      setPubliclyListed(contest.publicly_listed);
       setPassword('');
       setStatus(contest.status);
       setStartDate(contest.start_date || '');
@@ -55,8 +57,8 @@ const ContestEditModal: React.FC<ContestEditModalProps> = ({
       validationErrors.description = 'Description is required';
     }
     
-    if (isPrivate && !contest.has_password && !password.trim()) {
-      validationErrors.password = 'Password is required for private contests';
+    if (passwordProtected && !contest.has_password && !password.trim()) {
+      validationErrors.password = 'Password is required for password-protected contests';
     }
     
     if (Object.keys(validationErrors).length > 0) {
@@ -71,7 +73,8 @@ const ContestEditModal: React.FC<ContestEditModalProps> = ({
       const contestData: Partial<Contest> = {
         title,
         description,
-        is_private: isPrivate,
+        password_protected: passwordProtected,
+        publicly_listed: publiclyListed,
         status,
       };
       
@@ -171,34 +174,46 @@ const ContestEditModal: React.FC<ContestEditModalProps> = ({
           </div>
 
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Privacy
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Visibility Settings
             </label>
-            <div className="flex items-center space-x-4">
-              <label className="inline-flex items-center">
+            
+            <div className="space-y-3">
+              <div className="flex items-center">
                 <input
-                  type="radio"
-                  className="form-radio"
-                  name="privacy"
-                  checked={!isPrivate}
-                  onChange={() => setIsPrivate(false)}
+                  type="checkbox"
+                  id="publiclyListed"
+                  className="mr-2"
+                  checked={publiclyListed}
+                  onChange={(e) => setPubliclyListed(e.target.checked)}
                 />
-                <span className="ml-2">Public</span>
-              </label>
-              <label className="inline-flex items-center">
+                <label htmlFor="publiclyListed" className="text-sm">
+                  Publicly listed (appears in contest listings)
+                </label>
+              </div>
+              
+              <div className="flex items-center">
                 <input
-                  type="radio"
-                  className="form-radio"
-                  name="privacy"
-                  checked={isPrivate}
-                  onChange={() => setIsPrivate(true)}
+                  type="checkbox"
+                  id="passwordProtected"
+                  className="mr-2"
+                  checked={passwordProtected}
+                  onChange={(e) => setPasswordProtected(e.target.checked)}
                 />
-                <span className="ml-2">Private</span>
-              </label>
+                <label htmlFor="passwordProtected" className="text-sm">
+                  Password protected (requires password to access)
+                </label>
+              </div>
+            </div>
+            
+            <div className="mt-2 text-xs text-gray-600">
+              <p>• Publicly listed + No password = Public contest</p>
+              <p>• Publicly listed + Password = Listed but requires password</p>
+              <p>• Not publicly listed = Private contest (invite-only)</p>
             </div>
           </div>
 
-          {isPrivate && (
+          {passwordProtected && (
             <div className="mb-4">
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
                 {contest.has_password ? 'Change Password (leave blank to keep current)' : 'Password'}

@@ -22,7 +22,7 @@ export interface AdminUser {
 
 // Function to search for users by username or email
 export const searchUsers = async (query: string): Promise<User[]> => {
-  const response = await apiClient.get('/users/search', { params: { q: query } });
+  const response = await apiClient.get('/users/search', { params: { username: query } });
   return response.data;
 };
 

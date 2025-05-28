@@ -13,20 +13,10 @@ import { getJudgeVotes } from '../../services/voteService';
 // import TextSelectionModal from '../../components/TextSelectionModal'; // Commented out - not yet developed
 // import JudgingForm from '../../components/Contest/JudgingForm'; // Commented out - not yet developed
 
-// Use the Contest type from the service, potentially extended if needed locally
-// For now, assume ContestServiceType is sufficient, but we need to handle 'creator' if it's different.
-// This implies the actual response for getContest might be richer than the generic ContestServiceType.
-// We'll define a local type that reflects what this page *expects* getContest to return,
-// aligning fields with ContestServiceType where possible.
-
-interface ContestPageSpecificData extends Omit<contestService.Contest, 'updated_at' | 'is_private' | 'has_password' | 'min_votes_required'> {
+// Use the Contest type from the service directly
+interface ContestPageSpecificData extends contestService.Contest {
   full_description?: string; // Markdown content, specific to detail view
-  // creator is already properly defined in the Contest interface
   last_modified: string; // Page uses last_modified, service has updated_at
-  type: 'public' | 'private'; // Page uses type, service has is_private
-  is_password_protected: boolean; // Page uses is_password_protected, service has has_password
-  min_required_votes?: number; // Page uses min_required_votes, service has min_votes_required
-  // participant_count and text_count are already fine (snake_case in both)
 }
 
 const ContestDetailPage: React.FC = () => {
@@ -109,11 +99,6 @@ const ContestDetailPage: React.FC = () => {
           ...contestDataFromService,
           full_description: contestDataFromService.description, 
           last_modified: contestDataFromService.updated_at,
-          type: contestDataFromService.is_private ? 'private' : 'public',
-          is_password_protected: contestDataFromService.has_password,
-          min_required_votes: contestDataFromService.min_votes_required,
-          participant_count: contestDataFromService.participant_count || 0,
-          text_count: contestDataFromService.text_count || 0,
         };
         setContest(contestDataForPage);
         setPasswordError(null);
@@ -130,7 +115,7 @@ const ContestDetailPage: React.FC = () => {
 
         if (isCreator || isAdmin) {
           grantAccess = true;
-        } else if (!contestDataForPage.is_password_protected) {
+        } else if (!contestDataForPage.password_protected) {
           grantAccess = true;
         } else if (passwordForApi !== undefined) {
           grantAccess = true;
@@ -151,7 +136,7 @@ const ContestDetailPage: React.FC = () => {
 
         if (grantAccess) {
           let actualPasswordToUseForSubCalls: string | undefined = undefined;
-          if (contestDataForPage.is_password_protected) {
+          if (contestDataForPage.password_protected) {
             actualPasswordToUseForSubCalls = passwordForApi !== undefined ? passwordForApi : password;
           }
 
@@ -665,12 +650,12 @@ const ContestDetailPage: React.FC = () => {
               )}
               <div 
                 className={`text-xs px-2 py-1 rounded-full ${
-                  contest.type === 'public' 
-                    ? 'bg-blue-100 text-blue-800' 
-                    : 'bg-purple-100 text-purple-800'
+                  (contest.password_protected || !contest.publicly_listed)
+                    ? 'bg-purple-100 text-purple-800' 
+                    : 'bg-blue-100 text-blue-800'
                 }`}
               >
-                {contest.type.charAt(0).toUpperCase() + contest.type.slice(1)}
+                {(contest.password_protected || !contest.publicly_listed) ? 'Private' : 'Public'}
               </div>
               <div 
                 className={`text-xs px-2 py-1 rounded-full ${
@@ -1006,7 +991,7 @@ const ContestDetailPage: React.FC = () => {
             <div className="max-w-2xl w-full mx-4">
               <TextSubmissionForm
                 contestId={parseInt(id || '1')}
-                isPrivate={contest?.type === 'private'}
+                passwordProtected={contest?.password_protected || false}
                 password={password}
                 onSuccess={handleSubmissionSuccess}
                 onCancel={() => setShowSubmitTextModal(false)}

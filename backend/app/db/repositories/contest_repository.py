@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from app.db.models.contest import Contest
 from app.db.models.contest_text import ContestText
 from app.db.models.contest_judge import ContestJudge
+from app.db.models.contest_member import ContestMember
 from app.db.models.text import Text
 from app.schemas.contest import ContestCreate, ContestUpdate
 
@@ -17,8 +18,9 @@ class ContestRepository:
         db_contest = Contest(
             title=contest.title,
             description=contest.description,
-            is_private=contest.is_private,
+            password_protected=contest.password_protected,
             password=contest.password,
+            publicly_listed=contest.publicly_listed,
             min_votes_required=contest.min_votes_required,
             end_date=contest.end_date,
             judge_restrictions=contest.judge_restrictions,
@@ -28,6 +30,11 @@ class ContestRepository:
         db.add(db_contest)
         await db.commit()
         await db.refresh(db_contest)
+        
+        # If the contest is not publicly listed, automatically add the creator as a member
+        if not contest.publicly_listed:
+            await ContestRepository.add_member_to_contest(db, db_contest.id, creator_id)
+        
         return db_contest
     
     @staticmethod
@@ -37,7 +44,8 @@ class ContestRepository:
         limit: int = 100,
         status: Optional[str] = None,
         current_user_id: Optional[int] = None,
-        creator_id: Optional[Union[int, str]] = None
+        creator_id: Optional[Union[int, str]] = None,
+        include_non_public: bool = False
     ) -> List[dict]:
         """Get contests with counts in a single optimized query to avoid N+1 problem."""
         
@@ -83,6 +91,10 @@ class ContestRepository:
             if isinstance(creator_id, str) and creator_id.isdigit():
                 creator_id = int(creator_id)
             query = query.where(Contest.creator_id == creator_id)
+        
+        # Filter by visibility unless explicitly including non-public contests
+        if not include_non_public:
+            query = query.where(Contest.publicly_listed == True)
         
         # Execute query with ordering and pagination
         result = await db.execute(
@@ -130,7 +142,8 @@ class ContestRepository:
         limit: int = 100,
         status: Optional[str] = None,
         current_user_id: Optional[int] = None,
-        creator_id: Optional[Union[int, str]] = None
+        creator_id: Optional[Union[int, str]] = None,
+        include_non_public: bool = False
     ) -> List[Contest]:
         """Get a list of contests with optional filtering.
         If status is provided, filter by status.
@@ -149,10 +162,14 @@ class ContestRepository:
             if isinstance(creator_id, str) and creator_id.isdigit():
                 creator_id = int(creator_id)
             query = query.where(Contest.creator_id == creator_id)
+        
+        # Filter by visibility unless explicitly including non-public contests
+        if not include_non_public:
+            query = query.where(Contest.publicly_listed == True)
             
         # The comment below is for the general case of listing all contests.
         # Specific views like "My Contests" will use the creator_id filter.
-        # All contests are listed; details are protected by GET /{id}
+        # Only publicly listed contests are shown by default; details are protected by GET /{id}
             
         result = await db.execute(query.order_by(Contest.created_at.desc()).offset(skip).limit(limit))
         return result.scalars().all()
@@ -213,13 +230,14 @@ class ContestRepository:
             ContestText.contest_id == contest_id
         ).scalar_subquery()
 
-        # Main query: Select Contest ORM, counts, and load judges
+        # Main query: Select Contest ORM, counts, and load judges and members
         stmt = select(
             Contest, # Select the Contest ORM entity
             text_count_subq.label("text_count"),
             participant_count_subq.label("participant_count")
         ).options(
-            selectinload(Contest.contest_judges), # Changed to Contest.contest_judges
+            selectinload(Contest.contest_judges), # Load contest judges
+            selectinload(Contest.contest_members).selectinload(ContestMember.user), # Load contest members with user info
             selectinload(Contest.creator) # Load creator relationship
         ).filter(Contest.id == contest_id)
         
@@ -255,7 +273,10 @@ class ContestRepository:
         contest_data.pop("creator_id", None)
         
         # Add the loaded judges (will be ORM objects, Pydantic handles conversion)
-        contest_data["judges"] = contest_obj.contest_judges # Changed to contest_obj.contest_judges
+        contest_data["judges"] = contest_obj.contest_judges
+        
+        # Add the loaded members (will be ORM objects, Pydantic handles conversion)
+        contest_data["members"] = contest_obj.contest_members
         
         return contest_data
     
@@ -486,6 +507,68 @@ class ContestRepository:
         
         return contest_dicts
     
+    # Methods for contest member management
+    @staticmethod
+    async def add_member_to_contest(db: AsyncSession, contest_id: int, user_id: int) -> Optional[ContestMember]:
+        """Add a member to a contest."""
+        # Check if member already exists
+        stmt = select(ContestMember).filter(
+            ContestMember.contest_id == contest_id,
+            ContestMember.user_id == user_id
+        )
+        result = await db.execute(stmt)
+        existing = result.scalar_one_or_none()
+        
+        if existing:
+            return None  # Already a member
+            
+        db_contest_member = ContestMember(
+            contest_id=contest_id,
+            user_id=user_id
+        )
+        db.add(db_contest_member)
+        await db.commit()
+        await db.refresh(db_contest_member)
+        return db_contest_member
+    
+    @staticmethod
+    async def remove_member_from_contest(db: AsyncSession, contest_id: int, user_id: int) -> bool:
+        """Remove a member from a contest."""
+        stmt = select(ContestMember).filter(
+            ContestMember.contest_id == contest_id,
+            ContestMember.user_id == user_id
+        )
+        result = await db.execute(stmt)
+        db_contest_member = result.scalar_one_or_none()
+        
+        if not db_contest_member:
+            return False
+            
+        await db.delete(db_contest_member)
+        await db.commit()
+        return True
+    
+    @staticmethod
+    async def get_contest_members(db: AsyncSession, contest_id: int) -> List[ContestMember]:
+        """Get all members of a contest."""
+        stmt = select(ContestMember).filter(
+            ContestMember.contest_id == contest_id
+        ).options(
+            selectinload(ContestMember.user)
+        )
+        result = await db.execute(stmt)
+        return result.scalars().all()
+    
+    @staticmethod
+    async def is_contest_member(db: AsyncSession, contest_id: int, user_id: int) -> bool:
+        """Check if a user is a member of a contest."""
+        stmt = select(ContestMember).filter(
+            ContestMember.contest_id == contest_id,
+            ContestMember.user_id == user_id
+        )
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none() is not None
+    
     @staticmethod
     async def get_contests_for_author(db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100) -> List[dict]:
         """Get all contests where the given user has submitted texts as an author with counts."""
@@ -527,6 +610,81 @@ class ContestRepository:
             .filter(Text.owner_id == user_id)
             .options(selectinload(Contest.creator))  # Load creator relationship
             .distinct()
+            .order_by(Contest.id.desc())
+            .offset(skip)
+            .limit(limit)
+        )
+        result = await db.execute(stmt)
+        
+        # Convert ORM objects to dictionaries with creator information and counts
+        contest_dicts = []
+        for row in result.all():
+            contest = row.Contest
+            contest_data = {column.key: getattr(contest, column.key) for column in Contest.__table__.columns}
+            
+            # Add creator information
+            if contest.creator:
+                contest_data["creator"] = {
+                    "id": contest.creator.id,
+                    "username": contest.creator.username
+                }
+            else:
+                contest_data["creator"] = {
+                    "id": contest_data["creator_id"],
+                    "username": "Unknown"
+                }
+            
+            # Remove creator_id since we now use the creator object
+            contest_data.pop("creator_id", None)
+            
+            # Add the actual counts from the query
+            contest_data["text_count"] = row.text_count
+            contest_data["participant_count"] = row.participant_count
+            
+            # Add has_password field
+            contest_data["has_password"] = bool(contest_data.get("password"))
+            
+            contest_dicts.append(contest_data)
+        
+        return contest_dicts
+    
+    @staticmethod
+    async def get_contests_for_member(db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100) -> List[dict]:
+        """Get all contests where the given user is a member with counts."""
+        
+        # Subquery for text count per contest
+        text_count_subq = (
+            select(
+                ContestText.contest_id,
+                func.count(func.distinct(ContestText.text_id)).label("text_count")
+            )
+            .group_by(ContestText.contest_id)
+            .subquery()
+        )
+        
+        # Subquery for participant count per contest
+        participant_count_subq = (
+            select(
+                ContestText.contest_id,
+                func.count(func.distinct(Text.owner_id)).label("participant_count")
+            )
+            .join(Text, ContestText.text_id == Text.id)
+            .group_by(ContestText.contest_id)
+            .subquery()
+        )
+        
+        # Main query with joins for counts
+        stmt = (
+            select(
+                Contest,
+                func.coalesce(text_count_subq.c.text_count, 0).label("text_count"),
+                func.coalesce(participant_count_subq.c.participant_count, 0).label("participant_count")
+            )
+            .join(ContestMember, Contest.id == ContestMember.contest_id)
+            .outerjoin(text_count_subq, Contest.id == text_count_subq.c.contest_id)
+            .outerjoin(participant_count_subq, Contest.id == participant_count_subq.c.contest_id)
+            .filter(ContestMember.user_id == user_id)
+            .options(selectinload(Contest.creator))  # Load creator relationship
             .order_by(Contest.id.desc())
             .offset(skip)
             .limit(limit)

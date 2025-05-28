@@ -31,11 +31,11 @@ e2e_test_plan = """
 - Permission boundaries verified
 
 ## 3. Contest Creation & Management
-    3.01- User 1 creates a public Contest (contest1). Get contest1_id.
+    3.01- User 1 creates a publicly listed Contest (contest1). Get contest1_id.
             - They do not limit the number of submissions per user.
             - They do not restrict judges from participating as text submitters.
             - They assign judge_global as judge.
-    3.02- Admin creates a private Contest (contest2), setting a password.
+    3.02- Admin creates a publicly listed password-protected Contest (contest2), setting a password.
             - They assign User 2, judge1 and judge_global as judges.
             - They restrict judges from participating as text submitters.
             - They restrict the number of submissions per user to 1.
@@ -55,10 +55,18 @@ e2e_test_plan = """
     3.16- User 1 attempts to view contest2 details with wrong password -> Fails
     3.17- User 1 attempts to view contest2 details with correct password -> Succeeds.
     3.18- Admin attempts to view contest 2 details with no password -> Succeeds.
+    3.19- User 1 creates a non-publicly listed contest (contest4) for member testing.
+    3.20- User 2 cannot access contest4 as it is not publicly listed.
+    3.21- User 1 adds User 2 as member to contest4.
+    3.22- User 2 can access contest4 as a member.
+    3.23- visitor user attempts to list and access contest4 -> Fails.
+    3.24- user1 removes User 2 from contest4 members.
+    3.25- User 2 can no longer access contest4.
 
 #### Summary of this section:
-- Contests: contest1 (public), contest2 (private, restricted), contest3
+- Contests: contest1 (publicly listed), contest2 (publicly listed, password-protected, restricted), contest3 (publicly listed), contest4 (non-publicly listed with members)
 - Visibility & permission checks
+- Member management functionality tested
 
 ## 4. Text Creation
     4.01- User 1 creates a text (Text 1.1) using the manual text editor. Get text1_1_id.

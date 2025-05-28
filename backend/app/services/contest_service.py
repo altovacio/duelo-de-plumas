@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from app.schemas.contest import (
     ContestCreate, ContestUpdate,  
-    TextSubmission, JudgeAssignment, ContestResponse, JudgeAssignmentResponse, ContestTextResponse
+    TextSubmission, JudgeAssignment, ContestResponse, JudgeAssignmentResponse, ContestTextResponse, ContestMemberResponse
 )
 from app.db.repositories.contest_repository import ContestRepository
 from app.db.repositories.text_repository import TextRepository
@@ -26,11 +26,11 @@ from app.db.models.text import Text as TextModel
 class ContestService:
     @staticmethod
     async def create_contest(db: AsyncSession, contest: ContestCreate, creator_id: int) -> ContestResponse:
-        # Validate that private contests have a password
-        if contest.is_private and not contest.password:
+        # Validate that password protected contests have a password
+        if contest.password_protected and not contest.password:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Private contests must have a password"
+                detail="Password protected contests must have a password"
             )
             
         created_contest = await ContestRepository.create_contest(db, contest, creator_id)
@@ -60,10 +60,16 @@ class ContestService:
         creator: Optional[Union[int, str]] = None  # Can be 'me', user_id (int), or user_id (str)
     ) -> List[ContestResponse]:
         creator_id_to_filter: Optional[Union[int, str]] = None
+        include_non_public = False  # Default to false
+        
         if creator == "me" and current_user_id is not None:
             creator_id_to_filter = current_user_id
+            include_non_public = True  # When viewing own contests, include non-public ones
         elif creator is not None:
             creator_id_to_filter = creator
+            # If filtering by a specific creator, include non-public contests
+            # This allows admins or specific use cases to see all contests by a creator
+            include_non_public = True
         # If creator is something else, or current_user_id is None, no creator filter is applied unless explicitly passed
         # This maintains existing behavior for general contest listing if creator != 'me'
 
@@ -74,7 +80,8 @@ class ContestService:
             limit=limit, 
             status=status,
             current_user_id=current_user_id, # Still passed for any other internal uses it might have
-            creator_id=creator_id_to_filter  # Pass the determined creator_id for filtering
+            creator_id=creator_id_to_filter,  # Pass the determined creator_id for filtering
+            include_non_public=include_non_public  # Include non-public contests when appropriate
         )
         
         # Convert the dictionaries to ContestResponse objects
@@ -117,8 +124,21 @@ class ContestService:
                     "has_voted": judge_orm.has_voted
                 })
         
+        # Transform member ORM objects to dictionaries matching ContestMemberResponse
+        transformed_members_list = []
+        if "members" in raw_result_dict and raw_result_dict["members"]:
+            for member_orm in raw_result_dict["members"]:
+                transformed_members_list.append({
+                    "id": member_orm.id,
+                    "contest_id": member_orm.contest_id,
+                    "user_id": member_orm.user_id,
+                    "username": member_orm.user.username if member_orm.user else "Unknown",
+                    "added_at": member_orm.added_at
+                })
+        
         final_result_dict = raw_result_dict.copy()
         final_result_dict["judges"] = transformed_judges_list
+        final_result_dict["members"] = transformed_members_list
         
         # Reflect whether a password is set
         final_result_dict['has_password'] = bool(final_result_dict.get('password'))
@@ -145,7 +165,7 @@ class ContestService:
         # Prepare a mutable copy of contest_update data for potential modification
         update_data_dict = contest_update.model_dump(exclude_unset=True)
         # If setting to public, explicitly clear the password so it is removed in the DB
-        if update_data_dict.get('is_private') is False:
+        if update_data_dict.get('password_protected') is False:
             update_data_dict['password'] = None
 
         # Validate status transition and ensure status is lowercase before saving
@@ -159,14 +179,14 @@ class ContestService:
         # This ensures that the repository receives the standardized status.
         final_contest_update = ContestUpdate(**update_data_dict)
             
-        # Validate that private contests have a password
-        is_private_after_update = final_contest_update.is_private if final_contest_update.is_private is not None else contest.is_private
+        # Validate that password protected contests have a password
+        password_protected_after_update = final_contest_update.password_protected if final_contest_update.password_protected is not None else contest.password_protected
         password_after_update = final_contest_update.password if final_contest_update.password is not None else contest.password
-
-        if is_private_after_update and not password_after_update:
+        
+        if password_protected_after_update and not password_after_update:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Private contests must have a password"
+                detail="Password protected contests must have a password"
             )
             
         updated_contest_orm = await ContestRepository.update_contest(
@@ -238,30 +258,45 @@ class ContestService:
         current_user_id: Optional[int] = None, 
         password: Optional[str] = None
     ) -> Contest:
-        """Check if user has access to a contest, including password validation for private contests"""
+        """Check if user has access to a contest, including password validation and member access"""
         contest = await ContestService.get_contest(db=db, contest_id=contest_id)
         
-        # Public contests are accessible to everyone
-        if not contest.is_private:
-            return contest
+        # Check if contest is publicly listed
+        if not contest.publicly_listed:
+            # For non-publicly listed contests, check if user is a member or creator/admin
+            if not current_user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Authentication required to access this contest"
+                )
             
-        # For private contests, check the provided password
-        if contest.is_private:
+            user_repo = UserRepository(db)
+            is_admin_user = await user_repo.is_admin(current_user_id)
+            is_creator = contest.creator_id == current_user_id
+            is_member = await ContestRepository.is_contest_member(db, contest_id, current_user_id)
+            
+            if not (is_admin_user or is_creator or is_member):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You don't have access to this contest"
+                )
+        
+        # Check password protection (applies to both publicly listed and non-publicly listed contests)
+        if contest.password_protected:
             # If user is contest creator or admin, allow access without password
-            is_admin_user = False
             if current_user_id:
                 user_repo = UserRepository(db)
                 is_admin_user = await user_repo.is_admin(current_user_id)
-            is_creator = current_user_id and contest.creator_id == current_user_id
-            
-            if is_admin_user or is_creator:
-                return contest
+                is_creator = contest.creator_id == current_user_id
+                
+                if is_admin_user or is_creator:
+                    return contest
                 
             # Otherwise, verify the password
             if not password or password != contest.password:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Invalid password for private contest"
+                    detail="Invalid password for password protected contest"
                 )
                 
         return contest
@@ -532,8 +567,7 @@ class ContestService:
             )
             
         # Find the specific judge assignment entry by its ID (judge_id here is ContestJudge.id)
-        # This requires fetching the specific ContestJudge entry to check its has_voted status.
-        # We can do this by selecting the specific entry by its ID.
+        # This requires fetching the specific entry by its ID.
         stmt = select(ContestJudge).where(ContestJudge.id == judge_id, ContestJudge.contest_id == contest_id)
         result = await db.execute(stmt)
         judge_assignment_entry = result.scalar_one_or_none()
@@ -593,6 +627,17 @@ class ContestService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"User with id {user_id} not found.")
 
         return await ContestRepository.get_contests_for_author(db, user_id=user_id, skip=skip, limit=limit)
+
+    @staticmethod
+    async def get_contests_where_user_is_member(db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100) -> List[dict]:
+        """Get contests where the specified user is a member."""
+        # Validate user exists (optional, but good practice)
+        user_repo = UserRepository(db)
+        member_user = await user_repo.get_by_id(user_id)
+        if not member_user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"User with id {user_id} not found.")
+
+        return await ContestRepository.get_contests_for_member(db, user_id=user_id, skip=skip, limit=limit)
 
     @staticmethod
     async def get_contest_submissions(
@@ -877,5 +922,113 @@ class ContestService:
             response_list.append(response_item)
         
         return response_list
+
+    # Member management methods
+    @staticmethod
+    async def add_member_to_contest(
+        db: AsyncSession, 
+        contest_id: int, 
+        user_id: int, 
+        current_user_id: int
+    ) -> ContestMemberResponse:
+        """Add a member to a contest."""
+        contest = await ContestService.get_contest(db=db, contest_id=contest_id)
+        
+        # Check permissions: only contest creator or admin can add members
+        user_repo = UserRepository(db)
+        is_admin_user = await user_repo.is_admin(current_user_id)
+        if contest.creator_id != current_user_id and not is_admin_user:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to add members to this contest"
+            )
+        
+        # Check if user exists
+        user_to_add = await user_repo.get_by_id(user_id)
+        if not user_to_add:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with id {user_id} not found"
+            )
+        
+        # Add member
+        member = await ContestRepository.add_member_to_contest(db, contest_id, user_id)
+        if not member:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User is already a member of this contest"
+            )
+        
+        # Return response with user info
+        return ContestMemberResponse(
+            id=member.id,
+            contest_id=member.contest_id,
+            user_id=member.user_id,
+            username=user_to_add.username,
+            added_at=member.added_at
+        )
+    
+    @staticmethod
+    async def remove_member_from_contest(
+        db: AsyncSession, 
+        contest_id: int, 
+        user_id: int, 
+        current_user_id: int
+    ) -> bool:
+        """Remove a member from a contest."""
+        contest = await ContestService.get_contest(db=db, contest_id=contest_id)
+        
+        # Check permissions: only contest creator or admin can remove members
+        user_repo = UserRepository(db)
+        is_admin_user = await user_repo.is_admin(current_user_id)
+        if contest.creator_id != current_user_id and not is_admin_user:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to remove members from this contest"
+            )
+        
+        # Don't allow removing the creator
+        if user_id == contest.creator_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot remove the contest creator from the member list"
+            )
+        
+        # Remove member
+        removed = await ContestRepository.remove_member_from_contest(db, contest_id, user_id)
+        if not removed:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User is not a member of this contest"
+            )
+        
+        return True
+    
+    @staticmethod
+    async def get_contest_members(
+        db: AsyncSession, 
+        contest_id: int, 
+        current_user_id: Optional[int] = None
+    ) -> List[ContestMemberResponse]:
+        """Get all members of a contest."""
+        # Check contest access
+        await ContestService.check_contest_access(
+            db=db, 
+            contest_id=contest_id, 
+            current_user_id=current_user_id
+        )
+        
+        members = await ContestRepository.get_contest_members(db, contest_id)
+        
+        return [
+            ContestMemberResponse(
+                id=member.id,
+                contest_id=member.contest_id,
+                user_id=member.user_id,
+                username=member.user.username,
+                added_at=member.added_at
+            )
+            for member in members
+        ]
 
  

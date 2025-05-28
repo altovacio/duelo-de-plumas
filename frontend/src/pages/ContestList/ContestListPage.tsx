@@ -47,8 +47,13 @@ const ContestListPage: React.FC = () => {
     
     // Apply type filter
     if (typeFilter !== 'all') {
-      const expectedTypeBoolean = typeFilter === 'private';
-      result = result.filter(contest => contest.is_private === expectedTypeBoolean);
+      if (typeFilter === 'private') {
+        // Private contests are either password protected OR not publicly listed
+        result = result.filter(contest => contest.password_protected || !contest.publicly_listed);
+      } else {
+        // Public contests are not password protected AND publicly listed
+        result = result.filter(contest => !contest.password_protected && contest.publicly_listed);
+      }
     }
     
     // Apply search filter

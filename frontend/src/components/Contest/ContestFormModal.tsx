@@ -7,8 +7,9 @@ interface ContestFormModalProps {
   onSubmit: (contest: { 
     title: string; 
     description: string; 
-    is_private: boolean;
+    password_protected: boolean;
     password?: string;
+    publicly_listed: boolean;
     end_date?: string;
     judge_restrictions?: boolean;
     author_restrictions?: boolean;
@@ -18,8 +19,9 @@ interface ContestFormModalProps {
   initialContest?: { 
     title: string; 
     description: string; 
-    is_private: boolean;
+    password_protected: boolean;
     password?: string;
+    publicly_listed: boolean;
     end_date?: string;
     judge_restrictions?: boolean;
     author_restrictions?: boolean;
@@ -36,7 +38,8 @@ const ContestFormModal: React.FC<ContestFormModalProps> = ({
   initialContest = { 
     title: '', 
     description: '', 
-    is_private: false,
+    password_protected: false,
+    publicly_listed: true,
     judge_restrictions: false,
     author_restrictions: false,
   },
@@ -48,7 +51,8 @@ const ContestFormModal: React.FC<ContestFormModalProps> = ({
   
   const [title, setTitle] = useState(initialContest.title);
   const [description, setDescription] = useState(initialContest.description);
-  const [isPrivate, setIsPrivate] = useState(initialContest.is_private);
+  const [passwordProtected, setPasswordProtected] = useState(initialContest.password_protected);
+  const [publiclyListed, setPubliclyListed] = useState(initialContest.publicly_listed);
   const [password, setPassword] = useState(initialContest.password || '');
   const [endDate, setEndDate] = useState(initialContest.end_date || '');
   const [judgeRestrictions, setJudgeRestrictions] = useState(initialContest.judge_restrictions || false);
@@ -64,7 +68,8 @@ const ContestFormModal: React.FC<ContestFormModalProps> = ({
     if ((isOpen && !wasOpen.current) || firstRender.current) {
       setTitle(initialContest.title);
       setDescription(initialContest.description);
-      setIsPrivate(initialContest.is_private);
+      setPasswordProtected(initialContest.password_protected);
+      setPubliclyListed(initialContest.publicly_listed);
       setPassword(initialContest.password || '');
       setEndDate(initialContest.end_date || '');
       setJudgeRestrictions(initialContest.judge_restrictions || false);
@@ -87,8 +92,9 @@ const ContestFormModal: React.FC<ContestFormModalProps> = ({
     const contestData = {
       title, 
       description, 
-      is_private: isPrivate,
-      password: isPrivate && password ? password : undefined,
+      password_protected: passwordProtected,
+      password: passwordProtected && password ? password : undefined,
+      publicly_listed: publiclyListed,
       end_date: endDate || undefined,
       judge_restrictions: judgeRestrictions,
       author_restrictions: authorRestrictions,
@@ -187,26 +193,43 @@ const ContestFormModal: React.FC<ContestFormModalProps> = ({
                 </div>
               </div>
 
-              <div className="mb-4">
+              <div className="mb-4 space-y-4">
                 <div className="flex items-center">
                   <input
-                    id="is_private"
-                    name="is_private"
+                    id="publicly_listed"
+                    name="publicly_listed"
                     type="checkbox"
                     className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                    checked={isPrivate}
-                    onChange={(e) => setIsPrivate(e.target.checked)}
+                    checked={publiclyListed}
+                    onChange={(e) => setPubliclyListed(e.target.checked)}
                   />
-                  <label htmlFor="is_private" className="ml-2 block text-sm text-gray-900">
-                    Private Contest
+                  <label htmlFor="publicly_listed" className="ml-2 block text-sm text-gray-900">
+                    List in public contests
                   </label>
                 </div>
                 <p className="mt-1 text-sm text-gray-500">
-                  Private contests require a password for participants to join.
+                  If unchecked, only designated members can access this contest.
+                </p>
+
+                <div className="flex items-center">
+                  <input
+                    id="password_protected"
+                    name="password_protected"
+                    type="checkbox"
+                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                    checked={passwordProtected}
+                    onChange={(e) => setPasswordProtected(e.target.checked)}
+                  />
+                  <label htmlFor="password_protected" className="ml-2 block text-sm text-gray-900">
+                    Password protected
+                  </label>
+                </div>
+                <p className="mt-1 text-sm text-gray-500">
+                  Require participants to enter a password to join the contest.
                 </p>
               </div>
 
-              {isPrivate && (
+              {passwordProtected && (
                 <div className="mb-4">
                   <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                     Password
@@ -217,8 +240,8 @@ const ContestFormModal: React.FC<ContestFormModalProps> = ({
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    required={isPrivate}
-                    placeholder="Enter password for private contest"
+                    required={passwordProtected}
+                    placeholder="Enter password for contest"
                   />
                 </div>
               )}

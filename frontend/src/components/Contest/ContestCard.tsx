@@ -12,16 +12,23 @@ const ContestCard: React.FC<ContestCardProps> = ({ contest }) => {
       <div className="flex justify-between items-start mb-2">
         <h3 className="text-lg font-semibold">{contest.title}</h3>
         <div className="flex space-x-2">
-          {/* Privacy badge */}
+          {/* Visibility badge */}
           <div 
             className={`text-xs px-2 py-1 rounded-full ${
-              !contest.is_private
+              contest.publicly_listed
                 ? 'bg-blue-100 text-blue-800' 
                 : 'bg-purple-100 text-purple-800'
             }`}
           >
-            {!contest.is_private ? 'Public' : 'Private'}
+            {contest.publicly_listed ? 'Public' : 'Private'}
           </div>
+          
+          {/* Password protection badge */}
+          {contest.password_protected && (
+            <div className="text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-800">
+              🔒 Password
+            </div>
+          )}
           
           {/* Status badge */}
           <div 

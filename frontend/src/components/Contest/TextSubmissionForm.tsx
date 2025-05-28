@@ -6,7 +6,7 @@ import { submitTextToContest, getContestMySubmissions } from '../../services/con
 
 interface TextSubmissionFormProps {
   contestId: number;
-  isPrivate: boolean;
+  passwordProtected: boolean;
   password?: string;
   onSuccess: () => void;
   onCancel: () => void;
@@ -16,7 +16,7 @@ interface TextSubmissionFormProps {
 
 const TextSubmissionForm: React.FC<TextSubmissionFormProps> = ({
   contestId,
-  isPrivate,
+  passwordProtected,
   password,
   onSuccess,
   onCancel,
@@ -75,7 +75,7 @@ const TextSubmissionForm: React.FC<TextSubmissionFormProps> = ({
       await submitTextToContest(
         contestId, 
         Number(selectedTextId),
-        isPrivate ? password : undefined
+        passwordProtected ? password : undefined
       );
       
       setIsLoading(false);

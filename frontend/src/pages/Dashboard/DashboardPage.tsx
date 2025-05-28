@@ -4,7 +4,7 @@ import TextFormModal from '../../components/TextEditor/TextFormModal';
 import ContestFormModal from '../../components/Contest/ContestFormModal';
 import AgentFormModal from '../../components/Agent/AgentFormModal';
 import { getUserTexts, createText, updateText, deleteText, Text as TextType } from '../../services/textService';
-import { getUserContests, createContest, updateContest, deleteContest, Contest as ContestType, getContestSubmissions, ContestText as ContestSubmissionType, removeSubmissionFromContest, getAuthorParticipation, getJudgeParticipation } from '../../services/contestService';
+import { getUserContests, createContest, updateContest, deleteContest, Contest as ContestType, getContestSubmissions, ContestText as ContestSubmissionType, removeSubmissionFromContest, getAuthorParticipation, getJudgeParticipation, getMemberParticipation, getContestMembers, addMemberToContest, removeMemberFromContest, ContestMember, searchUsersByUsername } from '../../services/contestService';
 import { getAgents, createAgent, updateAgent, deleteAgent, cloneAgent, Agent as AgentType } from '../../services/agentService';
 import { getDashboardData } from '../../services/dashboardService';
 import { toast } from 'react-hot-toast';
@@ -15,6 +15,8 @@ import JudgeManagementModal from '../../components/Contest/JudgeManagementModal'
 import FullTextModal from '../../components/Common/FullTextModal';
 
 import { getUserCreditTransactions, type CreditTransaction } from '../../services/creditService';
+import UserSearch from '../../components/shared/UserSearch';
+import { User } from '../../services/userService';
 
 type TabType = 'overview' | 'contests' | 'texts' | 'agents' | 'participation' | 'credits';
 
@@ -98,12 +100,16 @@ const DashboardPage: React.FC = () => {
   const [participationContests, setParticipationContests] = useState<{
     asAuthor: ContestType[];
     asJudge: ContestType[];
-  }>({ asAuthor: [], asJudge: [] });
+    asMember: ContestType[];
+  }>({ asAuthor: [], asJudge: [], asMember: [] });
   const [isLoadingParticipation, setIsLoadingParticipation] = useState(false);
 
   // Add the following state variables in the component after other state definitions
   const [isJudgeModalOpen, setIsJudgeModalOpen] = useState(false);
   const [selectedContestForJudges, setSelectedContestForJudges] = useState<ContestType | null>(null);
+  
+  // State for created contests (separate from authored contests)
+  const [createdContests, setCreatedContests] = useState<ContestType[]>([]);
 
   // Add the following state variables for text search
   const [textSearchQuery, setTextSearchQuery] = useState('');
@@ -117,6 +123,13 @@ const DashboardPage: React.FC = () => {
   const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
   const [transactionError, setTransactionError] = useState<string | null>(null);
+
+  // State for member management modal
+  const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
+  const [selectedContestForMembers, setSelectedContestForMembers] = useState<ContestType | null>(null);
+  const [contestMembers, setContestMembers] = useState<ContestMember[]>([]);
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+  const [memberError, setMemberError] = useState<string | null>(null);
 
   // Fetch data based on active tab
   useEffect(() => {
@@ -239,7 +252,8 @@ const DashboardPage: React.FC = () => {
   const handleContestSubmit = async (contestDataFromForm: { 
     title: string; 
     description: string; 
-    is_private: boolean;
+    password_protected: boolean;
+    publicly_listed: boolean;
     password?: string;
     end_date?: string; 
     judge_restrictions?: boolean;
@@ -506,15 +520,19 @@ const DashboardPage: React.FC = () => {
       setIsLoadingParticipation(true);
       setError(null);
       
-      const [authorContests, judgeContests] = await Promise.all([
+      const [authorContests, judgeContests, memberContests, myCreatedContests] = await Promise.all([
         getAuthorParticipation(),
-        getJudgeParticipation()
+        getJudgeParticipation(),
+        getMemberParticipation(),
+        getUserContests()
       ]);
       
       setParticipationContests({
         asAuthor: authorContests,
-        asJudge: judgeContests
+        asJudge: judgeContests,
+        asMember: memberContests
       });
+      setCreatedContests(myCreatedContests);
     } catch (err: any) {
       console.error('Error fetching participation data:', err);
       setError('Failed to load participation data');
@@ -567,6 +585,64 @@ const DashboardPage: React.FC = () => {
       setFilteredTexts(filtered);
     }
   }, [textSearchQuery, textsData]);
+
+  // Add function to handle opening the member management modal
+  const handleOpenMemberManagementModal = async (contest: ContestType) => {
+    setSelectedContestForMembers(contest);
+    setIsMemberModalOpen(true);
+    setIsLoadingMembers(true);
+    setMemberError(null);
+    try {
+      const members = await getContestMembers(contest.id);
+      setContestMembers(members);
+    } catch (err) {
+      console.error('Error fetching members:', err);
+      setMemberError('Failed to load members. Please try again later.');
+      setContestMembers([]);
+    } finally {
+      setIsLoadingMembers(false);
+    }
+  };
+
+  // Add member to contest
+  const handleAddMember = async (user: User) => {
+    if (!selectedContestForMembers) return;
+    
+    try {
+      setIsLoadingMembers(true);
+      setMemberError(null);
+      
+      const newMember = await addMemberToContest(selectedContestForMembers.id, user.id);
+      setContestMembers([...contestMembers, newMember]);
+      toast.success('Member added successfully');
+    } catch (err: any) {
+      console.error('Error adding member:', err);
+      setMemberError(err.message || 'Failed to add member. Please try again.');
+    } finally {
+      setIsLoadingMembers(false);
+    }
+  };
+
+  // Remove member from contest
+  const handleRemoveMember = async (userId: number) => {
+    if (!selectedContestForMembers) return;
+    
+    if (window.confirm('Are you sure you want to remove this member from the contest?')) {
+      try {
+        setIsLoadingMembers(true);
+        setMemberError(null);
+        
+        await removeMemberFromContest(selectedContestForMembers.id, userId);
+        setContestMembers(contestMembers.filter(member => member.user_id !== userId));
+        toast.success('Member removed successfully');
+      } catch (err: any) {
+        console.error('Error removing member:', err);
+        setMemberError('Failed to remove member. Please try again.');
+      } finally {
+        setIsLoadingMembers(false);
+      }
+    }
+  };
 
   return (
     <div className="bg-white rounded-lg shadow-md">
@@ -748,11 +824,18 @@ const DashboardPage: React.FC = () => {
                             </select>
                           </td>
                           <td className="px-3 py-4 text-sm">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              contest.is_private ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'
-                            }`}>
-                              {contest.is_private ? 'Private' : 'Public'}
-                            </span>
+                            <div className="flex flex-col space-y-1">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                contest.publicly_listed ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
+                              }`}>
+                                {contest.publicly_listed ? 'Public' : 'Private'}
+                              </span>
+                              {contest.password_protected && (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                  Password Protected
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-3 py-4 text-sm text-gray-500">
                             {contest.participant_count || 0}
@@ -779,6 +862,14 @@ const DashboardPage: React.FC = () => {
                             >
                               Manage Judges
                             </button>
+                            {!contest.publicly_listed && (
+                              <button 
+                                onClick={() => handleOpenMemberManagementModal(contest)}
+                                className="text-purple-600 hover:text-purple-900 mr-3"
+                              >
+                                Manage Members
+                              </button>
+                            )}
                             <button 
                               onClick={() => handleDeleteContest(contest.id)}
                               className="text-red-600 hover:text-red-900"
@@ -1088,7 +1179,49 @@ const DashboardPage: React.FC = () => {
                   </svg>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6">
+                  <div>
+                    <h3 className="font-medium text-gray-700 mb-2">Contests I created</h3>
+                    {createdContests.length > 0 ? (
+                      <div className="bg-white shadow rounded-md overflow-hidden">
+                        <ul className="divide-y divide-gray-200">
+                          {createdContests.map(contest => (
+                            <li key={contest.id} className="px-4 py-3 hover:bg-gray-50">
+                              <div className="flex justify-between">
+                                <div>
+                                  <Link to={`/contests/${contest.id}`} className="text-indigo-600 hover:text-indigo-900 font-medium">
+                                    {contest.title}
+                                  </Link>
+                                  <div className="flex mt-1 space-x-2">
+                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                      contest.status === 'open' ? 'bg-green-100 text-green-800' :
+                                      contest.status === 'evaluation' ? 'bg-yellow-100 text-yellow-800' :
+                                       'bg-blue-100 text-blue-800'
+                                    }`}>
+                                      {contest.status && typeof contest.status === 'string' 
+                                        ? contest.status.charAt(0).toUpperCase() + contest.status.slice(1) 
+                                        : 'Unknown'}
+                                    </span>
+                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                      contest.publicly_listed ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
+                                    }`}>
+                                      {contest.publicly_listed ? 'Public' : 'Private'}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                  {contest.created_at ? new Date(contest.created_at).toLocaleDateString() : ''}
+                                </div>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 italic">No contests created yet.</p>
+                    )}
+                  </div>
+                  
                   <div>
                     <h3 className="font-medium text-gray-700 mb-2">Contests where I'm an author</h3>
                     {participationContests.asAuthor.length > 0 ? (
@@ -1112,9 +1245,9 @@ const DashboardPage: React.FC = () => {
                                         : 'Unknown'}
                                     </span>
                                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                      contest.is_private ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'
+                                      contest.publicly_listed ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
                                     }`}>
-                                      {contest.is_private ? 'Private' : 'Public'}
+                                      {contest.publicly_listed ? 'Public' : 'Private'}
                                     </span>
                                   </div>
                                 </div>
@@ -1128,6 +1261,48 @@ const DashboardPage: React.FC = () => {
                       </div>
                     ) : (
                       <p className="text-gray-500 italic">Not participating in any contests as an author.</p>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <h3 className="font-medium text-gray-700 mb-2">Contests where I'm a member</h3>
+                    {participationContests.asMember.length > 0 ? (
+                      <div className="bg-white shadow rounded-md overflow-hidden">
+                        <ul className="divide-y divide-gray-200">
+                          {participationContests.asMember.map(contest => (
+                            <li key={contest.id} className="px-4 py-3 hover:bg-gray-50">
+                              <div className="flex justify-between">
+                                <div>
+                                  <Link to={`/contests/${contest.id}`} className="text-indigo-600 hover:text-indigo-900 font-medium">
+                                    {contest.title}
+                                  </Link>
+                                  <div className="flex mt-1 space-x-2">
+                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                      contest.status === 'open' ? 'bg-green-100 text-green-800' :
+                                      contest.status === 'evaluation' ? 'bg-yellow-100 text-yellow-800' :
+                                       'bg-blue-100 text-blue-800'
+                                    }`}>
+                                      {contest.status && typeof contest.status === 'string' 
+                                        ? contest.status.charAt(0).toUpperCase() + contest.status.slice(1) 
+                                        : 'Unknown'}
+                                    </span>
+                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                      contest.publicly_listed ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
+                                    }`}>
+                                      {contest.publicly_listed ? 'Public' : 'Private'}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                  {contest.created_at ? new Date(contest.created_at).toLocaleDateString() : ''}
+                                </div>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 italic">Not a member of any contests.</p>
                     )}
                   </div>
                   
@@ -1298,7 +1473,8 @@ const DashboardPage: React.FC = () => {
         initialContest={selectedContest ? {
           title: selectedContest.title,
           description: selectedContest.description,
-          is_private: selectedContest.is_private,
+          password_protected: selectedContest.password_protected,
+          publicly_listed: selectedContest.publicly_listed,
           password: selectedContest.password || undefined,
           end_date: selectedContest.end_date || undefined,
           judge_restrictions: selectedContest.judge_restrictions,
@@ -1432,6 +1608,103 @@ const DashboardPage: React.FC = () => {
           content={selectedTextForFullModal.content}
           author={selectedTextForFullModal.author}
         />
+      )}
+
+      {/* Member Management Modal */}
+      {isMemberModalOpen && selectedContestForMembers && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl transform transition-all sm:max-w-2xl sm:w-full max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-xl font-semibold text-gray-800">
+                Manage Members: {selectedContestForMembers.title}
+              </h3>
+            </div>
+            
+            <div className="px-6 py-4 overflow-y-auto flex-grow">
+              {memberError && (
+                <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <p className="text-sm text-red-700">{memberError}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Add Member Section */}
+              <div className="mb-6">
+                <h4 className="text-lg font-medium text-gray-900 mb-3">Add New Member</h4>
+                <p className="text-sm text-gray-500 mb-4">
+                  Search for users by username or email to add them as members for this contest.
+                </p>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Search Users
+                  </label>
+                  <UserSearch
+                    onUserSelect={handleAddMember}
+                    placeholder="Type username or email..."
+                    excludeUserIds={contestMembers.map(member => member.user_id)}
+                  />
+                </div>
+              </div>
+
+              {/* Current Members List */}
+              <div>
+                <h4 className="text-lg font-medium text-gray-900 mb-3">Current Members</h4>
+                {isLoadingMembers ? (
+                  <div className="flex justify-center items-center h-32">
+                    <svg className="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  </div>
+                ) : contestMembers.length === 0 ? (
+                  <p className="text-gray-500 text-center py-8">No members found for this contest.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {contestMembers.map((member) => (
+                      <div key={member.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-md">
+                        <div>
+                          <p className="font-medium text-gray-900">{member.username}</p>
+                          <p className="text-sm text-gray-500">
+                            Added: {new Date(member.added_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleRemoveMember(member.user_id)}
+                          disabled={isLoadingMembers}
+                          className="px-3 py-1 text-sm bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMemberModalOpen(false);
+                  setSelectedContestForMembers(null);
+                  setMemberError(null);
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

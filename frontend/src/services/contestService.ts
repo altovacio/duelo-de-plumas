@@ -11,8 +11,9 @@ export interface Contest {
   updated_at: string;
   start_date?: string;
   end_date: string | null;
-  is_private: boolean;
+  password_protected: boolean;
   password?: string | null; // Should generally not be sent to client unless necessary for a specific action
+  publicly_listed: boolean; // New field for visibility in public listings
   has_password: boolean; // Preferred over sending actual password
   status: 'open' | 'evaluation' | 'closed';
   participant_count?: number;
@@ -56,6 +57,15 @@ export interface ContestJudge {
   user_email?: string;     // Email for human judges
   agent_name?: string;     // Name for AI judges
   ai_judge?: boolean;      // Helper to identify AI judges
+}
+
+// Contest member interface
+export interface ContestMember {
+  id: number;
+  contest_id: number;
+  user_id: number;
+  username: string;
+  added_at: string;
 }
 
 // Get all contests
@@ -210,5 +220,51 @@ export const getJudgeContests = async (skip: number = 0, limit: number = 100): P
   } catch (error) {
     console.error("Error fetching judge contests:", error);
     return [];
+  }
+};
+
+// Get contests where the current user is a member
+export const getMemberContests = async (skip: number = 0, limit: number = 100): Promise<Contest[]> => {
+  try {
+    const response = await apiClient.get('/users/member-contests', { 
+      params: { skip, limit } 
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching member contests:", error);
+    return [];
+  }
+};
+
+// Member management functions
+export const addMemberToContest = async (contestId: number, userId: number): Promise<ContestMember> => {
+  const response = await apiClient.post(`/contests/${contestId}/members`, { user_id: userId });
+  return response.data;
+};
+
+export const getContestMembers = async (contestId: number): Promise<ContestMember[]> => {
+  const response = await apiClient.get(`/contests/${contestId}/members`);
+  return response.data;
+};
+
+export const removeMemberFromContest = async (contestId: number, userId: number): Promise<void> => {
+  await apiClient.delete(`/contests/${contestId}/members/${userId}`);
+};
+
+// Get contests where the current user is a member - using proper endpoint
+export const getMemberParticipation = async (): Promise<Contest[]> => {
+  return getMemberContests();
+};
+
+// Search for users by username
+export const searchUsersByUsername = async (username: string): Promise<any[]> => {
+  try {
+    const response = await apiClient.get('/users/search', {
+      params: { username }
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error searching users:", error);
+    throw error;
   }
 }; 

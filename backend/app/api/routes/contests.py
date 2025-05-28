@@ -8,7 +8,7 @@ from app.api.routes.auth import get_current_user, get_optional_current_user
 from app.schemas.contest import (
     ContestCreate, ContestResponse, ContestUpdate, ContestDetailResponse,
     TextSubmission, TextSubmissionResponse, JudgeAssignment, JudgeAssignmentResponse,
-    ContestTextResponse
+    ContestTextResponse, ContestMemberAdd, ContestMemberResponse
 )
 from app.db.models.user import User as UserModel
 from app.services.contest_service import ContestService
@@ -83,7 +83,7 @@ async def get_contest(
     """
     Get contest details including participant and text counts
     
-    For private contests, provide the password unless you're the creator or admin
+    For password-protected contests, provide the password unless you're the creator or admin
     """
     user_id = current_user.id if current_user else None
     await ContestService.check_contest_access(
@@ -159,7 +159,7 @@ async def submit_text_to_contest(
     """
     Submit a text to a contest
     
-    For private contests, provide the password unless you're the creator or admin
+    For password-protected contests, provide the password unless you're the creator or admin
     """
     contest_text = await ContestService.submit_text_to_contest(
         db=db,
@@ -188,7 +188,7 @@ async def get_contest_submissions(
     """
     Get all text submissions for a contest
     
-    For private contests, provide the password unless you're the creator or admin
+    For password-protected contests, provide the password unless you're the creator or admin
     For open contests, only the creator and admins can see submissions
     For evaluation/closed contests, anyone with access can see submissions with full details
     """
@@ -348,6 +348,69 @@ async def remove_judge_from_contest(
         db=db,
         contest_id=contest_id,
         judge_id=judge_id,
+        current_user_id=current_user.id
+    )
+    return None
+
+
+# Member management endpoints
+@router.post("/{contest_id}/members", response_model=ContestMemberResponse)
+async def add_member_to_contest(
+    contest_id: int,
+    member_data: ContestMemberAdd,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user)
+):
+    """
+    Add a member to a contest.
+    
+    Only the contest creator or admin can add members.
+    This is only relevant for non-publicly listed contests.
+    """
+    return await ContestService.add_member_to_contest(
+        db=db,
+        contest_id=contest_id,
+        user_id=member_data.user_id,
+        current_user_id=current_user.id
+    )
+
+
+@router.get("/{contest_id}/members", response_model=List[ContestMemberResponse])
+async def get_contest_members(
+    contest_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[UserModel] = Depends(get_optional_current_user)
+):
+    """
+    Get all members of a contest.
+    
+    Accessible to anyone who has access to the contest.
+    """
+    user_id = current_user.id if current_user else None
+    return await ContestService.get_contest_members(
+        db=db,
+        contest_id=contest_id,
+        current_user_id=user_id
+    )
+
+
+@router.delete("/{contest_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_member_from_contest(
+    contest_id: int,
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user)
+):
+    """
+    Remove a member from a contest.
+    
+    Only the contest creator or admin can remove members.
+    Cannot remove the contest creator.
+    """
+    await ContestService.remove_member_from_contest(
+        db=db,
+        contest_id=contest_id,
+        user_id=user_id,
         current_user_id=current_user.id
     )
     return None 

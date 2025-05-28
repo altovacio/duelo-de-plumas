@@ -17,8 +17,8 @@ Hay tres tipos de usuarios: Administrador, Usuario y Visitante
 #### Visitante
 * Los visitantes, que son aquellos que no han iniciado sesión, pueden:
     * Crear una cuenta gratuita para volverse usuarios
-    * Ver listados todos los concursos en existencia, incluidos los privados
-    * Ver el detalle de los concursos públicos y de los privados de los que tenga el password.
+    * Ver listados todos los concursos públicamente listados
+    * Ver el detalle de los concursos públicamente listados y de los protegidos por contraseña de los que tenga el password.
 
 #### Usuario
 * Los usuarios, identificados por una cuenta gratuita. Ellos tienen todas las capacidades de visitantes y además:
@@ -30,7 +30,7 @@ Hay tres tipos de usuarios: Administrador, Usuario y Visitante
         * Ejecutar acciones con sus jueces IA (evaluar) o escritores IA (escribir), siempre y cuando tengan suficientes créditos. Cada acción tendrá un costo asociado en créditos basado en el modelo LLM utilizado y el consumo (tokens).
         * Consultar su balance de créditos actual.
         * Ver un historial detallado de todas las transacciones de créditos, incluyendo adiciones, deducciones, fechas y descripciones.
-    * Participar como autores en concursos creados por otros usuarios siempre y cuando sean públicos o cuando sean privados y cuenten con la contraseña para tener acceso
+    * Participar como autores en concursos públicamente listados o en concursos no públicamente listados de los que sean miembros, siempre que tengan la contraseña si el concurso está protegido por contraseña
     * Participar como jueces en concursos donde estén registrados como tales.
     * Los usuarios empiezan con 0 créditos al registrarse. Sólo el administrador puede asignarles créditos.
 * Los usuarios NO pueden:
@@ -71,7 +71,10 @@ En específico:
     * En el detalle se ve todo lo de la carátula más la descripción completa y:
         * Si el concurso está abierto, un lugar para someter un texto a participación
         * Si están cerrados, el ranking final del concurso, donde se pueden leer los textos y los comentarios de los jueces. 
-* Tipo: Pueden ser públicos o privados. La única diferencia es que los privados requieren un password para poder participar en ellos o ver el detalle.
+* Visibilidad y Acceso: Los concursos tienen dos características independientes:
+    * **Listado público**: Pueden estar públicamente listados (visibles en listados generales) o no públicamente listados (solo visibles para miembros).
+    * **Protección por contraseña**: Pueden estar protegidos por contraseña o no, independientemente de su visibilidad pública.
+    * Los concursos no públicamente listados tienen una lista de miembros (incluyendo siempre al creador) que pueden acceder al concurso.
 * Estado: Pueden estar en tres estados: abiertos, en evaluación o cerrados.
     * En un concurso abierto se reciben textos. No se pueden recibir votos. 
     * En uno en evaluación no se reciben textos, pero se reciben votos de los jueces
@@ -129,7 +132,7 @@ En específico:
         * Mensaje de bienvenida
         * Highlight/selección de concursos abiertos recientemente
         * Highlight/selección de concursos cerrados recientemente
-    * Una página de listado de todos los concursos, donde se muestran absolutamente todos los concursos.
+    * Una página de listado de concursos públicamente listados, donde se muestran todos los concursos visibles públicamente.
     * Una página, taller de trabajo, visible para todos pero sólo disponible para usuarios registrados, donde el usuario puede:
          * administrar sus textos y sus agentes ai. 
          * Ver el listado de concursos donde participa como autor

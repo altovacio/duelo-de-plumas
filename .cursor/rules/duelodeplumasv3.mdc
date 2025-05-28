@@ -9,6 +9,7 @@ alwaysApply: false
 -You cannot see, read or list the .env file, but it exist. If you need info from this file, ask the user.
     -You already have permission to read any other file, dont ask for it. If you need to read a file, just read it.
 -Right now we are not in production, we are in development. We do not need backwards compatibility for anything. 
+-Currently we have a set of tests but they need to be run in sequence in order to work. You cannot call a test of a middle section without running all of the preivious ones first. So we run them like this docker-compose exec backend pytest tests -v -x
 
 
 

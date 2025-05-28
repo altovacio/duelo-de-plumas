@@ -9,17 +9,18 @@ from tests.shared_test_state import test_data
 
 # --- Start of Test Section 3: Contest Creation & Management ---
 
-async def test_03_01_user1_creates_public_contest1_and_assigns_judge(client: AsyncClient): # Changed
-    """User 1 creates a public Contest (contest1) and assigns judge_global."""
+async def test_03_01_user1_creates_publicly_listed_contest1_and_assigns_judge(client: AsyncClient): # Changed
+    """User 1 creates a publicly listed Contest (contest1) and assigns judge_global."""
     assert "user1_headers" in test_data, "User 1 token not found."
     assert "judge_global_id" in test_data, "Global Judge ID not found."
 
     contest_in = ContestCreate(
-        title="User1's First Public Contest",
+        title="User1's First Publicly Listed Contest",
         description="An exciting contest open to all great writers!",
-        is_private=False,
+        password_protected=False,
+        publicly_listed=True,
         judge_restrictions=False,
-        owner_restrictions=False
+        author_restrictions=False
     )
     response = await client.post( # Changed
         "/contests/", # Changed
@@ -30,10 +31,11 @@ async def test_03_01_user1_creates_public_contest1_and_assigns_judge(client: Asy
     assert "id" in response.json(), "Contest ID not in response after creation."
     contest1_data = ContestResponse(**response.json())
     assert contest1_data.title == contest_in.title
-    assert not contest1_data.is_private
+    assert not contest1_data.password_protected
+    assert contest1_data.publicly_listed
     assert contest1_data.creator.id == test_data["user1_id"]
     test_data["contest1_id"] = contest1_data.id
-    print(f"User 1 created public contest1 (ID: {test_data['contest1_id']}) successfully.")
+    print(f"User 1 created publicly listed contest1 (ID: {test_data['contest1_id']}) successfully.")
 
     assign_judge_payload = {"agent_judge_id": test_data["judge_global_id"]}
     response_assign_judge = await client.post( # Changed
@@ -45,9 +47,9 @@ async def test_03_01_user1_creates_public_contest1_and_assigns_judge(client: Asy
         f"User 1 assigning judge_global to contest1 failed: {response_assign_judge.text}"
     print(f"User 1 assigned judge_global (ID: {test_data['judge_global_id']}) to contest1 successfully.")
 
-@pytest.mark.run(after='test_03_01_user1_creates_public_contest1_and_assigns_judge')
-async def test_03_02_admin_creates_private_contest2_and_assigns_judges(client: AsyncClient): # Changed
-    """Admin creates a private Contest (contest2) with restrictions and assigns judges."""
+@pytest.mark.run(after='test_03_01_user1_creates_publicly_listed_contest1_and_assigns_judge')
+async def test_03_02_admin_creates_publicly_listed_password_protected_contest2_and_assigns_judges(client: AsyncClient): # Changed
+    """Admin creates a publicly listed password-protected Contest (contest2) with restrictions and assigns judges."""
     assert "admin_headers" in test_data, "Admin token not found."
     assert "user2_id" in test_data, "User 2 ID not found."
     assert "judge1_id" in test_data, "Judge 1 ID not found."
@@ -55,10 +57,11 @@ async def test_03_02_admin_creates_private_contest2_and_assigns_judges(client: A
 
     test_data["contest2_password"] = "securePa$$wOrd"
     contest_in = ContestCreate(
-        title="Admin's Super Secret Private Contest",
-        description="Only for the elite! Strict rules apply.",
-        is_private=True,
+        title="Admin's Publicly Listed Password-Protected Contest",
+        description="Publicly listed but password protected! Strict rules apply.",
+        password_protected=True,
         password=test_data["contest2_password"],
+        publicly_listed=True,  # Changed from False to True
         judge_restrictions=True,
         author_restrictions=True
     )
@@ -70,10 +73,11 @@ async def test_03_02_admin_creates_private_contest2_and_assigns_judges(client: A
     assert response.status_code == 201, f"Admin creating contest2 failed: {response.text}"
     contest2_data = ContestResponse(**response.json())
     assert contest2_data.title == contest_in.title
-    assert contest2_data.is_private
+    assert contest2_data.password_protected
+    assert contest2_data.publicly_listed  # Changed from not to assert
     assert contest2_data.creator.id == test_data["admin_id"]
     test_data["contest2_id"] = contest2_data.id
-    print(f"Admin created private contest2 (ID: {test_data['contest2_id']}) successfully.")
+    print(f"Admin created publicly listed password-protected contest2 (ID: {test_data['contest2_id']}) successfully.")
 
     judges_to_assign = [
         {"user_judge_id": test_data["user2_id"]},
@@ -98,14 +102,15 @@ async def test_03_02_admin_creates_private_contest2_and_assigns_judges(client: A
                 f"Admin assigning judge {judge_payload} to contest2 failed: {assign_judge_response.text}"
             print(f"Admin assigned judge (ID: {judge_id_value}) to contest2 successfully.")
 
-@pytest.mark.run(after='test_03_02_admin_creates_private_contest2_and_assigns_judges')
+@pytest.mark.run(after='test_03_02_admin_creates_publicly_listed_password_protected_contest2_and_assigns_judges')
 async def test_03_03_user2_creates_contest3(client: AsyncClient): # Changed
     """User 2 creates a contest (contest3) with no judges assigned. Succeeds."""
     assert "user2_headers" in test_data, "User 2 token not found."
     contest_in = ContestCreate(
         title="User2's Casual Contest",
         description="A fun contest, no pressure!",
-        is_private=False
+        password_protected=False,
+        publicly_listed=True
     )
     response = await client.post( # Changed
         "/contests/", # Changed
@@ -260,35 +265,39 @@ async def test_03_11_user2_assigns_self_as_judge_to_contest3_succeeds(client: As
 
 @pytest.mark.run(after='test_03_11_user2_assigns_self_as_judge_to_contest3_succeeds')
 async def test_03_12_visitor_lists_contests(client: AsyncClient): # Changed
-    """Visitor lists contests -> Should see ALL contests listed."""
+    """Visitor lists contests -> Should see publicly listed contests only."""
     response = await client.get("/contests/") # Changed
     # Expect 200 OK now
     assert response.status_code == 200, f"Visitor listing contests failed: {response.text}"
     contests = [ContestResponse(**c) for c in response.json()]
     
-    # Visitor should see ALL contests (public and private) in the list
+    # Visitor should see publicly listed contests only
     contest_ids_visible = {c.id for c in contests}
     assert test_data["contest1_id"] in contest_ids_visible, "Contest 1 not visible to visitor."
-    assert test_data["contest2_id"] in contest_ids_visible, "Contest 2 (private) not visible to visitor in list."
+    assert test_data["contest2_id"] in contest_ids_visible, "Contest 2 (password-protected but publicly listed) not visible to visitor in list."
     assert test_data["contest3_id"] in contest_ids_visible, "Contest 3 not visible to visitor."
-    print("Visitor listed contests successfully, saw all contests (public and private). ")
+    # contest4 should not be visible as it's not publicly listed
+    if "contest4_id" in test_data:
+        assert test_data["contest4_id"] not in contest_ids_visible, "Contest 4 (non-publicly listed) should not be visible to visitor."
+    print("Visitor listed contests successfully, saw publicly listed contests only.")
 
 @pytest.mark.run(after='test_03_12_visitor_lists_contests')
 async def test_03_13_user1_lists_contests(client: AsyncClient): # Changed
-    """User 1 lists contests -> Should see ALL contests listed."""
+    """User 1 lists contests -> Should see publicly listed contests and own non-publicly listed contests."""
     assert "user1_headers" in test_data, "User 1 token not found."
     response = await client.get("/contests/", headers=test_data["user1_headers"]) # Changed
     assert response.status_code == 200, f"User 1 listing contests failed: {response.text}"
     contests = [ContestResponse(**c) for c in response.json()]
 
     contest_ids_visible = {c.id for c in contests}
-    # User 1 should also see ALL contests (public and private) in the list view.
-    # Access control for private details is handled elsewhere (GET /{id}).
+    # User 1 should see publicly listed contests and their own non-publicly listed contests
     assert test_data["contest1_id"] in contest_ids_visible, "Contest 1 not visible to User 1."
-    assert test_data["contest2_id"] in contest_ids_visible, "Contest 2 (private) not visible to User 1 in list."
+    assert test_data["contest2_id"] in contest_ids_visible, "Contest 2 (password-protected but publicly listed) not visible to User 1 in list."
     assert test_data["contest3_id"] in contest_ids_visible, "Contest 3 not visible to User 1."
-    # assert test_data["contest2_id"] not in contest_ids_visible, "Contest 2 (other, private) should not be visible to User 1."
-    print("User 1 listed contests successfully, saw all contests (public and private).")
+    # contest4 should be visible to user1 as they are the creator
+    if "contest4_id" in test_data:
+        assert test_data["contest4_id"] in contest_ids_visible, "Contest 4 (non-publicly listed, owned by User 1) should be visible to User 1."
+    print("User 1 listed contests successfully, saw publicly listed contests and own non-publicly listed contests.")
 
 @pytest.mark.run(after='test_03_13_user1_lists_contests')
 async def test_03_14_visitor_view_contest2_details_wrong_password_fails(client: AsyncClient): # Changed
@@ -340,6 +349,121 @@ async def test_03_18_admin_view_contest2_details_no_password_succeeds(client: As
     contest_data = ContestResponse(**response.json())
     assert contest_data.id == test_data["contest2_id"]
     print("Admin (owner) viewed contest2 without password successfully.")
+
+@pytest.mark.run(after='test_03_18_admin_view_contest2_details_no_password_succeeds')
+async def test_03_19_user1_creates_non_publicly_listed_contest4_for_member_testing(client: AsyncClient):
+    """User 1 creates a non-publicly listed contest (contest4) for member testing."""
+    assert "user1_headers" in test_data, "User 1 token not found."
+
+    contest_in = ContestCreate(
+        title="User1's Non-Publicly Listed Contest",
+        description="A private contest for members only!",
+        password_protected=False,
+        publicly_listed=False,  # Non-publicly listed
+        judge_restrictions=False,
+        author_restrictions=False
+    )
+    response = await client.post(
+        "/contests/",
+        json=contest_in.model_dump(),
+        headers=test_data["user1_headers"]
+    )
+    assert response.status_code == 201, f"User 1 creating contest4 failed: {response.text}"
+    contest4_data = ContestResponse(**response.json())
+    assert contest4_data.title == contest_in.title
+    assert not contest4_data.password_protected
+    assert not contest4_data.publicly_listed
+    assert contest4_data.creator.id == test_data["user1_id"]
+    test_data["contest4_id"] = contest4_data.id
+    print(f"User 1 created non-publicly listed contest4 (ID: {test_data['contest4_id']}) successfully.")
+
+@pytest.mark.run(after='test_03_19_user1_creates_non_publicly_listed_contest4_for_member_testing')
+async def test_03_20_user2_cannot_access_contest4_not_publicly_listed(client: AsyncClient):
+    """User 2 cannot access contest4 as it is not publicly listed."""
+    assert "user2_headers" in test_data, "User 2 token not found."
+    assert "contest4_id" in test_data, "Contest 4 ID not found."
+
+    response = await client.get(
+        f"/contests/{test_data['contest4_id']}",
+        headers=test_data["user2_headers"]
+    )
+    assert response.status_code == 403, f"User 2 accessing non-publicly listed contest4 should fail (403), got {response.status_code}: {response.text}"
+    print("User 2 failed to access contest4 (not publicly listed) as expected.")
+
+@pytest.mark.run(after='test_03_20_user2_cannot_access_contest4_not_publicly_listed')
+async def test_03_21_user1_adds_user2_as_member_to_contest4(client: AsyncClient):
+    """User 1 adds User 2 as member to contest4."""
+    assert "user1_headers" in test_data, "User 1 token not found."
+    assert "user2_id" in test_data, "User 2 ID not found."
+    assert "contest4_id" in test_data, "Contest 4 ID not found."
+
+    member_data = {"user_id": test_data["user2_id"]}
+    response = await client.post(
+        f"/contests/{test_data['contest4_id']}/members",
+        json=member_data,
+        headers=test_data["user1_headers"]
+    )
+    assert response.status_code in [200, 201], f"User 1 adding User 2 as member to contest4 failed: {response.text}"
+    print(f"User 1 added User 2 (ID: {test_data['user2_id']}) as member to contest4 successfully.")
+
+@pytest.mark.run(after='test_03_21_user1_adds_user2_as_member_to_contest4')
+async def test_03_22_user2_can_access_contest4_as_member(client: AsyncClient):
+    """User 2 can access contest4 as a member."""
+    assert "user2_headers" in test_data, "User 2 token not found."
+    assert "contest4_id" in test_data, "Contest 4 ID not found."
+
+    response = await client.get(
+        f"/contests/{test_data['contest4_id']}",
+        headers=test_data["user2_headers"]
+    )
+    assert response.status_code == 200, f"User 2 accessing contest4 as member failed: {response.text}"
+    contest_data = ContestResponse(**response.json())
+    assert contest_data.id == test_data["contest4_id"]
+    print("User 2 accessed contest4 as member successfully.")
+
+@pytest.mark.run(after='test_03_22_user2_can_access_contest4_as_member')
+async def test_03_23_visitor_attempts_to_list_and_access_contest4_fails(client: AsyncClient):
+    """Visitor user attempts to list and access contest4 -> Fails."""
+    # Test listing contests as visitor - contest4 should not appear
+    response = await client.get("/contests/")
+    assert response.status_code == 200, f"Visitor listing contests failed: {response.text}"
+    contests = [ContestResponse(**c) for c in response.json()]
+    
+    contest_ids_visible = {c.id for c in contests}
+    assert test_data["contest4_id"] not in contest_ids_visible, "Contest 4 (non-publicly listed) should not be visible to visitor in list."
+    print("Visitor correctly cannot see contest4 in contest list.")
+    
+    # Test direct access to contest4 as visitor - should get 401 (Authentication required)
+    response = await client.get(f"/contests/{test_data['contest4_id']}")
+    assert response.status_code == 401, f"Visitor accessing contest4 should fail (401), got {response.status_code}: {response.text}"
+    print("Visitor failed to access contest4 directly as expected (401 - Authentication required).")
+
+@pytest.mark.run(after='test_03_23_visitor_attempts_to_list_and_access_contest4_fails')
+async def test_03_24_user1_removes_user2_from_contest4_members(client: AsyncClient):
+    """User1 removes User 2 from contest4 members."""
+    assert "user1_headers" in test_data, "User 1 token not found."
+    assert "user2_id" in test_data, "User 2 ID not found."
+    assert "contest4_id" in test_data, "Contest 4 ID not found."
+
+    response = await client.delete(
+        f"/contests/{test_data['contest4_id']}/members/{test_data['user2_id']}",
+        headers=test_data["user1_headers"]
+    )
+    assert response.status_code == 204, f"User 1 removing User 2 from contest4 members failed: {response.text}"
+    print(f"User 1 removed User 2 (ID: {test_data['user2_id']}) from contest4 members successfully.")
+
+@pytest.mark.run(after='test_03_24_user1_removes_user2_from_contest4_members')
+async def test_03_25_user2_can_no_longer_access_contest4(client: AsyncClient):
+    """User 2 can no longer access contest4."""
+    assert "user2_headers" in test_data, "User 2 token not found."
+    assert "contest4_id" in test_data, "Contest 4 ID not found."
+
+    response = await client.get(
+        f"/contests/{test_data['contest4_id']}",
+        headers=test_data["user2_headers"]
+    )
+    assert response.status_code == 403, f"User 2 accessing contest4 after removal should fail (403), got {response.status_code}: {response.text}"
+    print("User 2 can no longer access contest4 after being removed from members, as expected.")
 
 
 # --- End of Test Section 3 ---

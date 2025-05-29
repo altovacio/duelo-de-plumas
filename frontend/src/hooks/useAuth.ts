@@ -76,6 +76,7 @@ export const useAuth = () => {
       
       // Check authentication state after login attempt
       const currentState = useAuthStore.getState();
+      
       if (!currentState.error && currentState.isAuthenticated) {
         const redirectPath = getRedirectPath(currentState.isFirstLogin);
         
@@ -85,7 +86,7 @@ export const useAuth = () => {
         }, 300);
       }
     } catch (err) {
-      console.error("Login error:", err);
+      console.error("Login error in useAuth:", err);
     } finally {
       setIsSubmitting(false);
     }
@@ -100,6 +101,7 @@ export const useAuth = () => {
       
       // Check authentication state after registration attempt
       const currentState = useAuthStore.getState();
+      
       if (!currentState.error && currentState.isAuthenticated) {
         // New registrations should always go to home for onboarding
         const redirectPath = '/';
@@ -110,7 +112,7 @@ export const useAuth = () => {
         }, 300);
       }
     } catch (err) {
-      console.error("Registration error:", err);
+      console.error("Registration error in useAuth:", err);
     } finally {
       setIsSubmitting(false);
     }

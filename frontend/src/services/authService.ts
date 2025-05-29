@@ -8,15 +8,12 @@ import { AUTH_ENDPOINTS } from '../utils/apiConfig';
  */
 export const login = async (credentials: LoginRequest): Promise<{ user: User; tokens: AuthTokens; isFirstLogin?: boolean }> => {
   try {
-    console.log('Attempting login with username:', credentials.username);
-    
     // Use the api client with JSON data (standardized format)
     const response = await apiClient.post(AUTH_ENDPOINTS.LOGIN, {
       username: credentials.username,
       password: credentials.password
     });
     
-    console.log('Login response received');
     const tokens = response.data;
     
     // Store tokens in localStorage
@@ -43,8 +40,6 @@ export const login = async (credentials: LoginRequest): Promise<{ user: User; to
  */
 export const register = async (userData: RegisterRequest): Promise<{ user: User; tokens: AuthTokens }> => {
   try {
-    console.log('Attempting registration with username:', userData.username);
-    
     // Register the user using apiClient
     const response = await apiClient.post(AUTH_ENDPOINTS.SIGNUP, userData);
     const user = response.data;
@@ -56,15 +51,55 @@ export const register = async (userData: RegisterRequest): Promise<{ user: User;
     });
     
     const tokens = loginResponse.data;
-    console.log('Login after registration successful');
     
     // Store tokens in localStorage
     storeTokens(tokens);
     
     return { user, tokens };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Registration error:', error);
-    throw error;
+    
+    // Extract detailed error information from the response
+    let errorMessage = 'Registration failed';
+    
+    if (error.response?.data) {
+      const responseData = error.response.data;
+      
+      // Check for specific field errors first
+      if (responseData.username) {
+        errorMessage = `Username error: ${Array.isArray(responseData.username) ? responseData.username[0] : responseData.username}`;
+      } else if (responseData.email) {
+        errorMessage = `Email error: ${Array.isArray(responseData.email) ? responseData.email[0] : responseData.email}`;
+      } 
+      // Check for common error message fields
+      else if (responseData.detail) {
+        errorMessage = responseData.detail;
+      } else if (responseData.message) {
+        errorMessage = responseData.message;
+      } else if (responseData.error) {
+        errorMessage = responseData.error;
+      } else if (typeof responseData === 'string') {
+        errorMessage = responseData;
+      } 
+      // Handle multiple field errors
+      else {
+        const fieldErrors = [];
+        for (const [field, errors] of Object.entries(responseData)) {
+          if (Array.isArray(errors)) {
+            fieldErrors.push(`${field}: ${errors[0]}`);
+          } else if (typeof errors === 'string') {
+            fieldErrors.push(`${field}: ${errors}`);
+          }
+        }
+        if (fieldErrors.length > 0) {
+          errorMessage = fieldErrors.join(', ');
+        }
+      }
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    throw new Error(errorMessage);
   }
 };
 

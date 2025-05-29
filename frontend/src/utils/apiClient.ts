@@ -34,9 +34,10 @@ apiClient.interceptors.response.use(
   (error: AxiosError) => {
     // Handle unauthorized errors (401)
     if (error.response && error.response.status === 401) {
-      // Clear tokens and redirect to login page
+      // Clear tokens but let components handle navigation
       removeTokens();
-      window.location.href = '/login';
+      // Don't force navigation here - let React Router handle it
+      // window.location.href = '/login';
     }
     
     return Promise.reject(error);

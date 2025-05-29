@@ -10,7 +10,6 @@ This document lists known technical debt, areas for refactoring, and potential f
 -Header & pages redesign  (user flow)
 -Footer
 -Mobile responsiveness
--Login redirection
 -Login via email (cursor style)
 -Credit purchasing
 -What should we do when the parsing or AI execution fails? Retries, exceptions (if the platform is broken, prevent the users from spending resources? Refund?)

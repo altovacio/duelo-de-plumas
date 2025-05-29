@@ -7,7 +7,7 @@ import AgentFormModal from '../../components/Agent/AgentFormModal';
 import WelcomeModal from '../../components/Onboarding/WelcomeModal';
 import QuickActions from '../../components/Dashboard/QuickActions';
 import { getUserTexts, createText, updateText, deleteText, Text as TextType } from '../../services/textService';
-import { getUserContests, createContest, updateContest, deleteContest, Contest as ContestType, getContestSubmissions, ContestText as ContestSubmissionType, removeSubmissionFromContest, getAuthorParticipation, getJudgeParticipation, getMemberParticipation, getContestMembers, addMemberToContest, removeMemberFromContest, ContestMember, searchUsersByUsername } from '../../services/contestService';
+import { getUserContests, createContest, updateContest, deleteContest, Contest as ContestType, getContestSubmissions, ContestText as ContestSubmissionType, removeSubmissionFromContest, getAuthorParticipation, getJudgeParticipation, getMemberParticipation, getContestMembers, addMemberToContest, removeMemberFromContest, ContestMember } from '../../services/contestService';
 import { getAgents, createAgent, updateAgent, deleteAgent, cloneAgent, Agent as AgentType } from '../../services/agentService';
 import { getDashboardData } from '../../services/dashboardService';
 import { toast } from 'react-hot-toast';
@@ -458,6 +458,9 @@ const DashboardPage: React.FC = () => {
       // Also fetch texts separately since they're not part of the dashboard endpoint
       fetchTexts();
       
+      // Fetch agents to ensure accurate count in overview
+      fetchAgents();
+      
       setIsLoading(false);
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
@@ -726,6 +729,9 @@ const DashboardPage: React.FC = () => {
                   hasContests={contestsData.length > 0}
                   hasAgents={ownedAgentsData.length > 0}
                   urgentActions={dashboardData?.urgent_actions || []}
+                  textCount={textsData.length}
+                  contestCount={contestsData.length}
+                  agentCount={ownedAgentsData.length}
                 />
               </div>
 
@@ -757,7 +763,7 @@ const DashboardPage: React.FC = () => {
               )}
 
               {/* Traditional stats cards - now secondary */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="bg-white border border-gray-200 rounded-lg p-4">
                   <h3 className="font-medium text-gray-700">Credit Balance</h3>
                   <p className="text-2xl font-bold text-indigo-600">
@@ -771,6 +777,10 @@ const DashboardPage: React.FC = () => {
                 <div className="bg-white border border-gray-200 rounded-lg p-4">
                   <h3 className="font-medium text-gray-700">My Texts</h3>
                   <p className="text-2xl font-bold text-indigo-600">{textsData.length}</p>
+                </div>
+                <div className="bg-white border border-gray-200 rounded-lg p-4">
+                  <h3 className="font-medium text-gray-700">AI Agents</h3>
+                  <p className="text-2xl font-bold text-indigo-600">{ownedAgentsData.length}</p>
                 </div>
               </div>
             </div>
@@ -811,106 +821,123 @@ const DashboardPage: React.FC = () => {
                   </svg>
                 </div>
               ) : contestsData.length > 0 ? (
-                <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
-                  <table className="min-w-full divide-y divide-gray-300">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th scope="col" className="py-3 pl-4 pr-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Title</th>
-                        <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Status</th>
-                        <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Type</th>
-                        <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Participants</th>
-                        <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Created</th>
-                        <th scope="col" className="relative py-3 pl-3 pr-4">
-                          <span className="sr-only">Actions</span>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200 bg-white">
-                      {contestsData.map((contest) => (
-                        <tr key={contest.id}>
-                          <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900">
+                <div className="space-y-4">
+                  {contestsData.map((contest) => (
+                    <div key={contest.id} className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                      <div className="p-6">
+                        {/* Header */}
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-4">
+                          <div className="flex-1 min-w-0">
                             <Link 
                               to={`/contests/${contest.id}`}
-                              className="text-indigo-600 hover:text-indigo-900 hover:underline"
+                              className="text-lg font-medium text-indigo-600 hover:text-indigo-900 hover:underline block truncate"
                             >
                               {contest.title}
                             </Link>
-                          </td>
-                          <td className="px-3 py-4 text-sm">
-                            <select
-                              value={contest.status}
-                              onChange={(e) => handleStatusChange(contest.id, e.target.value as 'open' | 'evaluation' | 'closed')}
-                              className="px-2.5 py-1 rounded text-xs font-medium border border-gray-300 bg-white text-gray-800"
-                              style={{
-                                backgroundColor: contest.status === 'open' ? '#dcfce7' : 
-                                               contest.status === 'evaluation' ? '#fef3c7' : '#dbeafe',
-                                color: contest.status === 'open' ? '#166534' :
-                                       contest.status === 'evaluation' ? '#92400e' : '#1e40af'
-                              }}
-                            >
-                              <option value="open" style={{ backgroundColor: '#dcfce7', color: '#166534' }}>Open</option>
-                              <option value="evaluation" style={{ backgroundColor: '#fef3c7', color: '#92400e' }}>Evaluation</option>
-                              <option value="closed" style={{ backgroundColor: '#dbeafe', color: '#1e40af' }}>Closed</option>
-                            </select>
-                          </td>
-                          <td className="px-3 py-4 text-sm">
-                            <div className="flex flex-col space-y-1">
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {/* Status Badge */}
+                              <select
+                                value={contest.status}
+                                onChange={(e) => handleStatusChange(contest.id, e.target.value as 'open' | 'evaluation' | 'closed')}
+                                className="px-3 py-1 rounded-full text-xs font-medium border border-gray-300 bg-white text-gray-800 cursor-pointer"
+                                style={{
+                                  backgroundColor: contest.status === 'open' ? '#dcfce7' : 
+                                                 contest.status === 'evaluation' ? '#fef3c7' : '#dbeafe',
+                                  color: contest.status === 'open' ? '#166534' :
+                                         contest.status === 'evaluation' ? '#92400e' : '#1e40af'
+                                }}
+                              >
+                                <option value="open">Open</option>
+                                <option value="evaluation">Evaluation</option>
+                                <option value="closed">Closed</option>
+                              </select>
+                              
+                              {/* Type Badge */}
+                              <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
                                 contest.publicly_listed ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
                               }`}>
                                 {contest.publicly_listed ? 'Public' : 'Private'}
                               </span>
+                              
+                              {/* Password Protection Badge */}
                               {contest.password_protected && (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                  Password Protected
+                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                  🔒 Password Protected
                                 </span>
                               )}
                             </div>
-                          </td>
-                          <td className="px-3 py-4 text-sm text-gray-500">
-                            {contest.participant_count || 0}
-                          </td>
-                          <td className="px-3 py-4 text-sm text-gray-500">
-                            {new Date(contest.created_at).toLocaleDateString()}
-                          </td>
-                          <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium">
+                          </div>
+                          
+                          {/* Quick Stats */}
+                          <div className="flex flex-col sm:items-end mt-4 sm:mt-0 sm:ml-4">
+                            <div className="text-sm text-gray-500 mb-1">
+                              <span className="font-medium">{contest.participant_count || 0}</span> participants
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              Created {new Date(contest.created_at).toLocaleDateString()}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Actions */}
+                        <div className="border-t border-gray-200 pt-4">
+                          <div className="flex flex-wrap gap-2">
                             <button 
                               onClick={() => handleOpenEditContestModal(contest)}
-                              className="text-indigo-600 hover:text-indigo-900 mr-3"
+                              className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                             >
+                              <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
                               Edit
                             </button>
+                            
                             <button 
                               onClick={() => handleOpenSubmissionsModal(contest)}
-                              className="text-green-600 hover:text-green-900 mr-3"
+                              className="inline-flex items-center px-3 py-1.5 border border-green-300 text-sm font-medium rounded-md text-green-700 bg-green-50 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                             >
+                              <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
                               View Submissions
                             </button>
+                            
                             <button 
                               onClick={() => handleOpenJudgeManagementModal(contest)}
-                              className="text-blue-600 hover:text-blue-900 mr-3"
+                              className="inline-flex items-center px-3 py-1.5 border border-blue-300 text-sm font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                             >
+                              <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                              </svg>
                               Manage Judges
                             </button>
+                            
                             {!contest.publicly_listed && (
                               <button 
                                 onClick={() => handleOpenMemberManagementModal(contest)}
-                                className="text-purple-600 hover:text-purple-900 mr-3"
+                                className="inline-flex items-center px-3 py-1.5 border border-purple-300 text-sm font-medium rounded-md text-purple-700 bg-purple-50 hover:bg-purple-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
                               >
+                                <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                </svg>
                                 Manage Members
                               </button>
                             )}
+                            
                             <button 
                               onClick={() => handleDeleteContest(contest.id)}
-                              className="text-red-600 hover:text-red-900"
+                              className="inline-flex items-center px-3 py-1.5 border border-red-300 text-sm font-medium rounded-md text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                             >
+                              <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
                               Delete
                             </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <p className="text-gray-500 italic">No contests yet. Create your first contest!</p>

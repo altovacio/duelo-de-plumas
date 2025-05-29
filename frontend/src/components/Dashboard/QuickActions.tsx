@@ -7,13 +7,19 @@ interface QuickActionsProps {
   hasContests: boolean;
   hasAgents: boolean;
   urgentActions?: any[];
+  textCount?: number;
+  contestCount?: number;
+  agentCount?: number;
 }
 
 const QuickActions: React.FC<QuickActionsProps> = ({ 
   hasTexts, 
   hasContests, 
   hasAgents, 
-  urgentActions = [] 
+  urgentActions = [],
+  textCount = 0,
+  contestCount = 0,
+  agentCount = 0
 }) => {
   const { user } = useAuth();
 
@@ -159,15 +165,15 @@ const QuickActions: React.FC<QuickActionsProps> = ({
             <div className="text-xs text-gray-500">Credits Available</div>
           </div>
           <div>
-            <div className="text-2xl font-bold text-blue-600">{hasTexts ? "✓" : "0"}</div>
+            <div className="text-2xl font-bold text-blue-600">{textCount}</div>
             <div className="text-xs text-gray-500">Texts Created</div>
           </div>
           <div>
-            <div className="text-2xl font-bold text-green-600">{hasContests ? "✓" : "0"}</div>
-            <div className="text-xs text-gray-500">Contests Joined</div>
+            <div className="text-2xl font-bold text-green-600">{contestCount}</div>
+            <div className="text-xs text-gray-500">Contests Created</div>
           </div>
           <div>
-            <div className="text-2xl font-bold text-purple-600">{hasAgents ? "✓" : "0"}</div>
+            <div className="text-2xl font-bold text-purple-600">{agentCount}</div>
             <div className="text-xs text-gray-500">AI Agents</div>
           </div>
         </div>

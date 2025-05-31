@@ -253,11 +253,25 @@ const DashboardPage: React.FC = () => {
         setContestsData(dashboardDataResponse.author_contests);
       }
       
-      // Also fetch texts separately since they're not part of the dashboard endpoint
-      fetchTexts();
+      // Fetch texts with reasonable limit for overview count (not paginated)
+      try {
+        const allTexts = await getUserTexts(0, 100); // Get up to 100 texts for overview count
+        setTextsData(allTexts);
+      } catch (textError) {
+        console.warn('Could not fetch all texts for overview:', textError);
+        // Fallback to regular paginated fetch
+        fetchTexts();
+      }
       
-      // Fetch agents to ensure accurate count in overview
-      fetchAgents();
+      // Fetch agents with a reasonable limit for overview (not paginated)
+      try {
+        const allAgents = await getAgents(false, 0, 100); // Use reasonable limit that backend accepts
+        setOwnedAgentsData(allAgents);
+      } catch (agentError) {
+        console.warn('Could not fetch all agents for overview:', agentError);
+        // Fallback to regular paginated fetch
+        fetchAgents();
+      }
       
       setIsLoading(false);
     } catch (err) {

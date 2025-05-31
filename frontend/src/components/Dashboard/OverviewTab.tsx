@@ -16,8 +16,6 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
   contestsCount,
   agentsCount
 }) => {
-  const { user } = useAuth();
-
   return (
     <div>
       <h2 className="text-xl font-medium mb-6">Dashboard Overview</h2>
@@ -61,28 +59,6 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           </div>
         </div>
       )}
-
-      {/* Stats cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <h3 className="font-medium text-gray-700">Credit Balance</h3>
-          <p className="text-2xl font-bold text-indigo-600">
-            {user?.credits !== undefined ? `${user.credits} credits` : 'Loading...'}
-          </p>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <h3 className="font-medium text-gray-700">My Contests</h3>
-          <p className="text-2xl font-bold text-indigo-600">{contestsCount}</p>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <h3 className="font-medium text-gray-700">My Texts</h3>
-          <p className="text-2xl font-bold text-indigo-600">{textsCount}</p>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <h3 className="font-medium text-gray-700">AI Agents</h3>
-          <p className="text-2xl font-bold text-indigo-600">{agentsCount}</p>
-        </div>
-      </div>
     </div>
   );
 };

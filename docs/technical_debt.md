@@ -3,14 +3,6 @@
 This document lists known technical debt, areas for refactoring, and potential future improvements.
 
 ## ONGOING
--Test high load users, contests, texts, etc.
-
--Pagination in Contest list
--Dashboard
--Admin
-
-Admin -> search for users when paginated
-Contests oversight table redesign
 
 ## TODO
 
@@ -23,7 +15,6 @@ Contests oversight table redesign
 -Credit purchasing
 -What should we do when the parsing or AI execution fails? Retries, exceptions (if the platform is broken, prevent the users from spending resources? Refund?)
 -initial setup
--Test high load users, contests, texts, etc.
 
 -Credit spenditure revisit
 
@@ -39,6 +30,8 @@ Contests oversight table redesign
 -Unit tests
 
 -English/Spanish
+
+-Writer Robots Arena
 
 
 ## Frontend

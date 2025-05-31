@@ -20,9 +20,15 @@ export interface AdminUser {
   email: string;
 }
 
-// Function to search for users by username or email
-export const searchUsers = async (query: string): Promise<User[]> => {
-  const response = await apiClient.get('/users/search', { params: { username: query } });
+// Function to search for users by username or email (works for all users, returns appropriate data based on auth)
+export const searchUsers = async (query: string, skip: number = 0, limit: number = 10): Promise<User[]> => {
+  const response = await apiClient.get('/users/search', { 
+    params: { 
+      username: query,
+      skip,
+      limit 
+    } 
+  });
   return response.data;
 };
 
@@ -61,17 +67,8 @@ export const getAdminUsersWithCounts = async (skip: number = 0, limit: number = 
   return response.data;
 };
 
-// Function for admin to search users with pagination
-export const searchAdminUsers = async (query: string, skip: number = 0, limit: number = 100): Promise<User[]> => {
-  const response = await apiClient.get('/users/search', { 
-    params: { 
-      username: query,
-      skip,
-      limit 
-    } 
-  });
-  return response.data;
-};
+// Keep the old searchAdminUsers for backward compatibility, but it now uses the same endpoint
+export const searchAdminUsers = searchUsers;
 
 // Function for an admin to get a single user by ID
 export const getAdminUserById = async (userId: number): Promise<User> => {

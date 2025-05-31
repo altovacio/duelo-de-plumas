@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, status, HTTPException, Query, Path
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
+from typing import List, Optional
 
 from app.db.database import get_db
 from app.schemas.user import UserResponse, UserUpdate, UserCredit, UserPublicResponse, UserAdminResponse
@@ -41,18 +41,29 @@ async def get_users(
     users = await service.get_users(skip, limit)
     return users
 
-@router.get("/search", response_model=List[UserResponse])
+@router.get("/search")
 async def search_users(
     username: str = Query(..., description="Username to search for"),
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
-    current_user: UserModel = Depends(get_current_user)
+    current_user: Optional[UserModel] = Depends(get_optional_current_user)
 ):
-    """Search for users by username with pagination."""
+    """
+    Search for users by username with pagination.
+    Returns public user information for all users.
+    Admins get additional information like email.
+    This endpoint is public and doesn't require authentication.
+    """
     user_repo = UserRepository(db)
     users = await user_repo.search_users(username, skip, limit)
-    return users
+    
+    # If admin, return UserAdminResponse with email
+    if current_user and current_user.is_admin:
+        return [UserAdminResponse(id=user.id, username=user.username, email=user.email) for user in users]
+    
+    # For regular users (including non-authenticated), return only public info
+    return [UserPublicResponse(id=user.id, username=user.username) for user in users]
 
 @router.post("/by-ids", response_model=List[UserAdminResponse])
 async def get_users_by_ids(

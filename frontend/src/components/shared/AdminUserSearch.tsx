@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { searchAdminUsers, User } from '../../services/userService';
+import { searchUsers, User } from '../../services/userService';
 
 interface AdminUserSearchProps {
   onUserSelect: (user: User | null) => void;
@@ -25,7 +25,7 @@ const AdminUserSearch: React.FC<AdminUserSearchProps> = ({
       if (searchTerm.trim().length >= 2) {
         setIsSearching(true);
         try {
-          const results = await searchAdminUsers(searchTerm.trim(), 0, 10);
+          const results = await searchUsers(searchTerm.trim(), 0, 10);
           setSearchResults(results);
           setShowResults(true);
         } catch (error) {

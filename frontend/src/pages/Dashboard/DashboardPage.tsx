@@ -6,9 +6,10 @@ import ContestFormModal from '../../components/Contest/ContestFormModal';
 import AgentFormModal from '../../components/Agent/AgentFormModal';
 import WelcomeModal from '../../components/Onboarding/WelcomeModal';
 import QuickActions from '../../components/Dashboard/QuickActions';
+import Pagination from '../../components/shared/Pagination';
 import { getUserTexts, createText, updateText, deleteText, Text as TextType } from '../../services/textService';
 import { getUserContests, createContest, updateContest, deleteContest, Contest as ContestType, getContestSubmissions, ContestText as ContestSubmissionType, removeSubmissionFromContest, getAuthorParticipation, getJudgeParticipation, getMemberParticipation, getContestMembers, addMemberToContest, removeMemberFromContest, ContestMember } from '../../services/contestService';
-import { getAgents, createAgent, updateAgent, deleteAgent, cloneAgent, Agent as AgentType } from '../../services/agentService';
+import { getAgents, createAgent, updateAgent, deleteAgent, Agent as AgentType } from '../../services/agentService';
 import { getDashboardData } from '../../services/dashboardService';
 import { toast } from 'react-hot-toast';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -23,14 +24,19 @@ import { User } from '../../services/userService';
 
 type TabType = 'overview' | 'contests' | 'texts' | 'agents' | 'participation' | 'credits';
 
+// Simple loading spinner component
+const LoadingSpinner: React.FC = () => (
+  <div className="flex justify-center items-center h-32">
+    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+  </div>
+);
+
 const DashboardPage: React.FC = () => {
   const { user } = useAuth();
   const { isFirstLogin, setIsFirstLogin } = useAuthStore();
   const [searchParams, setSearchParams] = useSearchParams();
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
 
-
-  
   // Initialize activeTab from URL parameter or default to 'overview'
   const getInitialTab = (): TabType => {
     const tabParam = searchParams.get('tab');
@@ -43,6 +49,8 @@ const DashboardPage: React.FC = () => {
   // Function to handle tab changes and update URL
   const handleTabChange = (tab: TabType) => {
     setActiveTab(tab);
+    // Reset pagination when switching tabs
+    setCurrentPage(1);
     // Update URL parameter
     const newSearchParams = new URLSearchParams(searchParams);
     if (tab === 'overview') {
@@ -64,6 +72,11 @@ const DashboardPage: React.FC = () => {
   // Common state
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
   
   // Text state
   const [isTextModalOpen, setIsTextModalOpen] = useState(false);
@@ -95,8 +108,9 @@ const DashboardPage: React.FC = () => {
   const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<AgentType | null>(null);
   const [ownedAgentsData, setOwnedAgentsData] = useState<AgentType[]>([]);
-  const [publicAgentsData, setPublicAgentsData] = useState<AgentType[]>([]);
-  const [isLoadingPublic, setIsLoadingPublic] = useState(false);
+  // Remove unused public agents state since it's not being used in this page
+  // const [publicAgentsData, setPublicAgentsData] = useState<AgentType[]>([]);
+  // const [isLoadingPublic, setIsLoadingPublic] = useState(false);
   
   // Editing flags
   const [isEditing, setIsEditing] = useState(false);
@@ -113,9 +127,6 @@ const DashboardPage: React.FC = () => {
   const [isJudgeModalOpen, setIsJudgeModalOpen] = useState(false);
   const [selectedContestForJudges, setSelectedContestForJudges] = useState<ContestType | null>(null);
   
-  // State for created contests (separate from authored contests)
-  const [createdContests, setCreatedContests] = useState<ContestType[]>([]);
-
   // Add the following state variables for text search
   const [textSearchQuery, setTextSearchQuery] = useState('');
   const [filteredTexts, setFilteredTexts] = useState<TextType[]>([]);
@@ -148,6 +159,196 @@ const DashboardPage: React.FC = () => {
     setIsFirstLogin(false);
   };
 
+  // Define all functions before useEffects that call them
+  
+  // Text management functions
+  const fetchTexts = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const skip = (currentPage - 1) * itemsPerPage;
+      
+      // Pass search query to server-side search
+      const searchQuery = textSearchQuery.trim() || undefined;
+      const texts = await getUserTexts(skip, itemsPerPage, searchQuery);
+      setTextsData(texts);
+      setFilteredTexts(texts); // No longer needed since search is server-side, but keeping for compatibility
+      
+      // Simple logic: if we got a full page, there might be more
+      if (texts.length === itemsPerPage) {
+        setTotalItems((currentPage * itemsPerPage) + 1); // +1 to indicate there might be more
+      } else {
+        setTotalItems(skip + texts.length); // Exact count
+      }
+    } catch (err) {
+      console.error('Error fetching texts:', err);
+      setError('Failed to load texts. Please try again later.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Contest management functions
+  const fetchContests = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const skip = (currentPage - 1) * itemsPerPage;
+      
+      const contests = await getUserContests(skip, itemsPerPage);
+      setContestsData(contests);
+      
+      // Simple pagination logic
+      if (contests.length === itemsPerPage) {
+        setTotalItems((currentPage * itemsPerPage) + 1);
+      } else {
+        setTotalItems(skip + contests.length);
+      }
+      
+    } catch (err) {
+      console.error('Error fetching contests:', err);
+      setError('Failed to load contests. Please try again later.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Agent management functions
+  const fetchAgents = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const skip = (currentPage - 1) * itemsPerPage;
+      const ownedAgents = await getAgents(false, skip, itemsPerPage);
+      setOwnedAgentsData(ownedAgents);
+      
+      // Simple logic: if we got a full page, there might be more
+      if (ownedAgents.length === itemsPerPage) {
+        setTotalItems((currentPage * itemsPerPage) + 1); // +1 to indicate there might be more
+      } else {
+        setTotalItems(skip + ownedAgents.length); // Exact count
+      }
+    } catch (err) {
+      console.error('Error fetching agents:', err);
+      setError('Failed to load agents. Please try again later.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Dashboard overview data
+  const fetchOverviewData = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const dashboardDataResponse = await getDashboardData();
+      setDashboardData(dashboardDataResponse);
+      
+      // Update contests data if available
+      if (dashboardDataResponse.author_contests) {
+        setContestsData(dashboardDataResponse.author_contests);
+      }
+      
+      // Also fetch texts separately since they're not part of the dashboard endpoint
+      fetchTexts();
+      
+      // Fetch agents to ensure accurate count in overview
+      fetchAgents();
+      
+      setIsLoading(false);
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+      setError('Failed to load dashboard data. Please try again later.');
+      setIsLoading(false);
+    }
+  };
+
+  // Add this function to fetch participation data
+  const fetchParticipation = async () => {
+    try {
+      setIsLoadingParticipation(true);
+      setError(null);
+      
+      const [asAuthor, asJudge, asMember] = await Promise.all([
+        getAuthorParticipation(),
+        getJudgeParticipation(),
+        getMemberParticipation()
+      ]);
+      
+      setParticipationContests({ asAuthor, asJudge, asMember });
+      
+      // Calculate total items for client-side pagination
+      const totalParticipation = asAuthor.length + asJudge.length + asMember.length;
+      setTotalItems(totalParticipation);
+    } catch (err) {
+      console.error('Error fetching participation:', err);
+      setError('Failed to load participation data. Please try again later.');
+    } finally {
+      setIsLoadingParticipation(false);
+    }
+  };
+
+  const fetchTransactions = async () => {
+    try {
+      setIsLoadingTransactions(true);
+      setTransactionError(null);
+      const skip = (currentPage - 1) * itemsPerPage;
+      const transactionData = await getUserCreditTransactions(skip, itemsPerPage);
+      setTransactions(transactionData);
+      
+      // Simple logic: if we got a full page, there might be more
+      if (transactionData.length === itemsPerPage) {
+        setTotalItems((currentPage * itemsPerPage) + 1); // +1 to indicate there might be more
+      } else {
+        setTotalItems(skip + transactionData.length); // Exact count
+      }
+    } catch (err: any) {
+      console.error('Error fetching transactions:', err);
+      setTransactionError('Failed to load transaction history');
+    } finally {
+      setIsLoadingTransactions(false);
+    }
+  };
+
+  // Add function to handle opening the judge management modal
+  const handleOpenJudgeManagementModal = (contest: ContestType) => {
+    setSelectedContestForJudges(contest);
+    setIsJudgeModalOpen(true);
+  };
+
+  // Add this function to handle status change
+  const handleStatusChange = async (contestId: number, newStatus: 'open' | 'evaluation' | 'closed') => {
+    try {
+      await updateContest(contestId, { status: newStatus });
+      // Refresh contests list
+      fetchContests();
+      toast.success('Contest status updated successfully');
+    } catch (error) {
+      console.error('Error updating contest status:', error);
+      toast.error('Failed to update contest status');
+    }
+  };
+
+  // Add function to handle opening the member management modal
+  const handleOpenMemberManagementModal = async (contest: ContestType) => {
+    setSelectedContestForMembers(contest);
+    setIsMemberModalOpen(true);
+    setIsLoadingMembers(true);
+    setMemberError(null);
+    try {
+      const members = await getContestMembers(contest.id);
+      setContestMembers(members);
+    } catch (err) {
+      console.error('Error fetching members:', err);
+      setMemberError('Failed to load members. Please try again later.');
+      setContestMembers([]);
+    } finally {
+      setIsLoadingMembers(false);
+    }
+  };
+
   // Fetch data based on active tab
   useEffect(() => {
     if (activeTab === 'texts') {
@@ -165,27 +366,32 @@ const DashboardPage: React.FC = () => {
       // Fetch transaction history for credits tab
       fetchTransactions();
     }
-  }, [activeTab]);
+  }, [activeTab]); // Removed currentPage dependency for client-side paginated sections
+
+  // Separate effect for server-side paginated sections
+  useEffect(() => {
+    if (activeTab === 'texts') {
+      fetchTexts();
+    } else if (activeTab === 'contests') {
+      fetchContests();
+    } else if (activeTab === 'agents') {
+      fetchAgents();
+    } else if (activeTab === 'credits') {
+      fetchTransactions();
+    }
+  }, [currentPage]); // Only refetch server-side paginated data when page changes
+
+  // Handle text search changes - reset to page 1 and fetch new results
+  useEffect(() => {
+    if (activeTab === 'texts') {
+      setCurrentPage(1); // Reset to first page when searching
+      fetchTexts();
+    }
+  }, [textSearchQuery]); // Trigger when search query changes
 
   // Helper function to refresh user data
 
-  // Text management functions
-  const fetchTexts = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const texts = await getUserTexts();
-      setTextsData(texts);
-      setFilteredTexts(texts);
-    } catch (err) {
-      console.error('Error fetching texts:', err);
-      setError('Failed to load texts. Please try again later.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-
+  // Text management functions (remaining handlers)
   const handleOpenEditTextModal = (text: TextType) => {
     setIsEditing(true);
     setSelectedText(text);
@@ -239,21 +445,7 @@ const DashboardPage: React.FC = () => {
     setSelectedTextForFullModal(null);
   };
 
-  // Contest management functions
-  const fetchContests = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const contests = await getUserContests();
-      setContestsData(contests);
-    } catch (err) {
-      console.error('Error fetching contests:', err);
-      setError('Failed to load contests. Please try again later.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+  // Contest management functions (remaining handlers)
   const handleOpenCreateContestModal = () => {
     setIsEditing(false);
     setSelectedContest(null);
@@ -335,29 +527,7 @@ const DashboardPage: React.FC = () => {
     }
   };
 
-  // Agent management functions
-  const fetchAgents = async () => {
-    try {
-      // Fetch owned agents
-      setIsLoading(true);
-      setError(null);
-      const myAgents = await getAgents(false); // false = only private agents owned by the user
-      setOwnedAgentsData(myAgents);
-      setIsLoading(false);
-      
-      // Fetch public agents
-      setIsLoadingPublic(true);
-      const publicAgents = await getAgents(true); // true = only public agents
-      setPublicAgentsData(publicAgents);
-      setIsLoadingPublic(false);
-    } catch (err) {
-      console.error('Error fetching agents:', err);
-      setError('Failed to load agents. Please try again later.');
-      setIsLoading(false);
-      setIsLoadingPublic(false);
-    }
-  };
-
+  // Agent management functions (remaining handlers)
   const handleOpenCreateAgentModal = () => {
     setIsEditing(false);
     setSelectedAgent(null);
@@ -428,6 +598,8 @@ const DashboardPage: React.FC = () => {
     }
   };
 
+  // Temporarily commented out since public agents section is disabled
+  /*
   const handleCloneAgent = async (id: number) => {
     try {
       setIsLoading(true);
@@ -440,34 +612,7 @@ const DashboardPage: React.FC = () => {
       setIsLoading(false);
     }
   };
-
-  // Dashboard overview data
-  const fetchOverviewData = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      const dashboardDataResponse = await getDashboardData();
-      setDashboardData(dashboardDataResponse);
-      
-      // Update contests data if available
-      if (dashboardDataResponse.author_contests) {
-        setContestsData(dashboardDataResponse.author_contests);
-      }
-      
-      // Also fetch texts separately since they're not part of the dashboard endpoint
-      fetchTexts();
-      
-      // Fetch agents to ensure accurate count in overview
-      fetchAgents();
-      
-      setIsLoading(false);
-    } catch (err) {
-      console.error('Error fetching dashboard data:', err);
-      setError('Failed to load dashboard data. Please try again later.');
-      setIsLoading(false);
-    }
-  };
+  */
 
   const handleOpenSubmissionsModal = async (contest: ContestType) => {
     setSelectedContestForSubmissions(contest);
@@ -534,66 +679,6 @@ const DashboardPage: React.FC = () => {
       ? 'font-semibold text-indigo-700 border-b-2 border-indigo-700' 
       : 'text-gray-600 hover:text-indigo-700'}`;
 
-  // Add this function to fetch participation data
-  const fetchParticipation = async () => {
-    try {
-      setIsLoadingParticipation(true);
-      setError(null);
-      
-      const [authorContests, judgeContests, memberContests, myCreatedContests] = await Promise.all([
-        getAuthorParticipation(),
-        getJudgeParticipation(),
-        getMemberParticipation(),
-        getUserContests()
-      ]);
-      
-      setParticipationContests({
-        asAuthor: authorContests,
-        asJudge: judgeContests,
-        asMember: memberContests
-      });
-      setCreatedContests(myCreatedContests);
-    } catch (err: any) {
-      console.error('Error fetching participation data:', err);
-      setError('Failed to load participation data');
-    } finally {
-      setIsLoadingParticipation(false);
-    }
-  };
-
-  const fetchTransactions = async () => {
-    try {
-      setIsLoadingTransactions(true);
-      setTransactionError(null);
-      const transactionData = await getUserCreditTransactions();
-      setTransactions(transactionData);
-    } catch (err: any) {
-      console.error('Error fetching transactions:', err);
-      setTransactionError('Failed to load transaction history');
-    } finally {
-      setIsLoadingTransactions(false);
-    }
-  };
-
-  // Add function to handle opening the judge management modal
-  const handleOpenJudgeManagementModal = (contest: ContestType) => {
-    setSelectedContestForJudges(contest);
-    setIsJudgeModalOpen(true);
-  };
-
-  // Add this function to handle status change
-  const handleStatusChange = async (contestId: number, newStatus: 'open' | 'evaluation' | 'closed') => {
-    try {
-      await updateContest(contestId, { status: newStatus });
-      // Refresh contests list
-      fetchContests();
-      toast.success('Contest status updated successfully');
-    } catch (error) {
-      console.error('Error updating contest status:', error);
-      toast.error('Failed to update contest status');
-    }
-  };
-
   // Add this useEffect to update filtered texts when search query changes
   useEffect(() => {
     if (textsData.length > 0) {
@@ -606,27 +691,9 @@ const DashboardPage: React.FC = () => {
     }
   }, [textSearchQuery, textsData]);
 
-  // Add function to handle opening the member management modal
-  const handleOpenMemberManagementModal = async (contest: ContestType) => {
-    setSelectedContestForMembers(contest);
-    setIsMemberModalOpen(true);
-    setIsLoadingMembers(true);
-    setMemberError(null);
-    try {
-      const members = await getContestMembers(contest.id);
-      setContestMembers(members);
-    } catch (err) {
-      console.error('Error fetching members:', err);
-      setMemberError('Failed to load members. Please try again later.');
-      setContestMembers([]);
-    } finally {
-      setIsLoadingMembers(false);
-    }
-  };
-
   // Add member to contest
-  const handleAddMember = async (user: User) => {
-    if (!selectedContestForMembers) return;
+  const handleAddMember = async (user: User | null) => {
+    if (!selectedContestForMembers || !user) return;
     
     try {
       setIsLoadingMembers(true);
@@ -664,6 +731,10 @@ const DashboardPage: React.FC = () => {
     }
   };
 
+  // Handle page change
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
   return (
     <div className="bg-white rounded-lg shadow-md">
       <div className="p-6">
@@ -814,130 +885,138 @@ const DashboardPage: React.FC = () => {
               )}
               
               {isLoading ? (
-                <div className="flex justify-center items-center h-32">
-                  <svg className="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                </div>
+                <LoadingSpinner />
               ) : contestsData.length > 0 ? (
-                <div className="space-y-4">
-                  {contestsData.map((contest) => (
-                    <div key={contest.id} className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
-                      <div className="p-6">
-                        {/* Header */}
-                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-4">
-                          <div className="flex-1 min-w-0">
-                            <Link 
-                              to={`/contests/${contest.id}`}
-                              className="text-lg font-medium text-indigo-600 hover:text-indigo-900 hover:underline block truncate"
-                            >
-                              {contest.title}
-                            </Link>
-                            <div className="flex flex-wrap gap-2 mt-2">
-                              {/* Status Badge */}
-                              <select
-                                value={contest.status}
-                                onChange={(e) => handleStatusChange(contest.id, e.target.value as 'open' | 'evaluation' | 'closed')}
-                                className="px-3 py-1 rounded-full text-xs font-medium border border-gray-300 bg-white text-gray-800 cursor-pointer"
-                                style={{
-                                  backgroundColor: contest.status === 'open' ? '#dcfce7' : 
-                                                 contest.status === 'evaluation' ? '#fef3c7' : '#dbeafe',
-                                  color: contest.status === 'open' ? '#166534' :
-                                         contest.status === 'evaluation' ? '#92400e' : '#1e40af'
-                                }}
+                <div>
+                  <div className="space-y-4">
+                    {contestsData.map((contest) => (
+                      <div key={contest.id} className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                        <div className="p-6">
+                          {/* Header */}
+                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-4">
+                            <div className="flex-1 min-w-0">
+                              <Link 
+                                to={`/contests/${contest.id}`}
+                                className="text-lg font-medium text-indigo-600 hover:text-indigo-900 hover:underline block truncate"
                               >
-                                <option value="open">Open</option>
-                                <option value="evaluation">Evaluation</option>
-                                <option value="closed">Closed</option>
-                              </select>
-                              
-                              {/* Type Badge */}
-                              <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                                contest.publicly_listed ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
-                              }`}>
-                                {contest.publicly_listed ? 'Public' : 'Private'}
-                              </span>
-                              
-                              {/* Password Protection Badge */}
-                              {contest.password_protected && (
-                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                  🔒 Password Protected
+                                {contest.title}
+                              </Link>
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                {/* Status Badge */}
+                                <select
+                                  value={contest.status}
+                                  onChange={(e) => handleStatusChange(contest.id, e.target.value as 'open' | 'evaluation' | 'closed')}
+                                  className="px-3 py-1 rounded-full text-xs font-medium border border-gray-300 bg-white text-gray-800 cursor-pointer"
+                                  style={{
+                                    backgroundColor: contest.status === 'open' ? '#dcfce7' : 
+                                                   contest.status === 'evaluation' ? '#fef3c7' : '#dbeafe',
+                                    color: contest.status === 'open' ? '#166534' :
+                                           contest.status === 'evaluation' ? '#92400e' : '#1e40af'
+                                  }}
+                                >
+                                  <option value="open">Open</option>
+                                  <option value="evaluation">Evaluation</option>
+                                  <option value="closed">Closed</option>
+                                </select>
+                                
+                                {/* Type Badge */}
+                                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                                  contest.publicly_listed ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
+                                }`}>
+                                  {contest.publicly_listed ? 'Public' : 'Private'}
                                 </span>
-                              )}
+                                
+                                {/* Password Protection Badge */}
+                                {contest.password_protected && (
+                                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                    🔒 Password Protected
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Quick Stats */}
+                            <div className="flex flex-col sm:items-end mt-4 sm:mt-0 sm:ml-4">
+                              <div className="text-sm text-gray-500 mb-1">
+                                <span className="font-medium">{contest.participant_count || 0}</span> participants
+                              </div>
+                              <div className="text-sm text-gray-500">
+                                Created {new Date(contest.created_at).toLocaleDateString()}
+                              </div>
                             </div>
                           </div>
                           
-                          {/* Quick Stats */}
-                          <div className="flex flex-col sm:items-end mt-4 sm:mt-0 sm:ml-4">
-                            <div className="text-sm text-gray-500 mb-1">
-                              <span className="font-medium">{contest.participant_count || 0}</span> participants
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              Created {new Date(contest.created_at).toLocaleDateString()}
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {/* Actions */}
-                        <div className="border-t border-gray-200 pt-4">
-                          <div className="flex flex-wrap gap-2">
-                            <button 
-                              onClick={() => handleOpenEditContestModal(contest)}
-                              className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                            >
-                              <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                              </svg>
-                              Edit
-                            </button>
-                            
-                            <button 
-                              onClick={() => handleOpenSubmissionsModal(contest)}
-                              className="inline-flex items-center px-3 py-1.5 border border-green-300 text-sm font-medium rounded-md text-green-700 bg-green-50 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                            >
-                              <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                              </svg>
-                              View Submissions
-                            </button>
-                            
-                            <button 
-                              onClick={() => handleOpenJudgeManagementModal(contest)}
-                              className="inline-flex items-center px-3 py-1.5 border border-blue-300 text-sm font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                            >
-                              <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                              </svg>
-                              Manage Judges
-                            </button>
-                            
-                            {!contest.publicly_listed && (
+                          {/* Actions */}
+                          <div className="border-t border-gray-200 pt-4">
+                            <div className="flex flex-wrap gap-2">
                               <button 
-                                onClick={() => handleOpenMemberManagementModal(contest)}
-                                className="inline-flex items-center px-3 py-1.5 border border-purple-300 text-sm font-medium rounded-md text-purple-700 bg-purple-50 hover:bg-purple-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+                                onClick={() => handleOpenEditContestModal(contest)}
+                                className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                               >
                                 <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                 </svg>
-                                Manage Members
+                                Edit
                               </button>
-                            )}
-                            
-                            <button 
-                              onClick={() => handleDeleteContest(contest.id)}
-                              className="inline-flex items-center px-3 py-1.5 border border-red-300 text-sm font-medium rounded-md text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                            >
-                              <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                              Delete
-                            </button>
+                              
+                              <button 
+                                onClick={() => handleOpenSubmissionsModal(contest)}
+                                className="inline-flex items-center px-3 py-1.5 border border-green-300 text-sm font-medium rounded-md text-green-700 bg-green-50 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                              >
+                                <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                View Submissions
+                              </button>
+                              
+                              <button 
+                                onClick={() => handleOpenJudgeManagementModal(contest)}
+                                className="inline-flex items-center px-3 py-1.5 border border-blue-300 text-sm font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                              >
+                                <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                                </svg>
+                                Manage Judges
+                              </button>
+                              
+                              {!contest.publicly_listed && (
+                                <button 
+                                  onClick={() => handleOpenMemberManagementModal(contest)}
+                                  className="inline-flex items-center px-3 py-1.5 border border-purple-300 text-sm font-medium rounded-md text-purple-700 bg-purple-50 hover:bg-purple-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+                                >
+                                  <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                  </svg>
+                                  Manage Members
+                                </button>
+                              )}
+                              
+                              <button 
+                                onClick={() => handleDeleteContest(contest.id)}
+                                className="inline-flex items-center px-3 py-1.5 border border-red-300 text-sm font-medium rounded-md text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                              >
+                                <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                Delete
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                  
+                  {/* Pagination */}
+                  {totalItems > itemsPerPage && (
+                    <Pagination
+                      currentPage={currentPage}
+                      totalItems={totalItems}
+                      itemsPerPage={itemsPerPage}
+                      onPageChange={handlePageChange}
+                      className="mt-6"
+                    />
+                  )}
                 </div>
               ) : (
                 <p className="text-gray-500 italic">No contests yet. Create your first contest!</p>
@@ -1022,67 +1101,75 @@ const DashboardPage: React.FC = () => {
               )}
               
               {isLoading ? (
-                <div className="flex justify-center items-center h-32">
-                  <svg className="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                </div>
+                <LoadingSpinner />
               ) : filteredTexts.length > 0 ? (
-                <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
-                  <table className="min-w-full divide-y divide-gray-300">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th scope="col" className="py-3 pl-4 pr-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Title</th>
-                        <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Content Preview</th>
-                        <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Author</th>
-                        <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Created</th>
-                        <th scope="col" className="relative py-3 pl-3 pr-4">
-                          <span className="sr-only">Actions</span>
-                        </th>
-                      </tr>
-                    </thead>
-                        <tbody className="divide-y divide-gray-200 bg-white">
-                          {filteredTexts.map((text) => (
-                            <tr key={text.id}>
-                              <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900">
-                                <button
-                                  onClick={() => handleOpenTextFullModal(text)}
-                                  className="text-indigo-600 hover:text-indigo-900 hover:underline text-left"
-                                >
-                                  {text.title}
-                                </button>
-                              </td>
-                              <td className="px-3 py-4 text-sm text-gray-500">
-                                {text.content.length > 50 
-                                  ? `${text.content.substring(0, 50)}...` 
-                                  : text.content}
-                              </td>
-                              <td className="px-3 py-4 text-sm text-gray-500">
-                                {text.author}
-                              </td>
-                              <td className="px-3 py-4 text-sm text-gray-500">
-                                {new Date(text.created_at).toLocaleDateString()}
-                              </td>
-                              <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium">
-                                <button 
-                                  className="text-indigo-600 hover:text-indigo-900 mr-4"
-                                  onClick={() => handleOpenEditTextModal(text)}
-                                >
-                                  Edit
-                                </button>
-                                <button 
-                                  className="text-red-600 hover:text-red-900"
-                                  onClick={() => handleDeleteText(text.id)}
-                                >
-                                  Delete
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                <div>
+                  <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
+                    <table className="min-w-full divide-y divide-gray-300">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th scope="col" className="py-3 pl-4 pr-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Title</th>
+                          <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Content Preview</th>
+                          <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Author</th>
+                          <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Created</th>
+                          <th scope="col" className="relative py-3 pl-3 pr-4">
+                            <span className="sr-only">Actions</span>
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200 bg-white">
+                        {filteredTexts.map((text) => (
+                          <tr key={text.id}>
+                            <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900">
+                              <button
+                                onClick={() => handleOpenTextFullModal(text)}
+                                className="text-indigo-600 hover:text-indigo-900 hover:underline text-left"
+                              >
+                                {text.title}
+                              </button>
+                            </td>
+                            <td className="px-3 py-4 text-sm text-gray-500">
+                              {text.content.length > 50 
+                                ? `${text.content.substring(0, 50)}...` 
+                                : text.content}
+                            </td>
+                            <td className="px-3 py-4 text-sm text-gray-500">
+                              {text.author}
+                            </td>
+                            <td className="px-3 py-4 text-sm text-gray-500">
+                              {new Date(text.created_at).toLocaleDateString()}
+                            </td>
+                            <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium">
+                              <button 
+                                className="text-indigo-600 hover:text-indigo-900 mr-4"
+                                onClick={() => handleOpenEditTextModal(text)}
+                              >
+                                Edit
+                              </button>
+                              <button 
+                                className="text-red-600 hover:text-red-900"
+                                onClick={() => handleDeleteText(text.id)}
+                              >
+                                Delete
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  
+                  {/* Pagination */}
+                  {totalItems > itemsPerPage && (
+                    <Pagination
+                      currentPage={currentPage}
+                      totalItems={totalItems}
+                      itemsPerPage={itemsPerPage}
+                      onPageChange={handlePageChange}
+                      className="mt-6"
+                    />
+                  )}
+                </div>
               ) : (
                 <p className="text-gray-500 italic">No texts found matching your search. Create a new text to get started!</p>
               )}
@@ -1117,60 +1204,69 @@ const DashboardPage: React.FC = () => {
               <div className="mb-8">
                 <h3 className="text-lg font-medium text-gray-800 mb-4">My Agents</h3>
                 {isLoading ? (
-                  <div className="flex justify-center items-center h-32">
-                    <svg className="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  </div>
+                  <LoadingSpinner />
                 ) : ownedAgentsData.length > 0 ? (
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {ownedAgentsData.map((agent) => (
-                      <div key={agent.id} className="bg-white overflow-hidden shadow rounded-lg divide-y divide-gray-200">
-                        <div className="px-4 py-5 sm:px-6">
-                          <div className="flex justify-between items-start">
-                            <h3 className="text-lg font-medium text-gray-900 truncate">{agent.name}</h3>
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              agent.type === 'writer' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
-                            }`}>
-                              {agent.type.charAt(0).toUpperCase() + agent.type.slice(1)}
-                            </span>
+                  <div>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      {ownedAgentsData.map((agent) => (
+                        <div key={agent.id} className="bg-white overflow-hidden shadow rounded-lg divide-y divide-gray-200">
+                          <div className="px-4 py-5 sm:px-6">
+                            <div className="flex justify-between items-start">
+                              <h3 className="text-lg font-medium text-gray-900 truncate">{agent.name}</h3>
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                agent.type === 'writer' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
+                              }`}>
+                                {agent.type.charAt(0).toUpperCase() + agent.type.slice(1)}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-sm text-gray-500 line-clamp-2">{agent.description}</p>
                           </div>
-                          <p className="mt-1 text-sm text-gray-500 line-clamp-2">{agent.description}</p>
+                          <div className="px-4 py-4 sm:px-6 flex justify-between items-center">
+                            <div className="text-sm text-gray-500">
+                              Model: {agent.model}
+                            </div>
+                            <div>
+                              <button 
+                                onClick={() => handleOpenEditAgentModal(agent)}
+                                className="text-indigo-600 hover:text-indigo-900 mr-3 text-sm"
+                              >
+                                Edit
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteAgent(agent.id)}
+                                className="text-red-600 hover:text-red-900 text-sm"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                        <div className="px-4 py-4 sm:px-6 flex justify-between items-center">
-                          <div className="text-sm text-gray-500">
-                            Model: {agent.model}
-                          </div>
-                          <div>
-                            <button 
-                              onClick={() => handleOpenEditAgentModal(agent)}
-                              className="text-indigo-600 hover:text-indigo-900 mr-3 text-sm"
-                            >
-                              Edit
-                            </button>
-                            <button 
-                              onClick={() => handleDeleteAgent(agent.id)}
-                              className="text-red-600 hover:text-red-900 text-sm"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+                    
+                    {/* Pagination for My Agents */}
+                    {totalItems > itemsPerPage && (
+                      <Pagination
+                        currentPage={currentPage}
+                        totalItems={totalItems}
+                        itemsPerPage={itemsPerPage}
+                        onPageChange={handlePageChange}
+                        className="mt-6"
+                      />
+                    )}
                   </div>
                 ) : (
                   <p className="text-gray-500 italic">You haven't created any AI agents yet.</p>
                 )}
               </div>
+              {/* Temporary removal of public agents section until it's properly implemented
               <div>
                 <h3 className="text-lg font-medium text-gray-800 mb-4">Public Agents</h3>
                 {isLoadingPublic ? (
                   <div className="flex justify-center items-center h-32">
                     <svg className="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 8 18-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 7 14 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
                   </div>
                 ) : publicAgentsData.length > 0 ? (
@@ -1206,6 +1302,7 @@ const DashboardPage: React.FC = () => {
                   <p className="text-gray-500 italic">No public agents available yet.</p>
                 )}
               </div>
+              */}
             </div>
           )}
 
@@ -1229,20 +1326,15 @@ const DashboardPage: React.FC = () => {
               )}
               
               {isLoadingParticipation ? (
-                <div className="flex justify-center items-center h-32">
-                  <svg className="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                </div>
+                <LoadingSpinner />
               ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6">
                   <div>
                     <h3 className="font-medium text-gray-700 mb-2">Contests I created</h3>
-                    {createdContests.length > 0 ? (
+                    {contestsData.length > 0 ? (
                       <div className="bg-white shadow rounded-md overflow-hidden">
                         <ul className="divide-y divide-gray-200">
-                          {createdContests.map(contest => (
+                          {contestsData.map(contest => (
                             <li key={contest.id} className="px-4 py-3 hover:bg-gray-50">
                               <div className="flex justify-between">
                                 <div>
@@ -1440,60 +1532,68 @@ const DashboardPage: React.FC = () => {
               )}
               
               {isLoadingTransactions ? (
-                <div className="flex justify-center items-center h-32">
-                  <svg className="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                </div>
+                <LoadingSpinner />
               ) : transactions.length > 0 ? (
-                <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
-                  <table className="min-w-full divide-y divide-gray-300">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th scope="col" className="py-3 pl-4 pr-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Date</th>
-                        <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Type</th>
-                        <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Amount</th>
-                        <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Description</th>
-                        <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">AI Model</th>
-                        <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Tokens</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200 bg-white">
-                      {transactions.map((transaction) => (
-                        <tr key={transaction.id}>
-                          <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-900">
-                            {new Date(transaction.created_at).toLocaleString()}
-                          </td>
-                          <td className="px-3 py-4 text-sm">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              transaction.transaction_type === 'purchase' ? 'bg-green-100 text-green-800' :
-                              transaction.transaction_type === 'refund' ? 'bg-blue-100 text-blue-800' :
-                              transaction.transaction_type === 'admin_adjustment' ? 'bg-purple-100 text-purple-800' :
-                              'bg-red-100 text-red-800'
-                            }`}>
-                              {transaction.transaction_type === 'purchase' ? 'Purchase' :
-                               transaction.transaction_type === 'consumption' ? 'Consumption' :
-                               transaction.transaction_type === 'refund' ? 'Refund' :
-                               'Admin Adjustment'}
-                            </span>
-                          </td>
-                          <td className="px-3 py-4 text-sm font-medium">
-                            <span className={transaction.amount >= 0 ? 'text-green-600' : 'text-red-600'}>
-                              {transaction.amount >= 0 ? '+' : ''}{transaction.amount}
-                            </span>
-                          </td>
-                          <td className="px-3 py-4 text-sm text-gray-900">{transaction.description}</td>
-                          <td className="px-3 py-4 text-sm text-gray-500">
-                            {transaction.ai_model || '-'}
-                          </td>
-                          <td className="px-3 py-4 text-sm text-gray-500">
-                            {transaction.tokens_used ? transaction.tokens_used.toLocaleString() : '-'}
-                          </td>
+                <div>
+                  <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
+                    <table className="min-w-full divide-y divide-gray-300">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th scope="col" className="py-3 pl-4 pr-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Date</th>
+                          <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Type</th>
+                          <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Amount</th>
+                          <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Description</th>
+                          <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">AI Model</th>
+                          <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Tokens</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200 bg-white">
+                        {transactions.map((transaction) => (
+                          <tr key={transaction.id}>
+                            <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-900">
+                              {new Date(transaction.created_at).toLocaleString()}
+                            </td>
+                            <td className="px-3 py-4 text-sm">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                transaction.transaction_type === 'purchase' ? 'bg-green-100 text-green-800' :
+                                transaction.transaction_type === 'refund' ? 'bg-blue-100 text-blue-800' :
+                                transaction.transaction_type === 'admin_adjustment' ? 'bg-purple-100 text-purple-800' :
+                                'bg-red-100 text-red-800'
+                              }`}>
+                                {transaction.transaction_type === 'purchase' ? 'Purchase' :
+                                 transaction.transaction_type === 'consumption' ? 'Consumption' :
+                                 transaction.transaction_type === 'refund' ? 'Refund' :
+                                 'Admin Adjustment'}
+                              </span>
+                            </td>
+                            <td className="px-3 py-4 text-sm font-medium">
+                              <span className={transaction.amount >= 0 ? 'text-green-600' : 'text-red-600'}>
+                                {transaction.amount >= 0 ? '+' : ''}{transaction.amount}
+                              </span>
+                            </td>
+                            <td className="px-3 py-4 text-sm text-gray-900">{transaction.description}</td>
+                            <td className="px-3 py-4 text-sm text-gray-500">
+                              {transaction.ai_model || '-'}
+                            </td>
+                            <td className="px-3 py-4 text-sm text-gray-500">
+                              {transaction.tokens_used ? transaction.tokens_used.toLocaleString() : '-'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  
+                  {/* Pagination */}
+                  {totalItems > itemsPerPage && (
+                    <Pagination
+                      currentPage={currentPage}
+                      totalItems={totalItems}
+                      itemsPerPage={itemsPerPage}
+                      onPageChange={handlePageChange}
+                      className="mt-6"
+                    />
+                  )}
                 </div>
               ) : (
                 <div className="text-center py-12">
@@ -1570,12 +1670,7 @@ const DashboardPage: React.FC = () => {
             
             <div className="px-6 py-4 overflow-y-auto flex-grow">
               {isLoadingSubmissions ? (
-                <div className="flex justify-center items-center h-32">
-                  <svg className="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                </div>
+                <LoadingSpinner />
               ) : contestSubmissions.length === 0 ? (
                 <p className="text-gray-500 text-center py-10">No submissions found for this contest.</p>
               ) : (
@@ -1587,8 +1682,6 @@ const DashboardPage: React.FC = () => {
                         Author: <span className="font-medium text-gray-700">
                           {typeof submission.author === 'string' ? submission.author : (submission.author?.username || 'N/A')}
                         </span>
-                        {/* Backend needs to provide owner username if different and required */}
-                        {/* <span className="ml-2">Owner ID: {submission.owner_id || 'N/A'}</span> */}
                       </p>
                       <p className="text-xs text-gray-500 mb-2">
                         Submitted: {new Date(submission.submission_date).toLocaleString()}
@@ -1629,7 +1722,7 @@ const DashboardPage: React.FC = () => {
         </div>
       )}
 
-      {/* Full Submission Content Modal (Nested inside DashboardPage return) */}
+      {/* Full Submission Content Modal */}
       {showFullSubmissionModal && selectedSubmissionForModal && (
         <FullTextModal
           isOpen={showFullSubmissionModal}
@@ -1706,7 +1799,6 @@ const DashboardPage: React.FC = () => {
                   <UserSearch
                     onUserSelect={handleAddMember}
                     placeholder="Type username or email..."
-                    excludeUserIds={contestMembers.map(member => member.user_id)}
                   />
                 </div>
               </div>
@@ -1715,12 +1807,7 @@ const DashboardPage: React.FC = () => {
               <div>
                 <h4 className="text-lg font-medium text-gray-900 mb-3">Current Members</h4>
                 {isLoadingMembers ? (
-                  <div className="flex justify-center items-center h-32">
-                    <svg className="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  </div>
+                  <LoadingSpinner />
                 ) : contestMembers.length === 0 ? (
                   <p className="text-gray-500 text-center py-8">No members found for this contest.</p>
                 ) : (

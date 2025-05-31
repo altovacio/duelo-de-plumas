@@ -47,9 +47,9 @@ class TextService:
         # Get all texts
         return await self.repository.get_texts(skip, limit)
     
-    async def get_user_texts(self, user_id: int, skip: int = 0, limit: int = 100) -> List[Text]:
-        # Get texts belonging to a specific user
-        return await self.repository.get_user_texts(user_id, skip, limit)
+    async def get_user_texts(self, user_id: int, skip: int = 0, limit: int = 100, search: Optional[str] = None) -> List[Text]:
+        # Get texts belonging to a specific user, with optional search
+        return await self.repository.get_user_texts(user_id, skip, limit, search)
     
     async def update_text(self, text_id: int, text_data: TextUpdate, current_user_id: int, is_admin: bool = False) -> Text:
         # Check if text exists

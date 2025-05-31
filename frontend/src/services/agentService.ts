@@ -75,10 +75,14 @@ export interface JudgeCostEstimate {
   estimated_output_tokens: number;
 }
 
-// Get all agents (public and owned)
-export const getAgents = async (publicOnly?: boolean): Promise<Agent[]> => {
-  const params = publicOnly !== undefined ? { public: publicOnly } : {};
-  const response = await apiClient.get('/agents', { params });
+// Function to get agents
+export const getAgents = async (publicOnly?: boolean, skip: number = 0, limit: number = 100): Promise<Agent[]> => {
+  const params: any = { skip, limit };
+  if (publicOnly !== undefined) {
+    params.public = publicOnly;
+  }
+  
+  const response = await apiClient.get('/agents/', { params });
   return response.data;
 };
 

@@ -119,9 +119,11 @@ export const getContestsWithPagination = async (
   return contests;
 };
 
-// Get contests created by the current user
-export const getUserContests = async (): Promise<Contest[]> => {
-  const response = await apiClient.get('/contests/', { params: { creator: 'me' } });
+// Function to get contests for the current user
+export const getUserContests = async (skip: number = 0, limit: number = 100): Promise<Contest[]> => {
+  const response = await apiClient.get('/contests/', {
+    params: { skip, limit, creator: 'me' }
+  });
   return response.data;
 };
 

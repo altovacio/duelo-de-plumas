@@ -16,6 +16,7 @@ Contests oversight table redesign
 
 -Test deleting elements (users, contests, etc.)
 -Header & pages redesign  (user flow)
+-Sorting 
 -Footer
 -Mobile responsiveness
 -Login via email (cursor style)

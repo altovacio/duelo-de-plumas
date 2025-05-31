@@ -22,9 +22,14 @@ export interface UpdateTextRequest {
   author?: string;
 }
 
-// Get all texts for the current user
-export const getUserTexts = async (): Promise<Text[]> => {
-  const response = await apiClient.get('/texts/my');
+// Function to get all texts for the current user
+export const getUserTexts = async (skip: number = 0, limit: number = 100, search?: string): Promise<Text[]> => {
+  const params: any = { skip, limit };
+  if (search && search.trim()) {
+    params.search = search.trim();
+  }
+  
+  const response = await apiClient.get('/texts/my', { params });
   return response.data;
 };
 

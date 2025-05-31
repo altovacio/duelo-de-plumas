@@ -34,8 +34,19 @@ class TextRepository:
         result = await self.db.execute(stmt)
         return result.scalars().all()
     
-    async def get_user_texts(self, owner_id: int, skip: int = 0, limit: int = 100) -> List[Text]:
-        stmt = select(Text).filter(Text.owner_id == owner_id).offset(skip).limit(limit)
+    async def get_user_texts(self, owner_id: int, skip: int = 0, limit: int = 100, search: Optional[str] = None) -> List[Text]:
+        stmt = select(Text).filter(Text.owner_id == owner_id)
+        
+        # Add search filter if provided
+        if search:
+            search_pattern = f"%{search}%"
+            stmt = stmt.filter(
+                (Text.title.ilike(search_pattern)) |
+                (Text.content.ilike(search_pattern)) |
+                (Text.author.ilike(search_pattern))
+            )
+        
+        stmt = stmt.order_by(Text.created_at.desc()).offset(skip).limit(limit)
         result = await self.db.execute(stmt)
         return result.scalars().all()
     

@@ -36,8 +36,10 @@ export interface FilteredSummaryStats {
 }
 
 // Get credit transactions for the current user
-export const getUserCreditTransactions = async (): Promise<CreditTransaction[]> => {
-  const response = await apiClient.get('/users/me/credits/transactions');
+export const getUserCreditTransactions = async (skip: number = 0, limit: number = 100): Promise<CreditTransaction[]> => {
+  const response = await apiClient.get('/dashboard/credits/transactions', {
+    params: { skip, limit }
+  });
   return response.data;
 };
 

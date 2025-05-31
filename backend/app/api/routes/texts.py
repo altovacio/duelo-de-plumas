@@ -47,14 +47,15 @@ async def get_texts(
 async def get_my_texts(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
+    search: Optional[str] = Query(None, description="Search texts by title, content, or author"),
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Get texts belonging to the current user.
+    Get texts belonging to the current user, with optional search.
     """
     service = TextService(db)
-    return await service.get_user_texts(current_user.id, skip, limit)
+    return await service.get_user_texts(current_user.id, skip, limit, search)
 
 
 @router.get("/{text_id}", response_model=TextResponse)

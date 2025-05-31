@@ -5,7 +5,9 @@ import TextFormModal from '../../components/TextEditor/TextFormModal';
 import ContestFormModal from '../../components/Contest/ContestFormModal';
 import AgentFormModal from '../../components/Agent/AgentFormModal';
 import WelcomeModal from '../../components/Onboarding/WelcomeModal';
-import QuickActions from '../../components/Dashboard/QuickActions';
+import OverviewTab from '../../components/Dashboard/OverviewTab';
+import ParticipationTab from '../../components/Dashboard/ParticipationTab';
+import ErrorDisplay from '../../components/shared/ErrorDisplay';
 import Pagination from '../../components/shared/Pagination';
 import { getUserTexts, createText, updateText, deleteText, Text as TextType } from '../../services/textService';
 import { getUserContests, createContest, updateContest, deleteContest, Contest as ContestType, getContestSubmissions, ContestText as ContestSubmissionType, removeSubmissionFromContest, getAuthorParticipation, getJudgeParticipation, getMemberParticipation, getContestMembers, addMemberToContest, removeMemberFromContest, ContestMember } from '../../services/contestService';
@@ -792,71 +794,12 @@ const DashboardPage: React.FC = () => {
         {/* Tab Content */}
         <div>
           {activeTab === 'overview' && (
-            <div>
-              <h2 className="text-xl font-medium mb-6">Dashboard Overview</h2>
-              
-              {/* Quick Actions Component */}
-              <div className="mb-8">
-                <QuickActions 
-                  hasTexts={textsData.length > 0}
-                  hasContests={contestsData.length > 0}
-                  hasAgents={ownedAgentsData.length > 0}
-                  urgentActions={dashboardData?.urgent_actions || []}
-                  textCount={textsData.length}
-                  contestCount={contestsData.length}
-                  agentCount={ownedAgentsData.length}
-                />
-              </div>
-
-              {/* Only show urgent actions section if there are actually urgent actions */}
-              {dashboardData?.urgent_actions && dashboardData.urgent_actions.length > 0 && (
-                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
-                  <div className="flex">
-                    <div className="flex-shrink-0">
-                      <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <div className="ml-3">
-                      <p className="text-sm text-yellow-700">
-                        You have <span className="font-medium">{dashboardData.urgent_actions.length} urgent action{dashboardData.urgent_actions.length === 1 ? '' : 's'}</span> pending.
-                      </p>
-                      <ul className="mt-2 text-sm text-yellow-700">
-                        {dashboardData.urgent_actions.map((action: any, index: number) => (
-                          <li key={index} className="mt-1">
-                            • <Link to={`/contests/${action.contest_id}`} className="underline hover:text-yellow-900">
-                              Judge contest: {action.contest_title}
-                            </Link>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Traditional stats cards - now secondary */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="bg-white border border-gray-200 rounded-lg p-4">
-                  <h3 className="font-medium text-gray-700">Credit Balance</h3>
-                  <p className="text-2xl font-bold text-indigo-600">
-                    {user?.credits !== undefined ? `${user.credits} credits` : 'Loading...'}
-                  </p>
-                </div>
-                <div className="bg-white border border-gray-200 rounded-lg p-4">
-                  <h3 className="font-medium text-gray-700">My Contests</h3>
-                  <p className="text-2xl font-bold text-indigo-600">{contestsData.length}</p>
-                </div>
-                <div className="bg-white border border-gray-200 rounded-lg p-4">
-                  <h3 className="font-medium text-gray-700">My Texts</h3>
-                  <p className="text-2xl font-bold text-indigo-600">{textsData.length}</p>
-                </div>
-                <div className="bg-white border border-gray-200 rounded-lg p-4">
-                  <h3 className="font-medium text-gray-700">AI Agents</h3>
-                  <p className="text-2xl font-bold text-indigo-600">{ownedAgentsData.length}</p>
-                </div>
-              </div>
-            </div>
+            <OverviewTab 
+              dashboardData={dashboardData}
+              textsCount={textsData.length}
+              contestsCount={contestsData.length}
+              agentsCount={ownedAgentsData.length}
+            />
           )}
 
           {activeTab === 'contests' && (
@@ -872,18 +815,7 @@ const DashboardPage: React.FC = () => {
               </div>
               
               {error && (
-                <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
-                  <div className="flex">
-                    <div className="flex-shrink-0">
-                      <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <div className="ml-3">
-                      <p className="text-sm text-red-700">{error}</p>
-                    </div>
-                  </div>
-                </div>
+                <ErrorDisplay error={error} />
               )}
               
               {isLoading ? (
@@ -1088,18 +1020,7 @@ const DashboardPage: React.FC = () => {
               </div>
               
               {error && (
-                <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
-                  <div className="flex">
-                    <div className="flex-shrink-0">
-                      <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <div className="ml-3">
-                      <p className="text-sm text-red-700">{error}</p>
-                    </div>
-                  </div>
-                </div>
+                <ErrorDisplay error={error} />
               )}
               
               {isLoading ? (
@@ -1190,18 +1111,7 @@ const DashboardPage: React.FC = () => {
                 </button>
               </div>
               {error && (
-                <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
-                  <div className="flex">
-                    <div className="flex-shrink-0">
-                      <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <div className="ml-3">
-                      <p className="text-sm text-red-700">{error}</p>
-                    </div>
-                  </div>
-                </div>
+                <ErrorDisplay error={error} />
               )}
               <div className="mb-8">
                 <h3 className="text-lg font-medium text-gray-800 mb-4">My Agents</h3>
@@ -1309,203 +1219,12 @@ const DashboardPage: React.FC = () => {
           )}
 
           {activeTab === 'participation' && (
-            <div>
-              <h2 className="text-xl font-medium mb-4">My Participation</h2>
-              
-              {error && (
-                <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
-                  <div className="flex">
-                    <div className="flex-shrink-0">
-                      <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <div className="ml-3">
-                      <p className="text-sm text-red-700">{error}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              {isLoadingParticipation ? (
-                <LoadingSpinner />
-              ) : (
-                <div>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6">
-                    <div>
-                      <h3 className="font-medium text-gray-700 mb-2">Contests I created</h3>
-                      {contestsData.length > 0 ? (
-                        <div className="bg-white shadow rounded-md overflow-hidden">
-                          <ul className="divide-y divide-gray-200">
-                            {contestsData.map(contest => (
-                              <li key={contest.id} className="px-4 py-3 hover:bg-gray-50">
-                                <div className="flex justify-between">
-                                  <div>
-                                    <Link to={`/contests/${contest.id}`} className="text-indigo-600 hover:text-indigo-900 font-medium">
-                                      {contest.title}
-                                    </Link>
-                                    <div className="flex mt-1 space-x-2">
-                                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                        contest.status === 'open' ? 'bg-green-100 text-green-800' :
-                                        contest.status === 'evaluation' ? 'bg-yellow-100 text-yellow-800' :
-                                         'bg-blue-100 text-blue-800'
-                                      }`}>
-                                        {contest.status && typeof contest.status === 'string' 
-                                          ? contest.status.charAt(0).toUpperCase() + contest.status.slice(1) 
-                                          : 'Unknown'}
-                                      </span>
-                                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                        contest.publicly_listed ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
-                                      }`}>
-                                        {contest.publicly_listed ? 'Public' : 'Private'}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <div className="text-sm text-gray-500">
-                                    {contest.created_at ? new Date(contest.created_at).toLocaleDateString() : ''}
-                                  </div>
-                                </div>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : (
-                        <p className="text-gray-500 italic">No contests created yet.</p>
-                      )}
-                    </div>
-                    
-                    <div>
-                      <h3 className="font-medium text-gray-700 mb-2">Contests where I'm an author</h3>
-                      {participationContests.asAuthor.length > 0 ? (
-                        <div className="bg-white shadow rounded-md overflow-hidden">
-                          <ul className="divide-y divide-gray-200">
-                            {participationContests.asAuthor.map(contest => (
-                              <li key={contest.id} className="px-4 py-3 hover:bg-gray-50">
-                                <div className="flex justify-between">
-                                  <div>
-                                    <Link to={`/contests/${contest.id}`} className="text-indigo-600 hover:text-indigo-900 font-medium">
-                                      {contest.title}
-                                    </Link>
-                                    <div className="flex mt-1 space-x-2">
-                                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                        contest.status === 'open' ? 'bg-green-100 text-green-800' :
-                                        contest.status === 'evaluation' ? 'bg-yellow-100 text-yellow-800' :
-                                         'bg-blue-100 text-blue-800'
-                                      }`}>
-                                        {contest.status && typeof contest.status === 'string' 
-                                          ? contest.status.charAt(0).toUpperCase() + contest.status.slice(1) 
-                                          : 'Unknown'}
-                                      </span>
-                                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                        contest.publicly_listed ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
-                                      }`}>
-                                        {contest.publicly_listed ? 'Public' : 'Private'}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <div className="text-sm text-gray-500">
-                                    {contest.created_at ? new Date(contest.created_at).toLocaleDateString() : ''}
-                                  </div>
-                                </div>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : (
-                        <p className="text-gray-500 italic">Not participating in any contests as an author.</p>
-                      )}
-                    </div>
-                    
-                    <div>
-                      <h3 className="font-medium text-gray-700 mb-2">Contests where I'm a member</h3>
-                      {participationContests.asMember.length > 0 ? (
-                        <div className="bg-white shadow rounded-md overflow-hidden">
-                          <ul className="divide-y divide-gray-200">
-                            {participationContests.asMember.map(contest => (
-                              <li key={contest.id} className="px-4 py-3 hover:bg-gray-50">
-                                <div className="flex justify-between">
-                                  <div>
-                                    <Link to={`/contests/${contest.id}`} className="text-indigo-600 hover:text-indigo-900 font-medium">
-                                      {contest.title}
-                                    </Link>
-                                    <div className="flex mt-1 space-x-2">
-                                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                        contest.status === 'open' ? 'bg-green-100 text-green-800' :
-                                        contest.status === 'evaluation' ? 'bg-yellow-100 text-yellow-800' :
-                                         'bg-blue-100 text-blue-800'
-                                      }`}>
-                                        {contest.status && typeof contest.status === 'string' 
-                                          ? contest.status.charAt(0).toUpperCase() + contest.status.slice(1) 
-                                          : 'Unknown'}
-                                      </span>
-                                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                        contest.publicly_listed ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
-                                      }`}>
-                                        {contest.publicly_listed ? 'Public' : 'Private'}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <div className="text-sm text-gray-500">
-                                    {contest.created_at ? new Date(contest.created_at).toLocaleDateString() : ''}
-                                  </div>
-                                </div>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : (
-                        <p className="text-gray-500 italic">Not a member of any contests.</p>
-                      )}
-                    </div>
-                    
-                    <div>
-                      <h3 className="font-medium text-gray-700 mb-2">Contests where I'm a judge</h3>
-                      {participationContests.asJudge.length > 0 ? (
-                        <div className="bg-white shadow rounded-md overflow-hidden">
-                          <ul className="divide-y divide-gray-200">
-                            {participationContests.asJudge.map(contest => (
-                              <li key={contest.id} className="px-4 py-3 hover:bg-gray-50">
-                                <div className="flex justify-between">
-                                  <div>
-                                    <Link to={`/contests/${contest.id}`} className="text-indigo-600 hover:text-indigo-900 font-medium">
-                                      {contest.title}
-                                    </Link>
-                                    <div className="flex mt-1 space-x-2">
-                                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                        contest.status === 'open' ? 'bg-green-100 text-green-800' :
-                                        contest.status === 'evaluation' ? 'bg-yellow-100 text-yellow-800' :
-                                         'bg-blue-100 text-blue-800'
-                                      }`}>
-                                        {contest.status && typeof contest.status === 'string' 
-                                          ? contest.status.charAt(0).toUpperCase() + contest.status.slice(1) 
-                                          : 'Unknown'}
-                                      </span>
-                                      {contest.status === 'evaluation' && (
-                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                          Needs Judging
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <Link 
-                                    to={`/contests/${contest.id}`} 
-                                    className={`text-sm font-medium ${contest.status === 'evaluation' ? 'text-red-600 hover:text-red-900' : 'text-gray-500'}`}
-                                  >
-                                    {contest.status === 'evaluation' ? 'Judge Now' : 'View'}
-                                  </Link>
-                                </div>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : (
-                        <p className="text-gray-500 italic">Not participating in any contests as a judge.</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+            <ParticipationTab 
+              contestsData={contestsData}
+              participationContests={participationContests}
+              isLoading={isLoadingParticipation}
+              error={error}
+            />
           )}
 
           {activeTab === 'credits' && (
@@ -1521,18 +1240,7 @@ const DashboardPage: React.FC = () => {
               <h3 className="font-medium text-gray-700 mb-4">Transaction History</h3>
               
               {transactionError && (
-                <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
-                  <div className="flex">
-                    <div className="flex-shrink-0">
-                      <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <div className="ml-3">
-                      <p className="text-sm text-red-700">{transactionError}</p>
-                    </div>
-                  </div>
-                </div>
+                <ErrorDisplay error={transactionError} />
               )}
               
               {isLoadingTransactions ? (
@@ -1776,18 +1484,7 @@ const DashboardPage: React.FC = () => {
             
             <div className="px-6 py-4 overflow-y-auto flex-grow">
               {memberError && (
-                <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
-                  <div className="flex">
-                    <div className="flex-shrink-0">
-                      <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <div className="ml-3">
-                      <p className="text-sm text-red-700">{memberError}</p>
-                    </div>
-                  </div>
-                </div>
+                <ErrorDisplay error={memberError} />
               )}
 
               {/* Add Member Section */}

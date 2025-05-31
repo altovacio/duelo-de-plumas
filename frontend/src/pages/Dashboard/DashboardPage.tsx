@@ -271,17 +271,17 @@ const DashboardPage: React.FC = () => {
       setIsLoadingParticipation(true);
       setError(null);
       
-      const [asAuthor, asJudge, asMember] = await Promise.all([
+      const [asAuthor, asJudge, asMember, createdContests] = await Promise.all([
         getAuthorParticipation(),
         getJudgeParticipation(),
-        getMemberParticipation()
+        getMemberParticipation(),
+        getUserContests(0, 100) // Fetch created contests independently
       ]);
       
       setParticipationContests({ asAuthor, asJudge, asMember });
+      setContestsData(createdContests); // Update contests data for "Contests I created" column
       
-      // Calculate total items for client-side pagination
-      const totalParticipation = asAuthor.length + asJudge.length + asMember.length;
-      setTotalItems(totalParticipation);
+      // Don't calculate total items for pagination since we're showing all data
     } catch (err) {
       console.error('Error fetching participation:', err);
       setError('Failed to load participation data. Please try again later.');
@@ -379,6 +379,7 @@ const DashboardPage: React.FC = () => {
     } else if (activeTab === 'credits') {
       fetchTransactions();
     }
+    // Note: participation uses client-side pagination, so no server call needed on page change
   }, [currentPage]); // Only refetch server-side paginated data when page changes
 
   // Handle text search changes - reset to page 1 and fetch new results
@@ -735,6 +736,7 @@ const DashboardPage: React.FC = () => {
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
+
   return (
     <div className="bg-white rounded-lg shadow-md">
       <div className="p-6">
@@ -1328,176 +1330,178 @@ const DashboardPage: React.FC = () => {
               {isLoadingParticipation ? (
                 <LoadingSpinner />
               ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6">
-                  <div>
-                    <h3 className="font-medium text-gray-700 mb-2">Contests I created</h3>
-                    {contestsData.length > 0 ? (
-                      <div className="bg-white shadow rounded-md overflow-hidden">
-                        <ul className="divide-y divide-gray-200">
-                          {contestsData.map(contest => (
-                            <li key={contest.id} className="px-4 py-3 hover:bg-gray-50">
-                              <div className="flex justify-between">
-                                <div>
-                                  <Link to={`/contests/${contest.id}`} className="text-indigo-600 hover:text-indigo-900 font-medium">
-                                    {contest.title}
-                                  </Link>
-                                  <div className="flex mt-1 space-x-2">
-                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                      contest.status === 'open' ? 'bg-green-100 text-green-800' :
-                                      contest.status === 'evaluation' ? 'bg-yellow-100 text-yellow-800' :
-                                       'bg-blue-100 text-blue-800'
-                                    }`}>
-                                      {contest.status && typeof contest.status === 'string' 
-                                        ? contest.status.charAt(0).toUpperCase() + contest.status.slice(1) 
-                                        : 'Unknown'}
-                                    </span>
-                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                      contest.publicly_listed ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
-                                    }`}>
-                                      {contest.publicly_listed ? 'Public' : 'Private'}
-                                    </span>
-                                  </div>
-                                </div>
-                                <div className="text-sm text-gray-500">
-                                  {contest.created_at ? new Date(contest.created_at).toLocaleDateString() : ''}
-                                </div>
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : (
-                      <p className="text-gray-500 italic">No contests created yet.</p>
-                    )}
-                  </div>
-                  
-                  <div>
-                    <h3 className="font-medium text-gray-700 mb-2">Contests where I'm an author</h3>
-                    {participationContests.asAuthor.length > 0 ? (
-                      <div className="bg-white shadow rounded-md overflow-hidden">
-                        <ul className="divide-y divide-gray-200">
-                          {participationContests.asAuthor.map(contest => (
-                            <li key={contest.id} className="px-4 py-3 hover:bg-gray-50">
-                              <div className="flex justify-between">
-                                <div>
-                                  <Link to={`/contests/${contest.id}`} className="text-indigo-600 hover:text-indigo-900 font-medium">
-                                    {contest.title}
-                                  </Link>
-                                  <div className="flex mt-1 space-x-2">
-                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                      contest.status === 'open' ? 'bg-green-100 text-green-800' :
-                                      contest.status === 'evaluation' ? 'bg-yellow-100 text-yellow-800' :
-                                       'bg-blue-100 text-blue-800'
-                                    }`}>
-                                      {contest.status && typeof contest.status === 'string' 
-                                        ? contest.status.charAt(0).toUpperCase() + contest.status.slice(1) 
-                                        : 'Unknown'}
-                                    </span>
-                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                      contest.publicly_listed ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
-                                    }`}>
-                                      {contest.publicly_listed ? 'Public' : 'Private'}
-                                    </span>
-                                  </div>
-                                </div>
-                                <div className="text-sm text-gray-500">
-                                  {contest.created_at ? new Date(contest.created_at).toLocaleDateString() : ''}
-                                </div>
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : (
-                      <p className="text-gray-500 italic">Not participating in any contests as an author.</p>
-                    )}
-                  </div>
-                  
-                  <div>
-                    <h3 className="font-medium text-gray-700 mb-2">Contests where I'm a member</h3>
-                    {participationContests.asMember.length > 0 ? (
-                      <div className="bg-white shadow rounded-md overflow-hidden">
-                        <ul className="divide-y divide-gray-200">
-                          {participationContests.asMember.map(contest => (
-                            <li key={contest.id} className="px-4 py-3 hover:bg-gray-50">
-                              <div className="flex justify-between">
-                                <div>
-                                  <Link to={`/contests/${contest.id}`} className="text-indigo-600 hover:text-indigo-900 font-medium">
-                                    {contest.title}
-                                  </Link>
-                                  <div className="flex mt-1 space-x-2">
-                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                      contest.status === 'open' ? 'bg-green-100 text-green-800' :
-                                      contest.status === 'evaluation' ? 'bg-yellow-100 text-yellow-800' :
-                                       'bg-blue-100 text-blue-800'
-                                    }`}>
-                                      {contest.status && typeof contest.status === 'string' 
-                                        ? contest.status.charAt(0).toUpperCase() + contest.status.slice(1) 
-                                        : 'Unknown'}
-                                    </span>
-                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                      contest.publicly_listed ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
-                                    }`}>
-                                      {contest.publicly_listed ? 'Public' : 'Private'}
-                                    </span>
-                                  </div>
-                                </div>
-                                <div className="text-sm text-gray-500">
-                                  {contest.created_at ? new Date(contest.created_at).toLocaleDateString() : ''}
-                                </div>
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : (
-                      <p className="text-gray-500 italic">Not a member of any contests.</p>
-                    )}
-                  </div>
-                  
-                  <div>
-                    <h3 className="font-medium text-gray-700 mb-2">Contests where I'm a judge</h3>
-                    {participationContests.asJudge.length > 0 ? (
-                      <div className="bg-white shadow rounded-md overflow-hidden">
-                        <ul className="divide-y divide-gray-200">
-                          {participationContests.asJudge.map(contest => (
-                            <li key={contest.id} className="px-4 py-3 hover:bg-gray-50">
-                              <div className="flex justify-between">
-                                <div>
-                                  <Link to={`/contests/${contest.id}`} className="text-indigo-600 hover:text-indigo-900 font-medium">
-                                    {contest.title}
-                                  </Link>
-                                  <div className="flex mt-1 space-x-2">
-                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                      contest.status === 'open' ? 'bg-green-100 text-green-800' :
-                                      contest.status === 'evaluation' ? 'bg-yellow-100 text-yellow-800' :
-                                       'bg-blue-100 text-blue-800'
-                                    }`}>
-                                      {contest.status && typeof contest.status === 'string' 
-                                        ? contest.status.charAt(0).toUpperCase() + contest.status.slice(1) 
-                                        : 'Unknown'}
-                                    </span>
-                                    {contest.status === 'evaluation' && (
-                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                        Needs Judging
+                <div>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6">
+                    <div>
+                      <h3 className="font-medium text-gray-700 mb-2">Contests I created</h3>
+                      {contestsData.length > 0 ? (
+                        <div className="bg-white shadow rounded-md overflow-hidden">
+                          <ul className="divide-y divide-gray-200">
+                            {contestsData.map(contest => (
+                              <li key={contest.id} className="px-4 py-3 hover:bg-gray-50">
+                                <div className="flex justify-between">
+                                  <div>
+                                    <Link to={`/contests/${contest.id}`} className="text-indigo-600 hover:text-indigo-900 font-medium">
+                                      {contest.title}
+                                    </Link>
+                                    <div className="flex mt-1 space-x-2">
+                                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                        contest.status === 'open' ? 'bg-green-100 text-green-800' :
+                                        contest.status === 'evaluation' ? 'bg-yellow-100 text-yellow-800' :
+                                         'bg-blue-100 text-blue-800'
+                                      }`}>
+                                        {contest.status && typeof contest.status === 'string' 
+                                          ? contest.status.charAt(0).toUpperCase() + contest.status.slice(1) 
+                                          : 'Unknown'}
                                       </span>
-                                    )}
+                                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                        contest.publicly_listed ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
+                                      }`}>
+                                        {contest.publicly_listed ? 'Public' : 'Private'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="text-sm text-gray-500">
+                                    {contest.created_at ? new Date(contest.created_at).toLocaleDateString() : ''}
                                   </div>
                                 </div>
-                                <Link 
-                                  to={`/contests/${contest.id}`} 
-                                  className={`text-sm font-medium ${contest.status === 'evaluation' ? 'text-red-600 hover:text-red-900' : 'text-gray-500'}`}
-                                >
-                                  {contest.status === 'evaluation' ? 'Judge Now' : 'View'}
-                                </Link>
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : (
-                      <p className="text-gray-500 italic">Not participating in any contests as a judge.</p>
-                    )}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : (
+                        <p className="text-gray-500 italic">No contests created yet.</p>
+                      )}
+                    </div>
+                    
+                    <div>
+                      <h3 className="font-medium text-gray-700 mb-2">Contests where I'm an author</h3>
+                      {participationContests.asAuthor.length > 0 ? (
+                        <div className="bg-white shadow rounded-md overflow-hidden">
+                          <ul className="divide-y divide-gray-200">
+                            {participationContests.asAuthor.map(contest => (
+                              <li key={contest.id} className="px-4 py-3 hover:bg-gray-50">
+                                <div className="flex justify-between">
+                                  <div>
+                                    <Link to={`/contests/${contest.id}`} className="text-indigo-600 hover:text-indigo-900 font-medium">
+                                      {contest.title}
+                                    </Link>
+                                    <div className="flex mt-1 space-x-2">
+                                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                        contest.status === 'open' ? 'bg-green-100 text-green-800' :
+                                        contest.status === 'evaluation' ? 'bg-yellow-100 text-yellow-800' :
+                                         'bg-blue-100 text-blue-800'
+                                      }`}>
+                                        {contest.status && typeof contest.status === 'string' 
+                                          ? contest.status.charAt(0).toUpperCase() + contest.status.slice(1) 
+                                          : 'Unknown'}
+                                      </span>
+                                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                        contest.publicly_listed ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
+                                      }`}>
+                                        {contest.publicly_listed ? 'Public' : 'Private'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="text-sm text-gray-500">
+                                    {contest.created_at ? new Date(contest.created_at).toLocaleDateString() : ''}
+                                  </div>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : (
+                        <p className="text-gray-500 italic">Not participating in any contests as an author.</p>
+                      )}
+                    </div>
+                    
+                    <div>
+                      <h3 className="font-medium text-gray-700 mb-2">Contests where I'm a member</h3>
+                      {participationContests.asMember.length > 0 ? (
+                        <div className="bg-white shadow rounded-md overflow-hidden">
+                          <ul className="divide-y divide-gray-200">
+                            {participationContests.asMember.map(contest => (
+                              <li key={contest.id} className="px-4 py-3 hover:bg-gray-50">
+                                <div className="flex justify-between">
+                                  <div>
+                                    <Link to={`/contests/${contest.id}`} className="text-indigo-600 hover:text-indigo-900 font-medium">
+                                      {contest.title}
+                                    </Link>
+                                    <div className="flex mt-1 space-x-2">
+                                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                        contest.status === 'open' ? 'bg-green-100 text-green-800' :
+                                        contest.status === 'evaluation' ? 'bg-yellow-100 text-yellow-800' :
+                                         'bg-blue-100 text-blue-800'
+                                      }`}>
+                                        {contest.status && typeof contest.status === 'string' 
+                                          ? contest.status.charAt(0).toUpperCase() + contest.status.slice(1) 
+                                          : 'Unknown'}
+                                      </span>
+                                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                        contest.publicly_listed ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
+                                      }`}>
+                                        {contest.publicly_listed ? 'Public' : 'Private'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="text-sm text-gray-500">
+                                    {contest.created_at ? new Date(contest.created_at).toLocaleDateString() : ''}
+                                  </div>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : (
+                        <p className="text-gray-500 italic">Not a member of any contests.</p>
+                      )}
+                    </div>
+                    
+                    <div>
+                      <h3 className="font-medium text-gray-700 mb-2">Contests where I'm a judge</h3>
+                      {participationContests.asJudge.length > 0 ? (
+                        <div className="bg-white shadow rounded-md overflow-hidden">
+                          <ul className="divide-y divide-gray-200">
+                            {participationContests.asJudge.map(contest => (
+                              <li key={contest.id} className="px-4 py-3 hover:bg-gray-50">
+                                <div className="flex justify-between">
+                                  <div>
+                                    <Link to={`/contests/${contest.id}`} className="text-indigo-600 hover:text-indigo-900 font-medium">
+                                      {contest.title}
+                                    </Link>
+                                    <div className="flex mt-1 space-x-2">
+                                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                        contest.status === 'open' ? 'bg-green-100 text-green-800' :
+                                        contest.status === 'evaluation' ? 'bg-yellow-100 text-yellow-800' :
+                                         'bg-blue-100 text-blue-800'
+                                      }`}>
+                                        {contest.status && typeof contest.status === 'string' 
+                                          ? contest.status.charAt(0).toUpperCase() + contest.status.slice(1) 
+                                          : 'Unknown'}
+                                      </span>
+                                      {contest.status === 'evaluation' && (
+                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                          Needs Judging
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <Link 
+                                    to={`/contests/${contest.id}`} 
+                                    className={`text-sm font-medium ${contest.status === 'evaluation' ? 'text-red-600 hover:text-red-900' : 'text-gray-500'}`}
+                                  >
+                                    {contest.status === 'evaluation' ? 'Judge Now' : 'View'}
+                                  </Link>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : (
+                        <p className="text-gray-500 italic">Not participating in any contests as a judge.</p>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}

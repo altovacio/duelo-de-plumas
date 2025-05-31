@@ -1031,4 +1031,26 @@ class ContestService:
             for member in members
         ]
 
+    @staticmethod
+    async def search_contests(
+        db: AsyncSession,
+        search_query: str,
+        skip: int = 0,
+        limit: int = 100,
+        status: Optional[str] = None,
+        creator_id: Optional[Union[int, str]] = None,
+        include_non_public: bool = False
+    ) -> List[ContestResponse]:
+        """Search contests using database-level search."""
+        contests_with_counts = await ContestRepository.search_contests(
+            db, search_query, skip, limit, status, creator_id, include_non_public
+        )
+        
+        # Convert the dictionaries to ContestResponse objects
+        response_list = []
+        for contest_data in contests_with_counts:
+            response_list.append(ContestResponse.model_validate(contest_data))
+
+        return response_list
+
  

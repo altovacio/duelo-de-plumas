@@ -25,6 +25,10 @@ class UserService:
         """Get all users with pagination."""
         return await self.repository.get_all(skip, limit)
         
+    async def get_users_with_contest_counts(self, skip: int = 0, limit: int = 100):
+        """Get all users with their contest counts using an optimized query."""
+        return await self.repository.get_all_with_contest_counts(skip, limit)
+        
     async def search_users(self, query: str, limit: int = 10):
         """Search users by username or email."""
         return await self.repository.search_users(query, limit)

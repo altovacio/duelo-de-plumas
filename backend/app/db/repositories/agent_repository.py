@@ -124,9 +124,8 @@ class AgentRepository:
     
     @staticmethod
     async def get_all_agents_admin(db: AsyncSession, skip: int = 0, limit: int = 100) -> List[Agent]:
-        """Get all agents in the system (for admin use)."""
-        stmt = select(Agent).offset(skip).limit(limit)
-        result = await db.execute(stmt)
+        """Get all agents (admin only)."""
+        result = await db.execute(select(Agent).order_by(Agent.id).offset(skip).limit(limit))
         return result.scalars().all()
     
     @staticmethod
@@ -144,4 +143,38 @@ class AgentRepository:
         ).order_by(AgentExecution.created_at.desc()).limit(1)
         
         result = await db.execute(stmt)
-        return result.scalar_one_or_none() 
+        return result.scalar_one_or_none()
+    
+    @staticmethod
+    async def search_agents(
+        db: AsyncSession, 
+        search_query: str, 
+        agent_type: Optional[str] = None,
+        owner_id: Optional[int] = None,
+        is_public: Optional[bool] = None,
+        skip: int = 0, 
+        limit: int = 100
+    ) -> List[Agent]:
+        """Search agents by name or description with optional filters."""
+        search_pattern = f"%{search_query}%"
+        
+        query = select(Agent).where(
+            (Agent.name.ilike(search_pattern)) | 
+            (Agent.description.ilike(search_pattern))
+        )
+        
+        # Apply optional filters
+        if agent_type:
+            query = query.where(Agent.type == agent_type)
+        
+        if owner_id is not None:
+            query = query.where(Agent.owner_id == owner_id)
+        
+        if is_public is not None:
+            query = query.where(Agent.is_public == is_public)
+        
+        # Add ordering and pagination
+        query = query.order_by(Agent.id).offset(skip).limit(limit)
+        
+        result = await db.execute(query)
+        return result.scalars().all() 

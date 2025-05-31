@@ -1,118 +1,111 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import BackButton from '../../components/ui/BackButton';
-import { deleteUserByAdmin, getAdminUsers } from '../../services/userService';
+import { deleteUserByAdmin, getAdminUsersWithCounts, User } from '../../services/userService';
 import { updateUserCredits } from '../../services/creditService';
-import { getContests } from '../../services/contestService';
+import Pagination from '../../components/shared/Pagination';
+import AdminUserSearch from '../../components/shared/AdminUserSearch';
 
-// Updated User interface for more comprehensive user details, especially for admin views
-export interface User {
-  id: number;
-  username: string;
-  email?: string; // Assuming email is available
-  is_admin?: boolean;
-  credits?: number; // For admin views
-  created_at?: string;
-  last_login?: string | null; // For admin views - tracks when user last logged in
-  contests_created?: number | string; // For admin views, can be N/A when there's an error
-  // Add other fields as returned by GET /admin/users
-}
-
-// mockUsers removed
-// const mockUsers: User[] = [ ... ];
-
-// Mock function to assign credits to a user
-const modifyUserCredits = async (userId: number, amount: number) => {
-  try {
-    // Call the proper API with a descriptive message
-    const description = amount > 0 
-      ? `Admin added ${amount} credits` 
-      : `Admin deducted ${Math.abs(amount)} credits`;
-    
-    await updateUserCredits(userId, amount, description);
-    return { success: true };
-  } catch (error) {
-    console.error("Error modifying user credits:", error);
-    throw error; // Re-throw to be handled by the caller
-  }
-};
-
-// Helper function to format last login time
-const formatLastLogin = (lastLogin: string | null) => {
+const formatLastLogin = (lastLogin: string): string => {
   if (!lastLogin) return 'Never';
-  
-  const loginDate = new Date(lastLogin);
-  const now = new Date();
-  const diffInMs = now.getTime() - loginDate.getTime();
-  const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
-  const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
-  const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
-  
-  if (diffInMinutes < 60) {
-    return diffInMinutes <= 1 ? 'Just now' : `${diffInMinutes} minutes ago`;
-  } else if (diffInHours < 24) {
-    return diffInHours === 1 ? '1 hour ago' : `${diffInHours} hours ago`;
-  } else if (diffInDays < 7) {
-    return diffInDays === 1 ? '1 day ago' : `${diffInDays} days ago`;
-  } else {
-    return loginDate.toLocaleDateString();
-  }
+  return new Date(lastLogin).toLocaleDateString();
 };
 
 const AdminUsersPage: React.FC = () => {
+  // Data state
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [itemsPerPage] = useState(25);
+  
+  // Search state
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [isSearchMode, setIsSearchMode] = useState(false);
+  
+  // Modal state
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [isCreditModalOpen, setIsCreditModalOpen] = useState(false);
   const [userToModifyCredits, setUserToModifyCredits] = useState<User | null>(null);
   const [creditAmount, setCreditAmount] = useState<number>(0);
 
-  useEffect(() => {
-    const fetchUsers = async () => {
-      setIsLoading(true);
-      try {
-        // Fetch real user data
-        const fetchedUsers = await getAdminUsers();
+  // Fetch users with pagination or search - OPTIMIZED VERSION
+  const fetchUsers = async (page: number = 1, searchUser: User | null = null) => {
+    setIsLoading(true);
+    try {
+      const skipAmount = (page - 1) * itemsPerPage;
+      let fetchedUsers: User[];
+      
+      if (searchUser) {
+        // Search mode - get specific user with contest count (estimated)
+        fetchedUsers = [{
+          ...searchUser,
+          contests_created: searchUser.contests_created || 0
+        }];
+        setTotalUsers(1);
+        setIsSearchMode(true);
+      } else {
+        // Normal pagination mode - get all users WITH contest counts in single query
+        fetchedUsers = await getAdminUsersWithCounts(skipAmount, itemsPerPage);
         
-        // Process users sequentially to avoid overwhelming the server
-        const processedUsers = [...fetchedUsers];
-        
-        for (let i = 0; i < fetchedUsers.length; i++) {
-          const user = fetchedUsers[i];
-          try {
-            // Add a small delay between requests to avoid overwhelming the server
-            if (i > 0) {
-              await new Promise(resolve => setTimeout(resolve, 100));
-            }
-            
-            // Use contestService to get contests created by this user
-            const userContests = await getContests({ creator: user.id.toString() });
-            processedUsers[i] = { ...user, contests_created: userContests.length };
-          } catch (error) {
-            console.error(`Error fetching contests for user ${user.id}:`, error);
-            processedUsers[i] = { ...user, contests_created: 'N/A' };
-          }
+        // For now, we'll use a simple approach to estimate total count
+        // In a real app, the API should return total count
+        if (fetchedUsers.length < itemsPerPage) {
+          setTotalUsers(skipAmount + fetchedUsers.length);
+        } else {
+          // Estimate: if we got a full page, there might be more
+          setTotalUsers(skipAmount + itemsPerPage + 1);
         }
-        
-        setUsers(processedUsers);
-      } catch (error) {
-        console.error('Error fetching users:', error);
-        toast.error('Failed to load users. Check console for details.');
-      } finally {
-        setIsLoading(false);
+        setIsSearchMode(false);
       }
-    };
+      
+      // No need to process users anymore - contest counts come from the API!
+      setUsers(fetchedUsers);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      toast.error('Failed to load users. Check console for details.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    fetchUsers();
+  // Initial load
+  useEffect(() => {
+    fetchUsers(1);
   }, []);
+
+  // Handle page change
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    fetchUsers(page, selectedUser);
+  };
+
+  // Handle user search selection
+  const handleUserSelect = (user: User | null) => {
+    setSelectedUser(user);
+    setCurrentPage(1);
+    fetchUsers(1, user);
+  };
+
+  // Handle clearing search
+  const handleClearSearch = () => {
+    setSelectedUser(null);
+    setCurrentPage(1);
+    fetchUsers(1, null);
+  };
 
   const handleModifyCredits = async () => {
     if (!userToModifyCredits || creditAmount === 0) return;
 
     try {
-      await modifyUserCredits(userToModifyCredits.id, creditAmount);
+      const description = creditAmount > 0 
+        ? `Admin added ${creditAmount} credits` 
+        : `Admin deducted ${Math.abs(creditAmount)} credits`;
+      
+      await updateUserCredits(userToModifyCredits.id, creditAmount, description);
       
       // Update local state
       setUsers(users.map(user => 
@@ -147,6 +140,14 @@ const AdminUsersPage: React.FC = () => {
       toast.success('User deleted successfully');
       setIsDeleteModalOpen(false);
       setUserToDelete(null);
+      
+      // If we deleted the only user on this page, go back a page
+      if (users.length === 1 && currentPage > 1) {
+        handlePageChange(currentPage - 1);
+      } else {
+        // Refresh current page
+        fetchUsers(currentPage, selectedUser);
+      }
     } catch (error) {
       console.error('Error deleting user:', error);
       toast.error('Failed to delete user. Check console for details.');
@@ -164,11 +165,6 @@ const AdminUsersPage: React.FC = () => {
     setIsDeleteModalOpen(true);
   };
 
-  const filteredUsers = users.filter(user => 
-    user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (user.email || '').toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
   return (
     <div className="max-w-6xl mx-auto py-8 px-4">
       <div className="flex justify-between items-center mb-8">
@@ -180,18 +176,31 @@ const AdminUsersPage: React.FC = () => {
       
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="p-4 border-b">
-          <div className="flex items-center">
-            <h2 className="text-xl font-semibold mr-4">Users</h2>
-            <div className="flex-grow">
-              <input
-                type="text"
-                placeholder="Search users..."
-                className="w-full px-3 py-2 border rounded-lg"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold">Users</h2>
+            <div className="flex items-center space-x-4">
+              {isSearchMode && (
+                <button
+                  onClick={handleClearSearch}
+                  className="px-3 py-1 text-sm bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200"
+                >
+                  Clear Search
+                </button>
+              )}
+              <div className="w-80">
+                <AdminUserSearch
+                  onUserSelect={handleUserSelect}
+                  placeholder="Search users by username or email..."
+                  selectedUser={selectedUser}
+                />
+              </div>
             </div>
           </div>
+          {isSearchMode && selectedUser && (
+            <div className="mt-2 text-sm text-gray-600">
+              Showing results for: <span className="font-medium">{selectedUser.username}</span>
+            </div>
+          )}
         </div>
         
         {isLoading ? (
@@ -233,8 +242,8 @@ const AdminUsersPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredUsers.length > 0 ? (
-                  filteredUsers.map((user) => (
+                {users.length > 0 ? (
+                  users.map((user) => (
                     <tr key={user.id}>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="font-medium text-gray-900">{user.username}</div>
@@ -282,7 +291,7 @@ const AdminUsersPage: React.FC = () => {
                 ) : (
                   <tr>
                     <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
-                      No users found matching your search.
+                      {isSearchMode ? 'No user found matching your search.' : 'No users found.'}
                     </td>
                   </tr>
                 )}
@@ -290,72 +299,90 @@ const AdminUsersPage: React.FC = () => {
             </table>
           </div>
         )}
+        
+        {/* Pagination - only show when not in search mode */}
+        {!isSearchMode && !isLoading && (
+          <Pagination
+            currentPage={currentPage}
+            totalItems={totalUsers}
+            itemsPerPage={itemsPerPage}
+            onPageChange={handlePageChange}
+          />
+        )}
       </div>
 
       {/* Credit Modification Modal */}
-      {isCreditModalOpen && userToModifyCredits && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <h3 className="text-lg font-bold mb-4">Modify Credits for {userToModifyCredits.username}</h3>
-            <p className="mb-4">Current balance: <span className="font-bold">{userToModifyCredits.credits || 0}</span> credits</p>
-            
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Credit Amount (use negative values to deduct)
-              </label>
-              <input 
-                type="number" 
-                className="w-full px-3 py-2 border rounded-lg"
-                value={creditAmount}
-                onChange={(e) => setCreditAmount(Number(e.target.value))}
-              />
-              <p className="text-sm text-gray-500 mt-1">
-                New balance will be: {(userToModifyCredits.credits || 0) + creditAmount}
-              </p>
-            </div>
-            
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => setIsCreditModalOpen(false)}
-                className="px-4 py-2 border rounded-md hover:bg-gray-100"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleModifyCredits}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-                disabled={creditAmount === 0}
-              >
-                {creditAmount > 0 ? 'Add Credits' : creditAmount < 0 ? 'Deduct Credits' : 'No Change'}
-              </button>
+      {isCreditModalOpen && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">
+                Modify Credits for {userToModifyCredits?.username}
+              </h3>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Credit Amount (positive to add, negative to remove)
+                </label>
+                <input
+                  type="number"
+                  value={creditAmount}
+                  onChange={(e) => setCreditAmount(parseInt(e.target.value) || 0)}
+                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Enter credit amount..."
+                />
+              </div>
+              <div className="flex justify-end space-x-2">
+                <button
+                  onClick={() => {
+                    setIsCreditModalOpen(false);
+                    setUserToModifyCredits(null);
+                    setCreditAmount(0);
+                  }}
+                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleModifyCredits}
+                  disabled={creditAmount === 0}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Modify Credits
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Delete User Modal */}
-      {isDeleteModalOpen && userToDelete && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <h3 className="text-lg font-bold mb-4">Delete User</h3>
-            <p className="mb-4">
-              Are you sure you want to delete the user <span className="font-bold">{userToDelete.username}</span>?
-              This action cannot be undone.
-            </p>
-            
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => setIsDeleteModalOpen(false)}
-                className="px-4 py-2 border rounded-md hover:bg-gray-100"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteUser}
-                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-              >
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">
                 Delete User
-              </button>
+              </h3>
+              <p className="text-sm text-gray-500 mb-4">
+                Are you sure you want to delete user "{userToDelete?.username}"? This action cannot be undone.
+              </p>
+              <div className="flex justify-end space-x-2">
+                <button
+                  onClick={() => {
+                    setIsDeleteModalOpen(false);
+                    setUserToDelete(null);
+                  }}
+                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteUser}
+                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                >
+                  Delete User
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -34,6 +34,7 @@ async def get_contests(
     limit: int = 100,
     status: Optional[str] = Query(None, description="Filter contests by status (e.g., open, closed, evaluation)"),
     creator: Optional[Union[int, str]] = Query(None, description="Filter contests by creator. Use 'me' for current user's contests."),
+    search: Optional[str] = Query(None, description="Search contests by title or description"),
     db: AsyncSession = Depends(get_db),
     current_user: Optional[UserModel] = Depends(get_optional_current_user)
 ):
@@ -44,7 +45,33 @@ async def get_contests(
     Access to details of private contests is handled by the GET /{contest_id} endpoint.
     """
     user_id = current_user.id if current_user else None
-    return await ContestService.get_contests(
+    
+    # If search is provided, use database-level search
+    if search:
+        # Determine appropriate include_non_public setting for search
+        include_non_public = False
+        search_creator_id = None
+        
+        if creator == "me" and user_id is not None:
+            search_creator_id = user_id
+            include_non_public = True  # When viewing own contests, include non-public ones
+        elif creator is not None and creator != "me":
+            search_creator_id = creator
+            include_non_public = True  # When filtering by specific creator, include non-public
+        
+        contests = await ContestService.search_contests(
+            db=db,
+            search_query=search,
+            skip=skip,
+            limit=limit,
+            status=status,
+            creator_id=search_creator_id,
+            include_non_public=include_non_public
+        )
+        return contests
+    
+    # Original logic for non-search cases
+    contests = await ContestService.get_contests(
         db=db,
         skip=skip,
         limit=limit,
@@ -52,6 +79,8 @@ async def get_contests(
         current_user_id=user_id,
         creator=creator
     )
+    
+    return contests
 
 
 @router.get("/my-submissions/", response_model=List[ContestTextResponse])

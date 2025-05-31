@@ -721,4 +721,106 @@ class ContestRepository:
             
             contest_dicts.append(contest_data)
         
-        return contest_dicts 
+        return contest_dicts
+    
+    @staticmethod
+    async def search_contests(
+        db: AsyncSession,
+        search_query: str,
+        skip: int = 0,
+        limit: int = 100,
+        status: Optional[str] = None,
+        creator_id: Optional[Union[int, str]] = None,
+        include_non_public: bool = False
+    ) -> List[dict]:
+        """Search contests by title or description with counts."""
+        search_pattern = f"%{search_query}%"
+        
+        # Subquery for text count per contest
+        text_count_subq = (
+            select(
+                ContestText.contest_id,
+                func.count(func.distinct(ContestText.text_id)).label("text_count")
+            )
+            .group_by(ContestText.contest_id)
+            .subquery()
+        )
+        
+        # Subquery for participant count per contest
+        participant_count_subq = (
+            select(
+                ContestText.contest_id,
+                func.count(func.distinct(Text.owner_id)).label("participant_count")
+            )
+            .join(Text, ContestText.text_id == Text.id)
+            .group_by(ContestText.contest_id)
+            .subquery()
+        )
+        
+        # Main query with search filter
+        query = (
+            select(
+                Contest,
+                func.coalesce(text_count_subq.c.text_count, 0).label("text_count"),
+                func.coalesce(participant_count_subq.c.participant_count, 0).label("participant_count")
+            )
+            .outerjoin(text_count_subq, Contest.id == text_count_subq.c.contest_id)
+            .outerjoin(participant_count_subq, Contest.id == participant_count_subq.c.contest_id)
+            .options(selectinload(Contest.creator))
+            .where(
+                (Contest.title.ilike(search_pattern)) | 
+                (Contest.description.ilike(search_pattern))
+            )
+        )
+        
+        # Apply additional filters
+        if status:
+            query = query.where(Contest.status.ilike(f"%{status}%"))
+            
+        if creator_id is not None:
+            if isinstance(creator_id, str) and creator_id.isdigit():
+                creator_id = int(creator_id)
+            query = query.where(Contest.creator_id == creator_id)
+        
+        # Filter by visibility unless explicitly including non-public contests
+        if not include_non_public:
+            query = query.where(Contest.publicly_listed == True)
+        
+        # Execute query with ordering and pagination
+        result = await db.execute(
+            query.order_by(Contest.created_at.desc()).offset(skip).limit(limit)
+        )
+        
+        # Convert results to dictionaries
+        contests_with_counts = []
+        for row in result.all():
+            contest_obj = row.Contest
+            
+            # Convert the Contest ORM instance to a dictionary
+            contest_data = {column.key: getattr(contest_obj, column.key) for column in Contest.__table__.columns}
+            
+            # Add the counts
+            contest_data["text_count"] = row.text_count
+            contest_data["participant_count"] = row.participant_count
+            
+            # Add creator information
+            if contest_obj.creator:
+                contest_data["creator"] = {
+                    "id": contest_obj.creator.id,
+                    "username": contest_obj.creator.username
+                }
+            else:
+                contest_data["creator"] = {
+                    "id": contest_data["creator_id"],
+                    "username": "Unknown"
+                }
+            
+            # Remove creator_id since we now use the creator object
+            contest_data.pop("creator_id", None)
+            
+            # Add has_password field
+            contest_data["has_password"] = bool(contest_data.get("password"))
+            
+            contests_with_counts.append(contest_data)
+        
+        return contests_with_counts 

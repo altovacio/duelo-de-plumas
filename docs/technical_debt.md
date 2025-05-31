@@ -3,6 +3,14 @@
 This document lists known technical debt, areas for refactoring, and potential future improvements.
 
 ## ONGOING
+-Test high load users, contests, texts, etc.
+
+-Pagination in Contest list
+-Dashboard
+-Admin
+
+Admin -> search for users when paginated
+Contests oversight table redesign
 
 ## TODO
 
@@ -13,7 +21,18 @@ This document lists known technical debt, areas for refactoring, and potential f
 -Login via email (cursor style)
 -Credit purchasing
 -What should we do when the parsing or AI execution fails? Retries, exceptions (if the platform is broken, prevent the users from spending resources? Refund?)
--last seen for users
+-initial setup
+-Test high load users, contests, texts, etc.
+
+-Credit spenditure revisit
+
+-PDF stuff
+
+-Better experience full page writer
+   -marktwo migration
+
+-style
+
 
 -other optimizations
 -Unit tests

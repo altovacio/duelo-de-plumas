@@ -1,79 +1,97 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
-import { getAgents, Agent, updateAgent, deleteAgent } from '../../services/agentService';
-import { getUsersByIds, AdminUser } from '../../services/userService';
+import { getAgentsWithPagination, Agent, updateAgent, deleteAgent } from '../../services/agentService';
+import { User } from '../../services/userService';
 import BackButton from '../../components/ui/BackButton';
 import AgentFormModal from '../../components/Agent/AgentFormModal';
+import Pagination from '../../components/shared/Pagination';
+import AdminUserSearch from '../../components/shared/AdminUserSearch';
 
 const AdminAgentsPage: React.FC = () => {
-  const [agents, setAgents] = useState<Agent[]>([]);
+  // Data state
+  const [displayedAgents, setDisplayedAgents] = useState<Agent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [totalCount, setTotalCount] = useState(0);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(25);
+  
+  // Filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
-  const [userFilter, setUserFilter] = useState<string>('all');
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [isUserFilterActive, setIsUserFilterActive] = useState(false);
+  
+  // Modal state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
-  
-  // Cache user information
-  const [userCache, setUserCache] = useState<Map<number, AdminUser>>(new Map());
-  const [uniqueUsers, setUniqueUsers] = useState<AdminUser[]>([]);
 
+  // Fetch agents with current filters and pagination
+  const fetchAgents = async () => {
+    setIsLoading(true);
+    try {
+      const skip = (currentPage - 1) * itemsPerPage;
+      const agents = await getAgentsWithPagination(
+        skip,
+        itemsPerPage,
+        searchQuery.trim() || undefined,
+        typeFilter !== 'all' ? typeFilter : undefined,
+        isUserFilterActive && selectedUser ? selectedUser.id : undefined
+      );
+      setDisplayedAgents(agents);
+      // Note: For now we'll estimate total count since backend doesn't return it
+      // In a production app, we'd modify the backend to return total count
+      setTotalCount(agents.length === itemsPerPage ? (currentPage * itemsPerPage) + 1 : skip + agents.length);
+    } catch (error) {
+      console.error('Error fetching agents:', error);
+      toast.error('Failed to load AI agents');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch agents whenever filters or pagination change
   useEffect(() => {
-    const fetchAgents = async () => {
-      setIsLoading(true);
-      try {
-        // Get all agents
-        const allAgents = await getAgents();
-        setAgents(allAgents);
-        
-        // Get unique user IDs
-        const uniqueUserIds = Array.from(new Set(allAgents.map(agent => agent.owner_id)));
-        
-        // Fetch user information efficiently
-        const userInfos = await getUsersByIds(uniqueUserIds);
-        
-        // Create user cache and unique users list
-        const newUserCache = new Map<number, AdminUser>();
-        const uniqueUsersList: AdminUser[] = [];
-        
-        userInfos.forEach(user => {
-          newUserCache.set(user.id, user);
-          uniqueUsersList.push(user);
-        });
-        
-        // Add fallback for any missing users (though this should be rare now)
-        uniqueUserIds.forEach(userId => {
-          if (!newUserCache.has(userId)) {
-            const fallbackUser: AdminUser = {
-              id: userId,
-              username: `User #${userId}`,
-              email: 'Unknown'
-            };
-            newUserCache.set(userId, fallbackUser);
-            uniqueUsersList.push(fallbackUser);
-          }
-        });
-        
-        setUserCache(newUserCache);
-        setUniqueUsers(uniqueUsersList);
-      } catch (error) {
-        console.error('Error fetching agents:', error);
-        toast.error('Failed to load AI agents');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchAgents();
-  }, []);
+  }, [currentPage, searchQuery, typeFilter, selectedUser, isUserFilterActive]);
+
+  // Handle page change
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  // Handle user selection from search
+  const handleUserSelect = (user: User | null) => {
+    setSelectedUser(user);
+    setIsUserFilterActive(!!user);
+    setCurrentPage(1); // Reset to first page when filtering
+  };
+
+  // Handle clearing user filter
+  const handleClearUserFilter = () => {
+    setSelectedUser(null);
+    setIsUserFilterActive(false);
+    setCurrentPage(1);
+  };
+
+  // Handle filter changes with reset to page 1
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setCurrentPage(1);
+  };
+
+  const handleTypeFilterChange = (value: string) => {
+    setTypeFilter(value);
+    setCurrentPage(1);
+  };
 
   // Handle agent update
   const handleUpdateAgent = async (agentData: Partial<Agent>) => {
     if (!selectedAgent) return;
     
     try {
-      // Convert the form data format to what the API expects
       const apiAgentData = {
         name: agentData.name,
         description: agentData.description,
@@ -82,12 +100,10 @@ const AdminAgentsPage: React.FC = () => {
         is_public: agentData.is_public
       };
       
-      const updatedAgent = await updateAgent(selectedAgent.id, apiAgentData);
+      await updateAgent(selectedAgent.id, apiAgentData);
       
-      // Update local state
-      setAgents(agents.map(agent => 
-        agent.id === updatedAgent.id ? updatedAgent : agent
-      ));
+      // Refresh the current page
+      await fetchAgents();
       
       toast.success('Agent updated successfully');
       setIsEditModalOpen(false);
@@ -104,8 +120,8 @@ const AdminAgentsPage: React.FC = () => {
     try {
       await deleteAgent(selectedAgent.id);
       
-      // Remove the agent from the local state
-      setAgents(agents.filter(agent => agent.id !== selectedAgent.id));
+      // Refresh the current page
+      await fetchAgents();
       
       toast.success('Agent deleted successfully');
       setIsDeleteModalOpen(false);
@@ -125,33 +141,6 @@ const AdminAgentsPage: React.FC = () => {
     setIsDeleteModalOpen(true);
   };
 
-  // Get user info from cache
-  const getUserInfo = (userId: number): AdminUser => {
-    return userCache.get(userId) || {
-      id: userId,
-      username: `User #${userId}`,
-      email: 'Unknown'
-    };
-  };
-
-  // Filter agents based on search query, type filter, and user filter
-  const filteredAgents = agents.filter(agent => {
-    const matchesSearch = 
-      agent.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      agent.description.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesType = 
-      typeFilter === 'all' || 
-      (typeFilter === 'writer' && agent.type === 'writer') || 
-      (typeFilter === 'judge' && agent.type === 'judge');
-    
-    const matchesUser =
-      userFilter === 'all' ||
-      agent.owner_id.toString() === userFilter;
-    
-    return matchesSearch && matchesType && matchesUser;
-  });
-
   return (
     <div className="max-w-6xl mx-auto py-8 px-4">
       <div className="flex justify-between items-center mb-8">
@@ -163,48 +152,61 @@ const AdminAgentsPage: React.FC = () => {
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="p-4 border-b">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Search
-              </label>
-              <input
-                type="text"
-                placeholder="Search agents..."
-                className="w-full px-3 py-2 border rounded-lg"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+          <div className="flex flex-col lg:flex-row lg:items-end gap-4">
+            <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Search Agents
+                </label>
+                <input
+                  type="text"
+                  placeholder="Search by name or description..."
+                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  value={searchQuery}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Agent Type
+                </label>
+                <select
+                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  value={typeFilter}
+                  onChange={(e) => handleTypeFilterChange(e.target.value)}
+                >
+                  <option value="all">All Types</option>
+                  <option value="writer">Writers</option>
+                  <option value="judge">Judges</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Filter by Owner
+                </label>
+                <AdminUserSearch
+                  onUserSelect={handleUserSelect}
+                  placeholder="Search users..."
+                  selectedUser={selectedUser}
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Type
-              </label>
-              <select
-                className="w-full px-3 py-2 border rounded-lg"
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
+            {isUserFilterActive && (
+              <button
+                onClick={handleClearUserFilter}
+                className="px-3 py-2 text-sm bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200 whitespace-nowrap"
               >
-                <option value="all">All Types</option>
-                <option value="writer">Writers</option>
-                <option value="judge">Judges</option>
-              </select>
+                Clear User Filter
+              </button>
+            )}
+          </div>
+          {isUserFilterActive && selectedUser && (
+            <div className="mt-2 text-sm text-gray-600">
+              Filtering by owner: <span className="font-medium">{selectedUser.username}</span>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Owner
-              </label>
-              <select
-                className="w-full px-3 py-2 border rounded-lg"
-                value={userFilter}
-                onChange={(e) => setUserFilter(e.target.value)}
-              >
-                <option value="all">All Users</option>
-                {uniqueUsers.map(user => (
-                  <option key={user.id} value={user.id}>{user.username}</option>
-                ))}
-              </select>
-            </div>
+          )}
+          <div className="mt-2 text-sm text-gray-500">
+            Showing {displayedAgents.length} agents
           </div>
         </div>
         
@@ -244,14 +246,17 @@ const AdminAgentsPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredAgents.length > 0 ? (
-                  filteredAgents.map((agent) => {
-                    const userInfo = getUserInfo(agent.owner_id);
+                {displayedAgents.length > 0 ? (
+                  displayedAgents.map((agent) => {
                     return (
                       <tr key={agent.id}>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="font-medium text-gray-900">{agent.name}</div>
-                          <div className="text-sm text-gray-500">{agent.description.substring(0, 50)}...</div>
+                          <div className="text-sm text-gray-500">
+                            {agent.description.length > 50 
+                              ? `${agent.description.substring(0, 50)}...` 
+                              : agent.description}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
@@ -265,10 +270,7 @@ const AdminAgentsPage: React.FC = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           <div className="font-medium text-gray-900">
-                            {userInfo.username}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {userInfo.email}
+                            Owner ID: {agent.owner_id}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -310,6 +312,16 @@ const AdminAgentsPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+        )}
+        
+        {/* Pagination */}
+        {!isLoading && totalCount > itemsPerPage && (
+          <Pagination
+            currentPage={currentPage}
+            totalItems={totalCount}
+            itemsPerPage={itemsPerPage}
+            onPageChange={handlePageChange}
+          />
         )}
       </div>
 

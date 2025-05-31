@@ -74,6 +74,51 @@ export const getContests = async (filters: { status?: string; creator?: string }
   return response.data;
 };
 
+// Admin: Get contests with pagination and search
+export const getContestsWithPagination = async (
+  skip: number = 0,
+  limit: number = 25,
+  search?: string,
+  status?: string,
+  creator?: string | number,
+  dateFilter?: string,
+  dateType?: string
+): Promise<Contest[]> => {
+  const params: any = { skip, limit };
+  if (search) params.search = search;
+  if (status && status !== 'all') params.status = status;
+  if (creator) params.creator = creator;
+  
+  const response = await apiClient.get('/contests/', { params });
+  let contests = response.data;
+  
+  // Apply date filtering client-side for now since backend doesn't support it yet
+  if (dateFilter && dateFilter !== 'all') {
+    const filterDate = (date: string) => {
+      const contestDate = new Date(date);
+      if (dateFilter === 'last7days') {
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        return contestDate >= sevenDaysAgo;
+      } else if (dateFilter === 'last30days') {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        return contestDate >= thirtyDaysAgo;
+      } else if (dateFilter === 'last365days') {
+        const yearAgo = new Date();
+        yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+        return contestDate >= yearAgo;
+      }
+      return true;
+    };
+
+    const dateToCheck = dateType === 'created' ? 'created_at' : 'updated_at';
+    contests = contests.filter((contest: Contest) => filterDate(contest[dateToCheck as keyof Contest] as string));
+  }
+  
+  return contests;
+};
+
 // Get contests created by the current user
 export const getUserContests = async (): Promise<Contest[]> => {
   const response = await apiClient.get('/contests/', { params: { creator: 'me' } });

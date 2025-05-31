@@ -63,6 +63,8 @@ async def create_agent(
 async def get_agents(
     type: Optional[str] = Query(None, description="Filter by agent type (judge or writer)"),
     public: Optional[bool] = Query(None, description="Filter by public agents. If None, returns both public and private owned by user (or all for admin)."),
+    owner_id: Optional[int] = Query(None, description="Filter by owner ID (admin only)"),
+    search: Optional[str] = Query(None, description="Search agents by name or description"),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
@@ -73,19 +75,87 @@ async def get_agents(
     - If public=True, returns only public agents.
     - If public=False, returns only private agents owned by the user (or all private for admin).
     - If public is not provided (None), returns public agents AND private agents owned by the user (or all agents for admin).
+    - owner_id: Filter by specific owner (admin only)
+    - search: Search in agent name and description
     """
+    # Admin-only filtering by owner_id
+    if owner_id is not None and not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can filter by owner_id"
+        )
+    
+    # If search is provided, use database-level search
+    if search:
+        # Determine public filter for search
+        search_public = None
+        if public is True:
+            search_public = True
+        elif public is False:
+            search_public = False
+        # If public is None, we'll search both public and private (handled in service)
+        
+        # For non-admin users, limit search to their own private agents + public agents
+        search_owner_id = None
+        if not current_user.is_admin:
+            if public is False:
+                # Only private agents owned by user
+                search_owner_id = current_user.id
+                search_public = False
+            elif public is None:
+                # This is complex - we need public agents + user's private agents
+                # For now, we'll handle this case below with multiple queries
+                pass
+        else:
+            # Admin can search by specific owner
+            if owner_id is not None:
+                search_owner_id = owner_id
+        
+        # Handle the complex case for non-admin users when public is None
+        if not current_user.is_admin and public is None:
+            # Get public agents that match search
+            public_agents = await AgentService.search_agents(
+                db, search, type, None, True, skip, limit
+            )
+            # Get user's private agents that match search  
+            private_agents = await AgentService.search_agents(
+                db, search, type, current_user.id, False, 0, limit
+            )
+            # Combine and deduplicate
+            combined_agents = {agent.id: agent for agent in public_agents}
+            for agent in private_agents:
+                if agent.id not in combined_agents:
+                    combined_agents[agent.id] = agent
+            agents = list(combined_agents.values())
+            # Apply manual pagination since we combined results
+            agents = agents[skip:skip + limit]
+        else:
+            # Simple case - use database search directly
+            agents = await AgentService.search_agents(
+                db, search, type, search_owner_id, search_public, skip, limit
+            )
+        
+        return agents
+    
+    # Original logic for non-search cases (no changes needed here)
     if public is True:
-        return await AgentService.get_public_agents(db, type, skip, limit)
+        agents = await AgentService.get_public_agents(db, type, skip, limit)
     elif public is False:
         if current_user.is_admin:
-            all_agents = await AgentService.get_all_agents(db, skip, limit)
-            return [agent for agent in all_agents if not agent.is_public]
+            if owner_id is not None:
+                agents = await AgentService.get_agents_by_owner(db, owner_id, skip, limit)
+            else:
+                agents = await AgentService.get_all_agents(db, skip, limit)
+                agents = [agent for agent in agents if not agent.is_public]
         else:
-            owned_agents = await AgentService.get_agents_by_owner(db, current_user.id, skip, limit)
-            return [agent for agent in owned_agents if not agent.is_public]
+            agents = await AgentService.get_agents_by_owner(db, current_user.id, skip, limit)
+            agents = [agent for agent in agents if not agent.is_public]
     else:
         if current_user.is_admin:
-            return await AgentService.get_all_agents(db, skip, limit)
+            if owner_id is not None:
+                agents = await AgentService.get_agents_by_owner(db, owner_id, skip, limit)
+            else:
+                agents = await AgentService.get_all_agents(db, skip, limit)
         else:
             owned_agents = await AgentService.get_agents_by_owner(db, current_user.id, 0, 10000)
             public_agents = await AgentService.get_public_agents(db, type, 0, 10000)
@@ -94,8 +164,14 @@ async def get_agents(
                 if agent.id not in combined_list:
                     combined_list[agent.id] = agent
             
-            all_relevant_agents = list(combined_list.values())
-            return all_relevant_agents[skip : skip + limit]
+            agents = list(combined_list.values())
+            agents = agents[skip : skip + limit]
+    
+    # Apply type filter if provided and not already handled in database query
+    if type and not search:
+        agents = [agent for agent in agents if agent.type == type]
+    
+    return agents
 
 
 @router.post("/execute/judge", response_model=List[AgentExecutionResponse])

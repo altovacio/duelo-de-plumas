@@ -1,145 +1,138 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import BackButton from '../../components/ui/BackButton';
-import { getCreditUsageSummary, getCreditsTransactions, type CreditTransaction, type CreditUsageSummary } from '../../services/creditService';
-import { getUsersByIds, AdminUser } from '../../services/userService';
+import { getCreditsTransactionsWithPagination, type CreditTransaction } from '../../services/creditService';
+import { User } from '../../services/userService';
+import Pagination from '../../components/shared/Pagination';
+import AdminUserSearch from '../../components/shared/AdminUserSearch';
 
 const AdminMonitoringPage: React.FC = () => {
-  const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
+  // Data state
+  const [displayedTransactions, setDisplayedTransactions] = useState<CreditTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [totalCount, setTotalCount] = useState(0);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(25);
+  
+  // Filter state
   const [dateFilter, setDateFilter] = useState<string>('all');
-  const [userFilter, setUserFilter] = useState<string>('all');
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [isUserFilterActive, setIsUserFilterActive] = useState(false);
   const [transactionTypeFilter, setTransactionTypeFilter] = useState<string>('all');
   const [modelFilter, setModelFilter] = useState<string>('all');
-  const [, setUsageSummary] = useState<CreditUsageSummary | null>(null);
-  
-  // Cache user information
-  const [userCache, setUserCache] = useState<Map<number, AdminUser>>(new Map());
+  const [uniqueModels, setUniqueModels] = useState<string[]>([]);
 
+  // Fetch transactions with current filters and pagination
+  const fetchTransactions = async () => {
+    setIsLoading(true);
+    try {
+      const skip = (currentPage - 1) * itemsPerPage;
+      
+      // Calculate date range for filtering
+      let dateFrom: string | undefined;
+      if (dateFilter === 'last7days') {
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        dateFrom = sevenDaysAgo.toISOString();
+      } else if (dateFilter === 'last30days') {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        dateFrom = thirtyDaysAgo.toISOString();
+      } else if (dateFilter === 'last365days') {
+        const yearAgo = new Date();
+        yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+        dateFrom = yearAgo.toISOString();
+      }
+
+      const transactions = await getCreditsTransactionsWithPagination(
+        skip,
+        itemsPerPage,
+        isUserFilterActive && selectedUser ? selectedUser.id : undefined,
+        transactionTypeFilter !== 'all' ? transactionTypeFilter : undefined,
+        modelFilter !== 'all' ? modelFilter : undefined,
+        dateFrom,
+        undefined // dateTo
+      );
+      
+      setDisplayedTransactions(transactions);
+      // Note: For now we'll estimate total count since backend doesn't return it
+      setTotalCount(transactions.length === itemsPerPage ? (currentPage * itemsPerPage) + 1 : skip + transactions.length);
+
+      // Extract unique models for filter dropdown
+      const models = Array.from(new Set(transactions.map(t => t.ai_model).filter((model): model is string => Boolean(model))));
+      setUniqueModels(models);
+    } catch (error) {
+      console.error('Error fetching credit data:', error);
+      toast.error('Failed to load credit data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch transactions whenever filters or pagination change
   useEffect(() => {
-    const fetchCreditData = async () => {
-      setIsLoading(true);
-      try {
-        // Fetch real credit transaction data from the API
-        const transactionData = await getCreditsTransactions();
-        setTransactions(transactionData);
+    fetchTransactions();
+  }, [currentPage, dateFilter, selectedUser, isUserFilterActive, transactionTypeFilter, modelFilter]);
 
-        // Get unique user IDs from transactions
-        const uniqueUserIds = Array.from(new Set(transactionData.map(t => t.user_id).filter(Boolean)));
-        
-        // Fetch user information efficiently
-        if (uniqueUserIds.length > 0) {
-          const userInfos = await getUsersByIds(uniqueUserIds);
-          
-          // Create user cache
-          const newUserCache = new Map<number, AdminUser>();
-          userInfos.forEach(user => {
-            newUserCache.set(user.id, user);
-          });
-          
-          // Add fallback for any missing users (though this should be rare now)
-          uniqueUserIds.forEach(userId => {
-            if (!newUserCache.has(userId)) {
-              const fallbackUser: AdminUser = {
-                id: userId,
-                username: `User #${userId}`,
-                email: 'Unknown'
-              };
-              newUserCache.set(userId, fallbackUser);
-            }
-          });
-          
-          setUserCache(newUserCache);
-        }
+  // Handle page change
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
 
-        // Also fetch credit usage summary
-        const summary = await getCreditUsageSummary();
-        setUsageSummary(summary);
-      } catch (error) {
-        console.error('Error fetching credit data:', error);
-        toast.error('Failed to load credit data');
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  // Handle user selection from search
+  const handleUserSelect = (user: User | null) => {
+    setSelectedUser(user);
+    setIsUserFilterActive(!!user);
+    setCurrentPage(1); // Reset to first page when filtering
+  };
 
-    fetchCreditData();
-  }, []);
+  // Handle clearing user filter
+  const handleClearUserFilter = () => {
+    setSelectedUser(null);
+    setIsUserFilterActive(false);
+    setCurrentPage(1);
+  };
 
-  // Get user info from cache
-  const getUserInfo = (userId: number): AdminUser => {
-    return userCache.get(userId) || {
-      id: userId,
-      username: `User #${userId}`,
-      email: 'Unknown'
+  // Handle filter changes with reset to page 1
+  const handleDateFilterChange = (value: string) => {
+    setDateFilter(value);
+    setCurrentPage(1);
+  };
+
+  const handleTransactionTypeFilterChange = (value: string) => {
+    setTransactionTypeFilter(value);
+    setCurrentPage(1);
+  };
+
+  const handleModelFilterChange = (value: string) => {
+    setModelFilter(value);
+    setCurrentPage(1);
+  };
+
+  // Calculate filtered summary stats based on currently displayed transactions
+  const getFilteredSummary = () => {
+    return {
+      totalTransactions: displayedTransactions.length,
+      totalPurchased: displayedTransactions
+        .filter(t => t.transaction_type === 'purchase')
+        .reduce((sum, t) => sum + t.amount, 0),
+      totalConsumed: Math.abs(displayedTransactions
+        .filter(t => t.transaction_type === 'consumption')
+        .reduce((sum, t) => sum + t.amount, 0)),
+      totalRefunded: displayedTransactions
+        .filter(t => t.transaction_type === 'refund')
+        .reduce((sum, t) => sum + t.amount, 0),
+      totalAdjusted: displayedTransactions
+        .filter(t => t.transaction_type === 'admin_adjustment')
+        .reduce((sum, t) => sum + t.amount, 0),
+      totalCostUSD: displayedTransactions
+        .reduce((sum, t) => sum + (t.real_cost_usd || 0), 0)
     };
   };
 
-  // Filter transaction data
-  const filteredTransactions = transactions.filter(transaction => {
-    // Date filter
-    if (dateFilter === 'last7days') {
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      if (new Date(transaction.created_at) < sevenDaysAgo) {
-        return false;
-      }
-    } else if (dateFilter === 'last30days') {
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      if (new Date(transaction.created_at) < thirtyDaysAgo) {
-        return false;
-      }
-    } else if (dateFilter === 'last365days') {
-      const yearAgo = new Date();
-      yearAgo.setFullYear(yearAgo.getFullYear() - 1);
-      if (new Date(transaction.created_at) < yearAgo) {
-        return false;
-      }
-    }
-
-    // User filter
-    if (userFilter !== 'all' && transaction.user_id !== parseInt(userFilter)) {
-      return false;
-    }
-
-    // Transaction type filter
-    if (transactionTypeFilter !== 'all' && transaction.transaction_type !== transactionTypeFilter) {
-      return false;
-    }
-
-    // Model filter
-    if (modelFilter !== 'all' && transaction.ai_model !== modelFilter) {
-      return false;
-    }
-
-    return true;
-  });
-
-  // Get unique users for filter dropdown
-  const uniqueUsers = Array.from(userCache.values());
-
-  // Get unique models
-  const uniqueModels = Array.from(new Set(transactions.map(t => t.ai_model).filter(Boolean)));
-
-  // Calculate filtered summary stats
-  const filteredSummary = {
-    totalTransactions: filteredTransactions.length,
-    totalPurchased: filteredTransactions
-      .filter(t => t.transaction_type === 'purchase')
-      .reduce((sum, t) => sum + t.amount, 0),
-    totalConsumed: Math.abs(filteredTransactions
-      .filter(t => t.transaction_type === 'consumption')
-      .reduce((sum, t) => sum + t.amount, 0)),
-    totalRefunded: filteredTransactions
-      .filter(t => t.transaction_type === 'refund')
-      .reduce((sum, t) => sum + t.amount, 0),
-    totalAdjusted: filteredTransactions
-      .filter(t => t.transaction_type === 'admin_adjustment')
-      .reduce((sum, t) => sum + t.amount, 0),
-    totalCostUSD: filteredTransactions
-      .reduce((sum, t) => sum + (t.real_cost_usd || 0), 0)
-  };
+  const filteredSummary = getFilteredSummary();
 
   return (
     <div className="max-w-6xl mx-auto py-8 px-4">
@@ -181,63 +174,82 @@ const AdminMonitoringPage: React.FC = () => {
       {/* Filters */}
       <div className="bg-white rounded-lg shadow p-6 mb-8">
         <h2 className="text-xl font-semibold mb-4">Filters</h2>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Date Range</label>
-            <select
-              className="w-full px-3 py-2 border rounded-lg"
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-            >
-              <option value="all">All Time</option>
-              <option value="last7days">Last 7 Days</option>
-              <option value="last30days">Last 30 Days</option>
-              <option value="last365days">Last Year</option>
-            </select>
+        <div className="flex flex-col lg:flex-row lg:items-end gap-4">
+          <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Date Range</label>
+              <select
+                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                value={dateFilter}
+                onChange={(e) => {
+                  handleDateFilterChange(e.target.value);
+                }}
+              >
+                <option value="all">All Time</option>
+                <option value="last7days">Last 7 Days</option>
+                <option value="last30days">Last 30 Days</option>
+                <option value="last365days">Last Year</option>
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Filter by User</label>
+              <AdminUserSearch
+                onUserSelect={handleUserSelect}
+                placeholder="Search users..."
+                selectedUser={selectedUser}
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Transaction Type</label>
+              <select
+                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                value={transactionTypeFilter}
+                onChange={(e) => {
+                  handleTransactionTypeFilterChange(e.target.value);
+                }}
+              >
+                <option value="all">All Types</option>
+                <option value="purchase">Purchase</option>
+                <option value="consumption">Consumption</option>
+                <option value="refund">Refund</option>
+                <option value="admin_adjustment">Admin Adjustment</option>
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">AI Model</label>
+              <select
+                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                value={modelFilter}
+                onChange={(e) => {
+                  handleModelFilterChange(e.target.value);
+                }}
+              >
+                <option value="all">All Models</option>
+                {uniqueModels.map(model => (
+                  <option key={model} value={model}>{model}</option>
+                ))}
+              </select>
+            </div>
           </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">User</label>
-            <select
-              className="w-full px-3 py-2 border rounded-lg"
-              value={userFilter}
-              onChange={(e) => setUserFilter(e.target.value)}
+          {isUserFilterActive && (
+            <button
+              onClick={handleClearUserFilter}
+              className="px-3 py-2 text-sm bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200 whitespace-nowrap"
             >
-              <option value="all">All Users</option>
-              {uniqueUsers.map(user => (
-                <option key={user.id} value={user.id}>{user.username}</option>
-              ))}
-            </select>
+              Clear User Filter
+            </button>
+          )}
+        </div>
+        {isUserFilterActive && selectedUser && (
+          <div className="mt-2 text-sm text-gray-600">
+            Filtering by user: <span className="font-medium">{selectedUser.username}</span>
           </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Transaction Type</label>
-            <select
-              className="w-full px-3 py-2 border rounded-lg"
-              value={transactionTypeFilter}
-              onChange={(e) => setTransactionTypeFilter(e.target.value)}
-            >
-              <option value="all">All Types</option>
-              <option value="purchase">Purchase</option>
-              <option value="consumption">Consumption</option>
-              <option value="refund">Refund</option>
-              <option value="admin_adjustment">Admin Adjustment</option>
-            </select>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Model</label>
-            <select
-              className="w-full px-3 py-2 border rounded-lg"
-              value={modelFilter}
-              onChange={(e) => setModelFilter(e.target.value)}
-            >
-              <option value="all">All Models</option>
-              {uniqueModels.map(model => (
-                <option key={model} value={model}>{model}</option>
-              ))}
-            </select>
-          </div>
+        )}
+        <div className="mt-2 text-sm text-gray-500">
+          Showing {displayedTransactions.length} of {totalCount} transactions
         </div>
       </div>
       
@@ -286,53 +298,47 @@ const AdminMonitoringPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredTransactions.length > 0 ? (
-                  filteredTransactions.map((transaction) => {
-                    const userInfo = getUserInfo(transaction.user_id);
-                    return (
-                      <tr key={transaction.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <div className="font-medium text-gray-900">
-                            {userInfo.username}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {userInfo.email}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            transaction.transaction_type === 'purchase' ? 'bg-green-100 text-green-800' :
-                            transaction.transaction_type === 'consumption' ? 'bg-red-100 text-red-800' :
-                            transaction.transaction_type === 'refund' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
-                          }`}>
-                            {transaction.transaction_type === 'purchase' ? 'Purchase' :
-                            transaction.transaction_type === 'consumption' ? 'Consumption' :
-                            transaction.transaction_type === 'refund' ? 'Refund' : 'Admin Adjustment'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <span className={transaction.amount >= 0 ? 'text-green-600' : 'text-red-600'}>
-                            {transaction.amount >= 0 ? '+' : ''}{transaction.amount}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
-                          {transaction.description}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {transaction.ai_model || '-'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {transaction.tokens_used ? transaction.tokens_used.toLocaleString() : '-'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
-                          ${transaction.real_cost_usd?.toFixed(4) || '0.0000'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {new Date(transaction.created_at).toLocaleString()}
-                        </td>
-                      </tr>
-                    );
-                  })
+                {displayedTransactions.length > 0 ? (
+                  displayedTransactions.map((transaction) => (
+                    <tr key={transaction.id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <div className="font-medium text-gray-900">
+                          User ID: {transaction.user_id}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          transaction.transaction_type === 'purchase' ? 'bg-green-100 text-green-800' :
+                          transaction.transaction_type === 'consumption' ? 'bg-red-100 text-red-800' :
+                          transaction.transaction_type === 'refund' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
+                        }`}>
+                          {transaction.transaction_type === 'purchase' ? 'Purchase' :
+                          transaction.transaction_type === 'consumption' ? 'Consumption' :
+                          transaction.transaction_type === 'refund' ? 'Refund' : 'Admin Adjustment'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <span className={transaction.amount >= 0 ? 'text-green-600' : 'text-red-600'}>
+                          {transaction.amount >= 0 ? '+' : ''}{transaction.amount}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
+                        {transaction.description}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {transaction.ai_model || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {transaction.tokens_used ? transaction.tokens_used.toLocaleString() : '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
+                        ${transaction.real_cost_usd?.toFixed(4) || '0.0000'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {new Date(transaction.created_at).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))
                 ) : (
                   <tr>
                     <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
@@ -343,6 +349,16 @@ const AdminMonitoringPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+        )}
+        
+        {/* Pagination */}
+        {!isLoading && totalCount > itemsPerPage && (
+          <Pagination
+            currentPage={currentPage}
+            totalItems={totalCount}
+            itemsPerPage={itemsPerPage}
+            onPageChange={handlePageChange}
+          />
         )}
       </div>
     </div>

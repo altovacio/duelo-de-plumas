@@ -82,6 +82,23 @@ export const getAgents = async (publicOnly?: boolean): Promise<Agent[]> => {
   return response.data;
 };
 
+// Admin: Get agents with pagination and search
+export const getAgentsWithPagination = async (
+  skip: number = 0,
+  limit: number = 25,
+  search?: string,
+  type?: string,
+  owner_id?: number
+): Promise<Agent[]> => {
+  const params: any = { skip, limit };
+  if (search) params.search = search;
+  if (type && type !== 'all') params.type = type;
+  if (owner_id) params.owner_id = owner_id;
+  
+  const response = await apiClient.get('/agents', { params });
+  return response.data;
+};
+
 // Get a specific agent by ID
 export const getAgent = async (id: number): Promise<Agent> => {
   const response = await apiClient.get(`/agents/${id}`);

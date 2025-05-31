@@ -104,6 +104,21 @@ class AgentService:
         return agents
     
     @staticmethod
+    async def search_agents(
+        db: AsyncSession, 
+        search_query: str, 
+        agent_type: Optional[str] = None,
+        owner_id: Optional[int] = None,
+        is_public: Optional[bool] = None,
+        skip: int = 0, 
+        limit: int = 100
+    ) -> List[Agent]:
+        """Search agents using database-level search."""
+        return await AgentRepository.search_agents(
+            db, search_query, agent_type, owner_id, is_public, skip, limit
+        )
+    
+    @staticmethod
     async def update_agent(
         db: AsyncSession, agent_id: int, agent_data: AgentUpdate, current_user_id: int
     ) -> Agent:

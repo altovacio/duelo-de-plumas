@@ -26,6 +26,18 @@ async def get_all_users(
     return await user_service.get_users(skip=skip, limit=limit)
 
 
+@router.get("/users-with-counts", response_model=List[dict])
+async def get_all_users_with_contest_counts(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_admin_user)
+):
+    """Get all users with contest counts using optimized query (admin only)."""
+    user_service = UserService(db)
+    return await user_service.get_users_with_contest_counts(skip=skip, limit=limit)
+
+
 @router.patch("/users/{user_id}/credits", response_model=CreditTransactionResponse)
 async def update_user_credits(
     user_id: int,

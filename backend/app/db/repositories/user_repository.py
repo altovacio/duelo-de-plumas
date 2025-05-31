@@ -1,10 +1,11 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import update, delete
+from sqlalchemy import update, delete, func
 from typing import List
 from datetime import datetime
 
 from app.db.models.user import User
+from app.db.models.contest import Contest
 from app.schemas.user import UserCreate, UserUpdate, UserCredit
 from app.core.security import get_password_hash
 
@@ -34,17 +35,58 @@ class UserRepository:
         
     async def get_all(self, skip: int = 0, limit: int = 100):
         """Get all users with pagination."""
-        result = await self.db.execute(select(User).offset(skip).limit(limit))
+        result = await self.db.execute(select(User).order_by(User.id).offset(skip).limit(limit))
         return result.scalars().all()
         
-    async def search_users(self, query: str, limit: int = 10):
-        """Search users by username or email."""
+    async def get_all_with_contest_counts(self, skip: int = 0, limit: int = 100):
+        """Get all users with their contest counts using a single optimized query."""
+        # Use a left join to get users and count their contests
+        query = (
+            select(
+                User.id,
+                User.username,
+                User.email,
+                User.is_admin,
+                User.credits,
+                User.created_at,
+                User.last_login,
+                func.count(Contest.id).label('contests_created')
+            )
+            .outerjoin(Contest, User.id == Contest.creator_id)
+            .group_by(User.id, User.username, User.email, User.is_admin, User.credits, User.created_at, User.last_login)
+            .order_by(User.id)
+            .offset(skip)
+            .limit(limit)
+        )
+        
+        result = await self.db.execute(query)
+        rows = result.fetchall()
+        
+        # Convert rows to user-like objects with contest counts
+        users = []
+        for row in rows:
+            user_dict = {
+                'id': row.id,
+                'username': row.username,
+                'email': row.email,
+                'is_admin': row.is_admin,
+                'credits': row.credits,
+                'created_at': row.created_at,
+                'last_login': row.last_login,
+                'contests_created': row.contests_created
+            }
+            users.append(user_dict)
+        
+        return users
+        
+    async def search_users(self, query: str, skip: int = 0, limit: int = 10):
+        """Search users by username or email with pagination."""
         search_pattern = f"%{query}%"
         result = await self.db.execute(
             select(User).where(
                 (User.username.ilike(search_pattern)) | 
                 (User.email.ilike(search_pattern))
-            ).limit(limit)
+            ).order_by(User.id).offset(skip).limit(limit)
         )
         return result.scalars().all()
         

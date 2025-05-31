@@ -44,6 +44,27 @@ export const getCreditsTransactions = async (
   return response.data;
 };
 
+// Admin: Get credit transactions with pagination
+export const getCreditsTransactionsWithPagination = async (
+  skip: number = 0,
+  limit: number = 25,
+  userId?: number,
+  transactionType?: string,
+  aiModel?: string,
+  dateFrom?: string,
+  dateTo?: string
+): Promise<CreditTransaction[]> => {
+  const params: any = { skip, limit };
+  if (userId) params.user_id = userId;
+  if (transactionType && transactionType !== 'all') params.transaction_type = transactionType;
+  if (aiModel && aiModel !== 'all') params.ai_model = aiModel;
+  if (dateFrom) params.date_from = dateFrom;
+  if (dateTo) params.date_to = dateTo;
+  
+  const response = await apiClient.get('/admin/credits/transactions', { params });
+  return response.data;
+};
+
 // Admin only: Get credit usage summary across the system
 export const getCreditUsageSummary = async (): Promise<CreditUsageSummary> => {
   const response = await apiClient.get('/admin/credits/usage');

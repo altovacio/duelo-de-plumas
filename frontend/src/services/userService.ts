@@ -41,18 +41,46 @@ export const getCurrentUser = async (): Promise<User> => {
 
 // Function for an admin to delete a user
 export const deleteUserByAdmin = async (userId: number): Promise<void> => {
-  await apiClient.delete(`/users/${userId}`);
+  await apiClient.delete(`/admin/users/${userId}`);
   // No explicit return, will resolve to undefined on success or throw an error on failure
 };
 
-// Function for an admin to get all users
-export const getAdminUsers = async (): Promise<User[]> => {
-  const response = await apiClient.get('/admin/users');
+// Function for an admin to get all users with pagination
+export const getAdminUsers = async (skip: number = 0, limit: number = 100): Promise<User[]> => {
+  const response = await apiClient.get('/admin/users', { 
+    params: { skip, limit } 
+  });
+  return response.data;
+};
+
+// Function for an admin to get all users with contest counts (optimized)
+export const getAdminUsersWithCounts = async (skip: number = 0, limit: number = 100): Promise<User[]> => {
+  const response = await apiClient.get('/admin/users-with-counts', { 
+    params: { skip, limit } 
+  });
+  return response.data;
+};
+
+// Function for admin to search users with pagination
+export const searchAdminUsers = async (query: string, skip: number = 0, limit: number = 100): Promise<User[]> => {
+  const response = await apiClient.get('/users/search', { 
+    params: { 
+      username: query,
+      skip,
+      limit 
+    } 
+  });
   return response.data;
 };
 
 // Function for an admin to get a single user by ID
 export const getAdminUserById = async (userId: number): Promise<User> => {
   const response = await apiClient.get(`/users/${userId}`);
+  return response.data;
+};
+
+// Update user profile
+export const updateUserProfile = async (userData: Partial<User>): Promise<User> => {
+  const response = await apiClient.put('/users/me', userData);
   return response.data;
 }; 

@@ -44,12 +44,14 @@ async def get_users(
 @router.get("/search", response_model=List[UserResponse])
 async def search_users(
     username: str = Query(..., description="Username to search for"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_current_user)
 ):
-    """Search for users by username."""
+    """Search for users by username with pagination."""
     user_repo = UserRepository(db)
-    users = await user_repo.search_users(username)
+    users = await user_repo.search_users(username, skip, limit)
     return users
 
 @router.post("/by-ids", response_model=List[UserAdminResponse])

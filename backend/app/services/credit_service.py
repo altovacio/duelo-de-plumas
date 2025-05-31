@@ -129,6 +129,20 @@ class CreditService:
         return transactions
     
     @staticmethod
+    async def filter_transactions_with_user_info(
+        db: AsyncSession, filters: CreditTransactionFilter, skip: int = 0, limit: int = 100
+    ) -> List[dict]:
+        """Filter credit transactions with user information."""
+        return await CreditRepository.filter_transactions_with_user_info(db, filters, skip, limit)
+    
+    @staticmethod
+    async def get_filtered_summary_stats(
+        db: AsyncSession, filters: CreditTransactionFilter
+    ) -> dict:
+        """Get summary statistics for filtered transactions."""
+        return await CreditRepository.get_filtered_summary_stats(db, filters)
+    
+    @staticmethod
     async def get_credit_usage_summary(db: AsyncSession) -> CreditUsageSummary:
         """Get a summary of credit usage across the system."""
         return await CreditRepository.get_credit_usage_summary(db)

@@ -1,14 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import BackButton from '../../components/ui/BackButton';
-import { getCreditsTransactionsWithPagination, type CreditTransaction } from '../../services/creditService';
+import { 
+  getCreditsTransactionsWithPagination, 
+  getFilteredSummaryStats,
+  type CreditTransactionWithUser,
+  type FilteredSummaryStats 
+} from '../../services/creditService';
 import { User } from '../../services/userService';
 import Pagination from '../../components/shared/Pagination';
 import AdminUserSearch from '../../components/shared/AdminUserSearch';
 
 const AdminMonitoringPage: React.FC = () => {
   // Data state
-  const [displayedTransactions, setDisplayedTransactions] = useState<CreditTransaction[]>([]);
+  const [displayedTransactions, setDisplayedTransactions] = useState<CreditTransactionWithUser[]>([]);
+  const [summaryStats, setSummaryStats] = useState<FilteredSummaryStats>({
+    total_purchased: 0,
+    total_consumed: 0,
+    total_refunded: 0,
+    total_adjusted: 0,
+    total_cost_usd: 0,
+    total_transactions: 0
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   
@@ -24,8 +37,8 @@ const AdminMonitoringPage: React.FC = () => {
   const [modelFilter, setModelFilter] = useState<string>('all');
   const [uniqueModels, setUniqueModels] = useState<string[]>([]);
 
-  // Fetch transactions with current filters and pagination
-  const fetchTransactions = async () => {
+  // Fetch transactions and summary stats with current filters and pagination
+  const fetchData = async () => {
     setIsLoading(true);
     try {
       const skip = (currentPage - 1) * itemsPerPage;
@@ -46,6 +59,7 @@ const AdminMonitoringPage: React.FC = () => {
         dateFrom = yearAgo.toISOString();
       }
 
+      // Fetch transactions for current page
       const transactions = await getCreditsTransactionsWithPagination(
         skip,
         itemsPerPage,
@@ -56,7 +70,18 @@ const AdminMonitoringPage: React.FC = () => {
         undefined // dateTo
       );
       
+      // Fetch summary stats for ALL matching transactions (not just current page)
+      const stats = await getFilteredSummaryStats(
+        isUserFilterActive && selectedUser ? selectedUser.id : undefined,
+        transactionTypeFilter !== 'all' ? transactionTypeFilter : undefined,
+        modelFilter !== 'all' ? modelFilter : undefined,
+        dateFrom,
+        undefined // dateTo
+      );
+      
       setDisplayedTransactions(transactions);
+      setSummaryStats(stats);
+      
       // Note: For now we'll estimate total count since backend doesn't return it
       setTotalCount(transactions.length === itemsPerPage ? (currentPage * itemsPerPage) + 1 : skip + transactions.length);
 
@@ -71,9 +96,9 @@ const AdminMonitoringPage: React.FC = () => {
     }
   };
 
-  // Fetch transactions whenever filters or pagination change
+  // Fetch data whenever filters or pagination change
   useEffect(() => {
-    fetchTransactions();
+    fetchData();
   }, [currentPage, dateFilter, selectedUser, isUserFilterActive, transactionTypeFilter, modelFilter]);
 
   // Handle page change
@@ -111,29 +136,6 @@ const AdminMonitoringPage: React.FC = () => {
     setCurrentPage(1);
   };
 
-  // Calculate filtered summary stats based on currently displayed transactions
-  const getFilteredSummary = () => {
-    return {
-      totalTransactions: displayedTransactions.length,
-      totalPurchased: displayedTransactions
-        .filter(t => t.transaction_type === 'purchase')
-        .reduce((sum, t) => sum + t.amount, 0),
-      totalConsumed: Math.abs(displayedTransactions
-        .filter(t => t.transaction_type === 'consumption')
-        .reduce((sum, t) => sum + t.amount, 0)),
-      totalRefunded: displayedTransactions
-        .filter(t => t.transaction_type === 'refund')
-        .reduce((sum, t) => sum + t.amount, 0),
-      totalAdjusted: displayedTransactions
-        .filter(t => t.transaction_type === 'admin_adjustment')
-        .reduce((sum, t) => sum + t.amount, 0),
-      totalCostUSD: displayedTransactions
-        .reduce((sum, t) => sum + (t.real_cost_usd || 0), 0)
-    };
-  };
-
-  const filteredSummary = getFilteredSummary();
-
   return (
     <div className="max-w-6xl mx-auto py-8 px-4">
       <div className="flex justify-between items-center mb-8">
@@ -147,27 +149,27 @@ const AdminMonitoringPage: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-sm font-medium text-gray-500 uppercase mb-2">Total Purchased</h2>
-          <p className="text-3xl font-bold text-green-600">{filteredSummary.totalPurchased.toLocaleString()}</p>
+          <p className="text-3xl font-bold text-green-600">{summaryStats.total_purchased.toLocaleString()}</p>
         </div>
         
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-sm font-medium text-gray-500 uppercase mb-2">Total Consumed</h2>
-          <p className="text-3xl font-bold text-red-600">{filteredSummary.totalConsumed.toLocaleString()}</p>
+          <p className="text-3xl font-bold text-red-600">{summaryStats.total_consumed.toLocaleString()}</p>
         </div>
         
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-sm font-medium text-gray-500 uppercase mb-2">Total Refunded</h2>
-          <p className="text-3xl font-bold text-blue-600">{filteredSummary.totalRefunded.toLocaleString()}</p>
+          <p className="text-3xl font-bold text-blue-600">{summaryStats.total_refunded.toLocaleString()}</p>
         </div>
         
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-sm font-medium text-gray-500 uppercase mb-2">Admin Adjusted</h2>
-          <p className="text-3xl font-bold text-purple-600">{filteredSummary.totalAdjusted.toLocaleString()}</p>
+          <p className="text-3xl font-bold text-purple-600">{summaryStats.total_adjusted.toLocaleString()}</p>
         </div>
         
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-sm font-medium text-gray-500 uppercase mb-2">Total AI Cost (USD)</h2>
-          <p className="text-3xl font-bold text-gray-600">${filteredSummary.totalCostUSD.toFixed(4)}</p>
+          <p className="text-3xl font-bold text-gray-600">${summaryStats.total_cost_usd.toFixed(4)}</p>
         </div>
       </div>
       
@@ -249,7 +251,7 @@ const AdminMonitoringPage: React.FC = () => {
           </div>
         )}
         <div className="mt-2 text-sm text-gray-500">
-          Showing {displayedTransactions.length} of {totalCount} transactions
+          Showing {displayedTransactions.length} of {totalCount} transactions | Total matching filters: {summaryStats.total_transactions}
         </div>
       </div>
       
@@ -263,7 +265,7 @@ const AdminMonitoringPage: React.FC = () => {
           <div className="flex justify-center items-center h-32">
             <svg className="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
           </div>
         ) : (
@@ -303,7 +305,10 @@ const AdminMonitoringPage: React.FC = () => {
                     <tr key={transaction.id}>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <div className="font-medium text-gray-900">
-                          User ID: {transaction.user_id}
+                          {transaction.username}
+                        </div>
+                        <div className="text-gray-500 text-xs">
+                          {transaction.email}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">

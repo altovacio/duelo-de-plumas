@@ -21,9 +21,23 @@ export interface CreditUsageSummary {
   total_real_cost_usd: number;
 }
 
+export interface CreditTransactionWithUser extends CreditTransaction {
+  username: string;
+  email: string;
+}
+
+export interface FilteredSummaryStats {
+  total_purchased: number;
+  total_consumed: number;
+  total_refunded: number;
+  total_adjusted: number;
+  total_cost_usd: number;
+  total_transactions: number;
+}
+
 // Get credit transactions for the current user
 export const getUserCreditTransactions = async (): Promise<CreditTransaction[]> => {
-  const response = await apiClient.get('/dashboard/credits/transactions');
+  const response = await apiClient.get('/users/me/credits/transactions');
   return response.data;
 };
 
@@ -48,20 +62,20 @@ export const getCreditsTransactions = async (
 export const getCreditsTransactionsWithPagination = async (
   skip: number = 0,
   limit: number = 25,
-  userId?: number,
-  transactionType?: string,
-  aiModel?: string,
-  dateFrom?: string,
-  dateTo?: string
-): Promise<CreditTransaction[]> => {
+  user_id?: number,
+  transaction_type?: string,
+  ai_model?: string,
+  date_from?: string,
+  date_to?: string
+): Promise<CreditTransactionWithUser[]> => {
   const params: any = { skip, limit };
-  if (userId) params.user_id = userId;
-  if (transactionType && transactionType !== 'all') params.transaction_type = transactionType;
-  if (aiModel && aiModel !== 'all') params.ai_model = aiModel;
-  if (dateFrom) params.date_from = dateFrom;
-  if (dateTo) params.date_to = dateTo;
-  
-  const response = await apiClient.get('/admin/credits/transactions', { params });
+  if (user_id) params.user_id = user_id;
+  if (transaction_type) params.transaction_type = transaction_type;
+  if (ai_model) params.ai_model = ai_model;
+  if (date_from) params.date_from = date_from;
+  if (date_to) params.date_to = date_to;
+
+  const response = await apiClient.get('/admin/credits/transactions-with-users', { params });
   return response.data;
 };
 
@@ -82,4 +96,45 @@ export const updateUserCredits = async (userId: number, amount: number, descript
     console.error("Error updating user credits:", error);
     throw error;
   }
+};
+
+export const getCreditTransactions = async (
+  skip: number = 0,
+  limit: number = 100,
+  filters: {
+    user_id?: number;
+    transaction_type?: string;
+    ai_model?: string;
+    date_from?: string;
+    date_to?: string;
+  } = {}
+): Promise<CreditTransaction[]> => {
+  const params: any = { skip, limit };
+  if (filters.user_id) params.user_id = filters.user_id;
+  if (filters.transaction_type) params.transaction_type = filters.transaction_type;
+  if (filters.ai_model) params.ai_model = filters.ai_model;
+  if (filters.date_from) params.date_from = filters.date_from;
+  if (filters.date_to) params.date_to = filters.date_to;
+
+  const response = await apiClient.get('/admin/credits/transactions', { params });
+  return response.data;
+};
+
+// Admin: Get filtered summary statistics
+export const getFilteredSummaryStats = async (
+  user_id?: number,
+  transaction_type?: string,
+  ai_model?: string,
+  date_from?: string,
+  date_to?: string
+): Promise<FilteredSummaryStats> => {
+  const params: any = {};
+  if (user_id) params.user_id = user_id;
+  if (transaction_type) params.transaction_type = transaction_type;
+  if (ai_model) params.ai_model = ai_model;
+  if (date_from) params.date_from = date_from;
+  if (date_to) params.date_to = date_to;
+
+  const response = await apiClient.get('/admin/credits/summary-stats', { params });
+  return response.data;
 }; 

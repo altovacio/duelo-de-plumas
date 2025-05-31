@@ -1,7 +1,8 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, desc, select, text
+from sqlalchemy.orm import selectinload
 
 from app.db.models.credit_transaction import CreditTransaction
 from app.db.models.user import User
@@ -66,6 +67,111 @@ class CreditRepository:
         stmt = stmt.order_by(desc(CreditTransaction.created_at)).offset(skip).limit(limit)
         result = await db.execute(stmt)
         return result.scalars().all()
+    
+    @staticmethod
+    async def filter_transactions_with_user_info(
+        db: AsyncSession,
+        filters: CreditTransactionFilter,
+        skip: int = 0,
+        limit: int = 100
+    ) -> List[Dict[str, Any]]:
+        """Filter credit transactions with user information."""
+        stmt = (
+            select(
+                CreditTransaction.id,
+                CreditTransaction.user_id,
+                CreditTransaction.amount,
+                CreditTransaction.transaction_type,
+                CreditTransaction.description,
+                CreditTransaction.ai_model,
+                CreditTransaction.tokens_used,
+                CreditTransaction.real_cost_usd,
+                CreditTransaction.created_at,
+                User.username,
+                User.email
+            )
+            .join(User, User.id == CreditTransaction.user_id)
+        )
+        
+        if filters.user_id:
+            stmt = stmt.filter(CreditTransaction.user_id == filters.user_id)
+        
+        if filters.transaction_type:
+            stmt = stmt.filter(CreditTransaction.transaction_type == filters.transaction_type)
+        
+        if filters.ai_model:
+            stmt = stmt.filter(CreditTransaction.ai_model == filters.ai_model)
+        
+        if filters.date_from:
+            stmt = stmt.filter(CreditTransaction.created_at >= filters.date_from)
+        
+        if filters.date_to:
+            stmt = stmt.filter(CreditTransaction.created_at <= filters.date_to)
+        
+        stmt = stmt.order_by(desc(CreditTransaction.created_at)).offset(skip).limit(limit)
+        result = await db.execute(stmt)
+        
+        # Convert to list of dictionaries
+        transactions = []
+        for row in result.all():
+            transactions.append({
+                'id': row.id,
+                'user_id': row.user_id,
+                'amount': row.amount,
+                'transaction_type': row.transaction_type,
+                'description': row.description,
+                'ai_model': row.ai_model,
+                'tokens_used': row.tokens_used,
+                'real_cost_usd': row.real_cost_usd,
+                'created_at': row.created_at,
+                'username': row.username,
+                'email': row.email
+            })
+        
+        return transactions
+    
+    @staticmethod
+    async def get_filtered_summary_stats(
+        db: AsyncSession,
+        filters: CreditTransactionFilter
+    ) -> Dict[str, Any]:
+        """Get summary statistics for filtered transactions."""
+        base_stmt = select(CreditTransaction)
+        
+        # Apply same filters as the main query
+        if filters.user_id:
+            base_stmt = base_stmt.filter(CreditTransaction.user_id == filters.user_id)
+        
+        if filters.transaction_type:
+            base_stmt = base_stmt.filter(CreditTransaction.transaction_type == filters.transaction_type)
+        
+        if filters.ai_model:
+            base_stmt = base_stmt.filter(CreditTransaction.ai_model == filters.ai_model)
+        
+        if filters.date_from:
+            base_stmt = base_stmt.filter(CreditTransaction.created_at >= filters.date_from)
+        
+        if filters.date_to:
+            base_stmt = base_stmt.filter(CreditTransaction.created_at <= filters.date_to)
+        
+        # Calculate summary stats
+        result = await db.execute(base_stmt)
+        transactions = result.scalars().all()
+        
+        total_purchased = sum(t.amount for t in transactions if t.transaction_type == 'purchase')
+        total_consumed = abs(sum(t.amount for t in transactions if t.transaction_type == 'consumption'))
+        total_refunded = sum(t.amount for t in transactions if t.transaction_type == 'refund')
+        total_adjusted = sum(t.amount for t in transactions if t.transaction_type == 'admin_adjustment')
+        total_cost_usd = sum(t.real_cost_usd or 0 for t in transactions)
+        
+        return {
+            'total_purchased': total_purchased,
+            'total_consumed': total_consumed,
+            'total_refunded': total_refunded,
+            'total_adjusted': total_adjusted,
+            'total_cost_usd': total_cost_usd,
+            'total_transactions': len(transactions)
+        }
     
     @staticmethod
     async def get_credit_usage_summary(db: AsyncSession) -> CreditUsageSummary:

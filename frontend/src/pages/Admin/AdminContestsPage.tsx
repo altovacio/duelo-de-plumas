@@ -36,9 +36,9 @@ const AdminContestsPage: React.FC = () => {
   const [contestToEdit, setContestToEdit] = useState<Contest | null>(null);
 
   // Fetch contests with current filters and pagination
-  const fetchContests = async () => {
-    setIsLoading(true);
-    try {
+    const fetchContests = async () => {
+      setIsLoading(true);
+      try {
       const skip = (currentPage - 1) * itemsPerPage;
       const contests = await getContestsWithPagination(
         skip,
@@ -52,13 +52,13 @@ const AdminContestsPage: React.FC = () => {
       setDisplayedContests(contests);
       // Note: For now we'll estimate total count since backend doesn't return it
       setTotalCount(contests.length === itemsPerPage ? (currentPage * itemsPerPage) + 1 : skip + contests.length);
-    } catch (error) {
-      console.error('Error fetching contests:', error);
-      toast.error('Failed to load contests');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      } catch (error) {
+        console.error('Error fetching contests:', error);
+        toast.error('Failed to load contests');
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
   // Fetch contests whenever filters or pagination change
   useEffect(() => {
@@ -158,37 +158,37 @@ const AdminContestsPage: React.FC = () => {
         <h2 className="text-xl font-semibold mb-4">Filters</h2>
         <div className="flex flex-col lg:flex-row lg:items-end gap-4">
           <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
                 Search Contests
-              </label>
-              <input
-                type="text"
-                placeholder="Search by title or description..."
+            </label>
+            <input
+              type="text"
+              placeholder="Search by title or description..."
                 className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                value={searchQuery}
+              value={searchQuery}
                 onChange={(e) => {
                   handleSearchChange(e.target.value);
                 }}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Status
-              </label>
-              <select
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Status
+            </label>
+            <select
                 className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                value={statusFilter}
+              value={statusFilter}
                 onChange={(e) => {
                   handleStatusFilterChange(e.target.value);
                 }}
-              >
-                <option value="all">All Statuses</option>
-                <option value="open">Open</option>
-                <option value="evaluation">Evaluation</option>
-                <option value="closed">Closed</option>
-              </select>
-            </div>
+            >
+              <option value="all">All Statuses</option>
+              <option value="open">Open</option>
+              <option value="evaluation">Evaluation</option>
+              <option value="closed">Closed</option>
+            </select>
+          </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Filter by Creator
@@ -199,38 +199,38 @@ const AdminContestsPage: React.FC = () => {
                 selectedUser={selectedUser}
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Date Range
-              </label>
-              <select
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Date Range
+            </label>
+            <select
                 className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                value={dateFilter}
+              value={dateFilter}
                 onChange={(e) => {
                   handleDateFilterChange(e.target.value);
                 }}
-              >
-                <option value="all">All Time</option>
-                <option value="last7days">Last 7 Days</option>
-                <option value="last30days">Last 30 Days</option>
-                <option value="last365days">Last Year</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Date Type
-              </label>
-              <select
+            >
+              <option value="all">All Time</option>
+              <option value="last7days">Last 7 Days</option>
+              <option value="last30days">Last 30 Days</option>
+              <option value="last365days">Last Year</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Date Type
+            </label>
+            <select
                 className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                value={dateType}
+              value={dateType}
                 onChange={(e) => {
                   handleDateTypeChange(e.target.value);
                 }}
-              >
-                <option value="created">Created Date</option>
-                <option value="updated">Last Updated</option>
-              </select>
-            </div>
+            >
+              <option value="created">Created Date</option>
+              <option value="updated">Last Updated</option>
+            </select>
+          </div>
           </div>
           {isUserFilterActive && (
             <button

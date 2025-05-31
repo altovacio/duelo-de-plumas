@@ -143,7 +143,7 @@ class AgentRepository:
         ).order_by(AgentExecution.created_at.desc()).limit(1)
         
         result = await db.execute(stmt)
-        return result.scalar_one_or_none()
+        return result.scalar_one_or_none() 
     
     @staticmethod
     async def search_agents(

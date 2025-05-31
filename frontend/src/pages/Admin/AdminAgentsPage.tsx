@@ -27,11 +27,11 @@ const AdminAgentsPage: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
-
+  
   // Fetch agents with current filters and pagination
-  const fetchAgents = async () => {
-    setIsLoading(true);
-    try {
+    const fetchAgents = async () => {
+      setIsLoading(true);
+      try {
       const skip = (currentPage - 1) * itemsPerPage;
       const agents = await getAgentsWithPagination(
         skip,
@@ -44,13 +44,13 @@ const AdminAgentsPage: React.FC = () => {
       // Note: For now we'll estimate total count since backend doesn't return it
       // In a production app, we'd modify the backend to return total count
       setTotalCount(agents.length === itemsPerPage ? (currentPage * itemsPerPage) + 1 : skip + agents.length);
-    } catch (error) {
-      console.error('Error fetching agents:', error);
-      toast.error('Failed to load AI agents');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      } catch (error) {
+        console.error('Error fetching agents:', error);
+        toast.error('Failed to load AI agents');
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
   // Fetch agents whenever filters or pagination change
   useEffect(() => {
@@ -154,36 +154,36 @@ const AdminAgentsPage: React.FC = () => {
         <div className="p-4 border-b">
           <div className="flex flex-col lg:flex-row lg:items-end gap-4">
             <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                   Search Agents
-                </label>
-                <input
-                  type="text"
+              </label>
+              <input
+                type="text"
                   placeholder="Search by name or description..."
                   className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  value={searchQuery}
+                value={searchQuery}
                   onChange={(e) => handleSearchChange(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                   Agent Type
-                </label>
-                <select
+              </label>
+              <select
                   className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  value={typeFilter}
+                value={typeFilter}
                   onChange={(e) => handleTypeFilterChange(e.target.value)}
-                >
-                  <option value="all">All Types</option>
-                  <option value="writer">Writers</option>
-                  <option value="judge">Judges</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+              >
+                <option value="all">All Types</option>
+                <option value="writer">Writers</option>
+                <option value="judge">Judges</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                   Filter by Owner
-                </label>
+              </label>
                 <AdminUserSearch
                   onUserSelect={handleUserSelect}
                   placeholder="Search users..."

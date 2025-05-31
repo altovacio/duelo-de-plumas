@@ -721,7 +721,7 @@ class ContestRepository:
             
             contest_dicts.append(contest_data)
         
-        return contest_dicts
+        return contest_dicts 
     
     @staticmethod
     async def search_contests(

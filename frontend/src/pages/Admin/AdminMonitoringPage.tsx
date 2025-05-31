@@ -36,11 +36,11 @@ const AdminMonitoringPage: React.FC = () => {
   const [transactionTypeFilter, setTransactionTypeFilter] = useState<string>('all');
   const [modelFilter, setModelFilter] = useState<string>('all');
   const [uniqueModels, setUniqueModels] = useState<string[]>([]);
-
+  
   // Fetch transactions and summary stats with current filters and pagination
   const fetchData = async () => {
-    setIsLoading(true);
-    try {
+      setIsLoading(true);
+      try {
       const skip = (currentPage - 1) * itemsPerPage;
       
       // Calculate date range for filtering
@@ -69,7 +69,7 @@ const AdminMonitoringPage: React.FC = () => {
         dateFrom,
         undefined // dateTo
       );
-      
+          
       // Fetch summary stats for ALL matching transactions (not just current page)
       const stats = await getFilteredSummaryStats(
         isUserFilterActive && selectedUser ? selectedUser.id : undefined,
@@ -88,13 +88,13 @@ const AdminMonitoringPage: React.FC = () => {
       // Extract unique models for filter dropdown
       const models = Array.from(new Set(transactions.map(t => t.ai_model).filter((model): model is string => Boolean(model))));
       setUniqueModels(models);
-    } catch (error) {
-      console.error('Error fetching credit data:', error);
-      toast.error('Failed to load credit data');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      } catch (error) {
+        console.error('Error fetching credit data:', error);
+        toast.error('Failed to load credit data');
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
   // Fetch data whenever filters or pagination change
   useEffect(() => {
@@ -178,63 +178,63 @@ const AdminMonitoringPage: React.FC = () => {
         <h2 className="text-xl font-semibold mb-4">Filters</h2>
         <div className="flex flex-col lg:flex-row lg:items-end gap-4">
           <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Date Range</label>
-              <select
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Date Range</label>
+            <select
                 className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                value={dateFilter}
+              value={dateFilter}
                 onChange={(e) => {
                   handleDateFilterChange(e.target.value);
                 }}
-              >
-                <option value="all">All Time</option>
-                <option value="last7days">Last 7 Days</option>
-                <option value="last30days">Last 30 Days</option>
-                <option value="last365days">Last Year</option>
-              </select>
-            </div>
-            
-            <div>
+            >
+              <option value="all">All Time</option>
+              <option value="last7days">Last 7 Days</option>
+              <option value="last30days">Last 30 Days</option>
+              <option value="last365days">Last Year</option>
+            </select>
+          </div>
+          
+          <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Filter by User</label>
               <AdminUserSearch
                 onUserSelect={handleUserSelect}
                 placeholder="Search users..."
                 selectedUser={selectedUser}
               />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Transaction Type</label>
-              <select
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Transaction Type</label>
+            <select
                 className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                value={transactionTypeFilter}
+              value={transactionTypeFilter}
                 onChange={(e) => {
                   handleTransactionTypeFilterChange(e.target.value);
                 }}
-              >
-                <option value="all">All Types</option>
-                <option value="purchase">Purchase</option>
-                <option value="consumption">Consumption</option>
-                <option value="refund">Refund</option>
-                <option value="admin_adjustment">Admin Adjustment</option>
-              </select>
-            </div>
-            
-            <div>
+            >
+              <option value="all">All Types</option>
+              <option value="purchase">Purchase</option>
+              <option value="consumption">Consumption</option>
+              <option value="refund">Refund</option>
+              <option value="admin_adjustment">Admin Adjustment</option>
+            </select>
+          </div>
+          
+          <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">AI Model</label>
-              <select
+            <select
                 className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                value={modelFilter}
+              value={modelFilter}
                 onChange={(e) => {
                   handleModelFilterChange(e.target.value);
                 }}
-              >
-                <option value="all">All Models</option>
-                {uniqueModels.map(model => (
-                  <option key={model} value={model}>{model}</option>
-                ))}
-              </select>
-            </div>
+            >
+              <option value="all">All Models</option>
+              {uniqueModels.map(model => (
+                <option key={model} value={model}>{model}</option>
+              ))}
+            </select>
+          </div>
           </div>
           {isUserFilterActive && (
             <button
@@ -302,47 +302,47 @@ const AdminMonitoringPage: React.FC = () => {
               <tbody className="bg-white divide-y divide-gray-200">
                 {displayedTransactions.length > 0 ? (
                   displayedTransactions.map((transaction) => (
-                    <tr key={transaction.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <div className="font-medium text-gray-900">
+                      <tr key={transaction.id}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <div className="font-medium text-gray-900">
                           {transaction.username}
-                        </div>
+                          </div>
                         <div className="text-gray-500 text-xs">
                           {transaction.email}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          transaction.transaction_type === 'purchase' ? 'bg-green-100 text-green-800' :
-                          transaction.transaction_type === 'consumption' ? 'bg-red-100 text-red-800' :
-                          transaction.transaction_type === 'refund' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
-                        }`}>
-                          {transaction.transaction_type === 'purchase' ? 'Purchase' :
-                          transaction.transaction_type === 'consumption' ? 'Consumption' :
-                          transaction.transaction_type === 'refund' ? 'Refund' : 'Admin Adjustment'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <span className={transaction.amount >= 0 ? 'text-green-600' : 'text-red-600'}>
-                          {transaction.amount >= 0 ? '+' : ''}{transaction.amount}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
-                        {transaction.description}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {transaction.ai_model || '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {transaction.tokens_used ? transaction.tokens_used.toLocaleString() : '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
-                        ${transaction.real_cost_usd?.toFixed(4) || '0.0000'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(transaction.created_at).toLocaleString()}
-                      </td>
-                    </tr>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            transaction.transaction_type === 'purchase' ? 'bg-green-100 text-green-800' :
+                            transaction.transaction_type === 'consumption' ? 'bg-red-100 text-red-800' :
+                            transaction.transaction_type === 'refund' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
+                          }`}>
+                            {transaction.transaction_type === 'purchase' ? 'Purchase' :
+                            transaction.transaction_type === 'consumption' ? 'Consumption' :
+                            transaction.transaction_type === 'refund' ? 'Refund' : 'Admin Adjustment'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <span className={transaction.amount >= 0 ? 'text-green-600' : 'text-red-600'}>
+                            {transaction.amount >= 0 ? '+' : ''}{transaction.amount}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
+                          {transaction.description}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {transaction.ai_model || '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {transaction.tokens_used ? transaction.tokens_used.toLocaleString() : '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
+                          ${transaction.real_cost_usd?.toFixed(4) || '0.0000'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {new Date(transaction.created_at).toLocaleString()}
+                        </td>
+                      </tr>
                   ))
                 ) : (
                   <tr>

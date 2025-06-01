@@ -4,6 +4,8 @@ export interface User {
   email: string;
   is_admin: boolean;
   credits: number;
+  created_at?: string;
+  last_login?: string | null;
 }
 
 export interface AuthTokens {

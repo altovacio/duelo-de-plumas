@@ -13,6 +13,8 @@ import ContestDetailPage from './pages/ContestDetail/ContestDetailPage';
 import DashboardPage from './pages/Dashboard/DashboardPage';
 import AIWriterPage from './pages/Dashboard/AIWriterPage';
 import MarkdownEditorPage from './pages/Dashboard/MarkdownEditorPage';
+import ProfilePage from './pages/Profile/ProfilePage';
+import OnboardingPage from './pages/Onboarding/OnboardingPage';
 
 // Import admin components
 import AdminDashboardPage from './pages/Admin/AdminDashboardPage';
@@ -52,6 +54,8 @@ function App() {
           <Route path="/dashboard" element={<MainLayout><DashboardPage /></MainLayout>} />
           <Route path="/ai-writer" element={<MainLayout><AIWriterPage /></MainLayout>} />
           <Route path="/editor" element={<MainLayout><MarkdownEditorPage /></MainLayout>} />
+          <Route path="/profile" element={<MainLayout><ProfilePage /></MainLayout>} />
+          <Route path="/onboarding" element={<MainLayout><OnboardingPage /></MainLayout>} />
         </Route>
 
         {/* Admin routes - require admin role */}

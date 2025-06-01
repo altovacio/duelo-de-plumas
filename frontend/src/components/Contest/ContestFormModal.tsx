@@ -45,6 +45,34 @@ const ContestFormModal: React.FC<ContestFormModalProps> = ({
   },
   isEditing = false,
 }) => {
+  // Helper function to format date for datetime-local input
+  const formatDateForInput = (isoString: string | null | undefined): string => {
+    if (!isoString) return '';
+    try {
+      const date = new Date(isoString);
+      // Format to YYYY-MM-DDTHH:MM (datetime-local format)
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    } catch {
+      return '';
+    }
+  };
+
+  // Helper function to format date for API (ISO format)
+  const formatDateForAPI = (dateTimeLocal: string): string => {
+    if (!dateTimeLocal) return '';
+    try {
+      const date = new Date(dateTimeLocal);
+      return date.toISOString();
+    } catch {
+      return '';
+    }
+  };
+
   // Track if this is the first render or if isOpen changed
   const firstRender = useRef(true);
   const wasOpen = useRef(isOpen);
@@ -54,7 +82,7 @@ const ContestFormModal: React.FC<ContestFormModalProps> = ({
   const [passwordProtected, setPasswordProtected] = useState(initialContest.password_protected);
   const [publiclyListed, setPubliclyListed] = useState(initialContest.publicly_listed);
   const [password, setPassword] = useState(initialContest.password || '');
-  const [endDate, setEndDate] = useState(initialContest.end_date || '');
+  const [endDate, setEndDate] = useState(formatDateForInput(initialContest.end_date));
   const [judgeRestrictions, setJudgeRestrictions] = useState(initialContest.judge_restrictions || false);
   const [authorRestrictions, setAuthorRestrictions] = useState(initialContest.author_restrictions || false);
   const [minVotesRequired, setMinVotesRequired] = useState<number | undefined>(initialContest.min_votes_required);
@@ -71,7 +99,7 @@ const ContestFormModal: React.FC<ContestFormModalProps> = ({
       setPasswordProtected(initialContest.password_protected);
       setPubliclyListed(initialContest.publicly_listed);
       setPassword(initialContest.password || '');
-      setEndDate(initialContest.end_date || '');
+      setEndDate(formatDateForInput(initialContest.end_date));
       setJudgeRestrictions(initialContest.judge_restrictions || false);
       setAuthorRestrictions(initialContest.author_restrictions || false);
       setMinVotesRequired(initialContest.min_votes_required);
@@ -95,7 +123,7 @@ const ContestFormModal: React.FC<ContestFormModalProps> = ({
       password_protected: passwordProtected,
       password: passwordProtected && password ? password : undefined,
       publicly_listed: publiclyListed,
-      end_date: endDate || undefined,
+      end_date: formatDateForAPI(endDate),
       judge_restrictions: judgeRestrictions,
       author_restrictions: authorRestrictions,
       min_votes_required: minVotesRequired,

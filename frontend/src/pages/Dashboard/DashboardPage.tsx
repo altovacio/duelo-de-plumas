@@ -246,12 +246,50 @@ const DashboardPage: React.FC = () => {
       setError(null);
       
       const dashboardDataResponse = await getDashboardData();
-      setDashboardData(dashboardDataResponse);
       
       // Update contests data if available
+      let contestsForExpiredCheck: ContestType[] = [];
       if (dashboardDataResponse.author_contests) {
         setContestsData(dashboardDataResponse.author_contests);
+        contestsForExpiredCheck = dashboardDataResponse.author_contests;
+      } else {
+        // Fetch user contests to check for expired ones
+        try {
+          const userContests = await getUserContests(0, 100);
+          setContestsData(userContests);
+          contestsForExpiredCheck = userContests;
+        } catch (err) {
+          console.warn('Could not fetch user contests for expired check:', err);
+        }
       }
+      
+      // Check for expired contests that are still open
+      const now = new Date();
+      const expiredOpenContests = contestsForExpiredCheck.filter(contest => 
+        contest.status === 'open' && 
+        contest.end_date && 
+        now > new Date(contest.end_date)
+      );
+      
+      // Add expired contest actions to urgent actions
+      const expiredActions = expiredOpenContests.map(contest => ({
+        contest_id: contest.id,
+        contest_title: contest.title,
+        action_type: 'expired_deadline',
+        message: `Contest "${contest.title}" deadline has passed but is still accepting submissions`
+      }));
+      
+      // Merge with existing urgent actions from dashboard data
+      const allUrgentActions = [
+        ...(dashboardDataResponse.urgent_actions || []),
+        ...expiredActions
+      ];
+      
+      setDashboardData({
+        ...dashboardDataResponse,
+        urgent_actions: allUrgentActions,
+        expired_open_contests: expiredOpenContests
+      });
       
       // Fetch texts with reasonable limit for overview count (not paginated)
       try {
@@ -891,6 +929,31 @@ const DashboardPage: React.FC = () => {
                               <div className="text-sm text-gray-500">
                                 Created {new Date(contest.created_at).toLocaleDateString()}
                               </div>
+                              {contest.end_date && (
+                                <div className="text-xs mt-1">
+                                  {(() => {
+                                    const now = new Date();
+                                    const deadline = new Date(contest.end_date);
+                                    const isExpired = now > deadline;
+                                    
+                                    return (
+                                      <div className={`inline-flex items-center px-2 py-1 rounded-full ${
+                                        isExpired 
+                                          ? 'bg-red-100 text-red-800'
+                                          : 'bg-orange-100 text-orange-800'
+                                      }`}>
+                                        <span className="mr-1">⏰</span>
+                                        <span>
+                                          {isExpired 
+                                            ? `Expired ${deadline.toLocaleDateString()}` 
+                                            : `Deadline: ${deadline.toLocaleDateString()}`
+                                          }
+                                        </span>
+                                      </div>
+                                    );
+                                  })()}
+                                </div>
+                              )}
                             </div>
                           </div>
                           

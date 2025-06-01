@@ -12,6 +12,7 @@ interface TextSubmissionFormProps {
   onCancel: () => void;
   judgeRestrictions?: boolean;
   isUserJudge?: boolean;
+  endDate?: string | null;
 }
 
 const TextSubmissionForm: React.FC<TextSubmissionFormProps> = ({
@@ -21,7 +22,8 @@ const TextSubmissionForm: React.FC<TextSubmissionFormProps> = ({
   onSuccess,
   onCancel,
   judgeRestrictions = false,
-  isUserJudge = false
+  isUserJudge = false,
+  endDate
 }) => {
   const navigate = useNavigate();
   const [texts, setTexts] = useState<Text[]>([]);
@@ -91,6 +93,14 @@ const TextSubmissionForm: React.FC<TextSubmissionFormProps> = ({
     navigate('/dashboard?tab=texts&action=create&contestId=' + contestId);
   };
 
+  // Check if contest deadline has passed
+  const isDeadlineExpired = () => {
+    if (!endDate) return false;
+    const now = new Date();
+    const deadline = new Date(endDate);
+    return now > deadline;
+  };
+
   return (
     <div className="bg-white rounded-lg shadow p-6 max-w-lg mx-auto">
       <h2 className="text-xl font-bold mb-4">Submit Text to Contest</h2>
@@ -101,8 +111,41 @@ const TextSubmissionForm: React.FC<TextSubmissionFormProps> = ({
         </div>
       )}
 
+      {/* Deadline warning */}
+      {endDate && (() => {
+        const now = new Date();
+        const deadline = new Date(endDate);
+        const isExpired = now > deadline;
+        
+        if (isExpired) {
+          return (
+            <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-md">
+              <div className="flex items-center">
+                <span className="mr-2">⏰</span>
+                <span>This contest's deadline has passed ({deadline.toLocaleDateString()}). Submissions are no longer accepted.</span>
+              </div>
+            </div>
+          );
+        }
+        
+        // Show warning if deadline is within 24 hours
+        const timeLeft = deadline.getTime() - now.getTime();
+        const hoursLeft = Math.floor(timeLeft / (1000 * 60 * 60));
+        
+        if (hoursLeft <= 24 && hoursLeft > 0) {
+          return (
+            <div className="mb-4 p-3 bg-yellow-50 text-yellow-700 rounded-md">
+              <div className="flex items-center">
+                <span className="mr-2">⚠️</span>
+                <span>Deadline approaching: {hoursLeft} hours remaining (until {deadline.toLocaleDateString()})</span>
+              </div>
+            </div>
+          );
+        }
+        
+        return null;
+      })()}
 
-      
       <form onSubmit={handleSubmit}>
         <div className="mb-4">
           <label htmlFor="text-select" className="block text-sm font-medium text-gray-700 mb-1">
@@ -167,10 +210,18 @@ const TextSubmissionForm: React.FC<TextSubmissionFormProps> = ({
               className={`py-2 px-4 rounded-md ${
                 judgeRestrictions && isUserJudge
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-indigo-300'
+                  : isDeadlineExpired()
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-indigo-300'
               }`}
-              disabled={!selectedTextId || isLoading || (judgeRestrictions && isUserJudge)}
-              title={judgeRestrictions && isUserJudge ? 'Judges cannot submit texts to this contest due to judge restrictions' : ''}
+              disabled={!selectedTextId || isLoading || (judgeRestrictions && isUserJudge) || isDeadlineExpired()}
+              title={
+                judgeRestrictions && isUserJudge 
+                  ? 'Judges cannot submit texts to this contest due to judge restrictions'
+                  : isDeadlineExpired()
+                    ? 'Contest deadline has passed. Submissions are no longer accepted.'
+                    : ''
+              }
             >
               {isLoading ? 'Submitting...' : 'Submit Text'}
             </button>

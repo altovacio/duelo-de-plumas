@@ -6,32 +6,32 @@ This document lists known technical debt, areas for refactoring, and potential f
 
 ## TODO
 
--Test deleting elements (users, contests, etc.)
--Header & pages redesign  (user flow)
--Sorting 
--Footer
--Mobile responsiveness
--Login via email (cursor style)
--Credit purchasing
--What should we do when the parsing or AI execution fails? Retries, exceptions (if the platform is broken, prevent the users from spending resources? Refund?)
--initial setup
-
--Credit spenditure revisit
-
--PDF stuff
-
--Better experience full page writer
-   -marktwo migration
+-Header & pages definition
 
 -style
+  -Mobile responsiveness
 
+-initial setup
 
--other optimizations
--Unit tests
+-Test deleting elements (users, contests, etc.)
+
+-Credit spenditure revisit (free nano? 1000 credits instead of 100?)
+-Credit purchasing
+-What should we do when the parsing or AI execution fails? Retries, exceptions (if the platform is broken, prevent the users from spending resources? Refund?)
+
+-PDF stuff
+-Better experience full page writer
+   -marktwo migration
 
 -English/Spanish
 
 -Writer Robots Arena
+
+-Login via email (cursor style)
+
+-Footer
+
+-testing 
 
 
 ## Frontend

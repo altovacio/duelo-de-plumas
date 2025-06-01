@@ -46,7 +46,7 @@ def get_user_info_api(token, quiet=True):
     return print_response(response, "Get Current User Info", quiet)
 
 # --- Resource Creation ---
-def create_contest_api(token, title, description, password_protected=False, publicly_listed=True, password=None, quiet=True):
+def create_contest_api(token, title, description, password_protected=False, publicly_listed=True, password=None, end_date=None, quiet=True):
     headers = {"Authorization": f"Bearer {token}"}
     payload = {
         "title": title,
@@ -57,6 +57,8 @@ def create_contest_api(token, title, description, password_protected=False, publ
     }
     if password_protected and password:
         payload["password"] = password
+    if end_date:
+        payload["end_date"] = end_date
     
     response = requests.post(f"{BASE_URL}/contests/", headers=headers, json=payload)
     return print_response(response, f"Create Contest: {title}", quiet)
@@ -98,6 +100,14 @@ def assign_ai_judge_to_contest_api(token, contest_id, agent_id, quiet=True):
     response = requests.post(f"{BASE_URL}/contests/{contest_id}/judges", 
                            headers=headers, json=payload)
     return print_response(response, f"Assign AI Judge (Agent {agent_id}) to Contest {contest_id}", quiet)
+
+def update_contest_status_api(token, contest_id, status, quiet=True):
+    """Update contest status"""
+    headers = {"Authorization": f"Bearer {token}"}
+    payload = {"status": status}
+    
+    response = requests.put(f"{BASE_URL}/contests/{contest_id}", headers=headers, json=payload)
+    return print_response(response, f"Update Contest {contest_id} status to {status}", quiet)
 
 # --- Admin Functions ---
 def get_admin_credentials():
@@ -403,6 +413,102 @@ def main():
             
             print(f"✅ {judges_assigned} AI judges assigned to Contest 2")
     
+    # Create Contest 3: Evaluation Contest
+    print("\n=== Creating Contest 3: Contest in Evaluation ===")
+    if special_users:
+        creator = special_users[1] if len(special_users) > 1 else special_users[0]
+        contest3_response = create_contest_api(
+            creator.token,
+            "Literary Analysis Contest - Under Evaluation",
+            "A contest focused on literary analysis and critique. Currently being evaluated by our panel of experts.",
+            publicly_listed=True,
+            quiet=False
+        )
+        
+        if contest3_response and "id" in contest3_response:
+            contest3_id = contest3_response["id"]
+            print(f"Contest 3 created with ID: {contest3_id}")
+            
+            # Special users submit texts
+            submitted_count = 0
+            for user in special_users[:5]:  # First 5 special users
+                if user.texts:
+                    submit_response = submit_text_to_contest_api(
+                        user.token, contest3_id, user.texts[1] if len(user.texts) > 1 else user.texts[0]
+                    )
+                    if submit_response:
+                        submitted_count += 1
+            
+            print(f"✅ {submitted_count} special users submitted texts to Contest 3")
+            
+            # Update status to evaluation
+            update_response = update_contest_status_api(creator.token, contest3_id, "evaluation")
+            if update_response:
+                print(f"✅ Contest 3 status updated to evaluation")
+    
+    # Create Contest 4: Future Deadline Contest
+    print("\n=== Creating Contest 4: Future Deadline Contest (2030) ===")
+    if special_users:
+        creator = special_users[2] if len(special_users) > 2 else special_users[0]
+        contest4_response = create_contest_api(
+            creator.token,
+            "Future Writers' Challenge 2030",
+            "A long-term writing contest with a deadline in 2030. Perfect for those who like to take their time crafting the perfect story.",
+            publicly_listed=True,
+            end_date="2030-12-31T23:59:59Z",
+            quiet=False
+        )
+        
+        if contest4_response and "id" in contest4_response:
+            contest4_id = contest4_response["id"]
+            print(f"Contest 4 created with ID: {contest4_id}")
+            
+            # Special users submit texts
+            submitted_count = 0
+            for user in special_users[:3]:  # First 3 special users
+                if user.texts:
+                    submit_response = submit_text_to_contest_api(
+                        user.token, contest4_id, user.texts[2] if len(user.texts) > 2 else user.texts[0]
+                    )
+                    if submit_response:
+                        submitted_count += 1
+            
+            print(f"✅ {submitted_count} special users submitted texts to Contest 4")
+    
+    # Create Contest 5: Past Deadline Contest
+    print("\n=== Creating Contest 5: Past Deadline Contest (2025-05-01) ===")
+    if special_users:
+        creator = special_users[3] if len(special_users) > 3 else special_users[0]
+        contest5_response = create_contest_api(
+            creator.token,
+            "Spring Writing Challenge 2025 - EXPIRED",
+            "A writing contest that had its deadline on May 1st, 2025. This contest is now closed for submissions but results are available.",
+            publicly_listed=True,
+            end_date="2025-05-01T23:59:59Z",
+            quiet=False
+        )
+        
+        if contest5_response and "id" in contest5_response:
+            contest5_id = contest5_response["id"]
+            print(f"Contest 5 created with ID: {contest5_id}")
+            
+            # Special users submit texts
+            submitted_count = 0
+            for user in special_users[:4]:  # First 4 special users
+                if user.texts:
+                    submit_response = submit_text_to_contest_api(
+                        user.token, contest5_id, user.texts[3] if len(user.texts) > 3 else user.texts[0]
+                    )
+                    if submit_response:
+                        submitted_count += 1
+            
+            print(f"✅ {submitted_count} special users submitted texts to Contest 5")
+            
+            # Update status to closed since deadline has passed
+            update_response = update_contest_status_api(creator.token, contest5_id, "closed")
+            if update_response:
+                print(f"✅ Contest 5 status updated to closed (deadline passed)")
+    
     # Assign 1 credit to each user
     print("\n=== Assigning Credits to All Users ===")
     admin_token = login_admin()
@@ -433,7 +539,12 @@ def main():
     print(f"   • Total contests: {sum(len(user.contests) for user in all_users)}")
     print(f"   • Total AI writers: {sum(len(user.writers) for user in all_users)}")
     print(f"   • Total AI judges: {sum(len(user.judges) for user in all_users)}")
-    print(f"   • Special contests created: 2")
+    print(f"   • Special contests created: 5")
+    print(f"     - Contest 1: Mass Participation (open)")
+    print(f"     - Contest 2: Elite AI-Judged (open)")
+    print(f"     - Contest 3: Literary Analysis (evaluation)")
+    print(f"     - Contest 4: Future Challenge (deadline 2030)")
+    print(f"     - Contest 5: Spring 2025 (expired deadline)")
     print("="*60)
 
 if __name__ == "__main__":

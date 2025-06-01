@@ -24,6 +24,7 @@ const AdminContestsPage: React.FC = () => {
   // Filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [deadlineFilter, setDeadlineFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<string>('all');
   const [dateType, setDateType] = useState<string>('created');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -36,9 +37,9 @@ const AdminContestsPage: React.FC = () => {
   const [contestToEdit, setContestToEdit] = useState<Contest | null>(null);
 
   // Fetch contests with current filters and pagination
-    const fetchContests = async () => {
-      setIsLoading(true);
-      try {
+  const fetchContests = async () => {
+    setIsLoading(true);
+    try {
       const skip = (currentPage - 1) * itemsPerPage;
       const contests = await getContestsWithPagination(
         skip,
@@ -49,21 +50,37 @@ const AdminContestsPage: React.FC = () => {
         dateFilter,
         dateType
       );
-      setDisplayedContests(contests);
-      // Note: For now we'll estimate total count since backend doesn't return it
-      setTotalCount(contests.length === itemsPerPage ? (currentPage * itemsPerPage) + 1 : skip + contests.length);
-      } catch (error) {
-        console.error('Error fetching contests:', error);
-        toast.error('Failed to load contests');
-      } finally {
-        setIsLoading(false);
+      
+      // Apply client-side deadline filter
+      let filteredContests = contests;
+      if (deadlineFilter !== 'all') {
+        const now = new Date();
+        filteredContests = contests.filter(contest => {
+          if (!contest.end_date) {
+            // No deadline contests are considered "not expired"
+            return deadlineFilter === 'not-expired';
+          }
+          const deadline = new Date(contest.end_date);
+          const isExpired = now > deadline;
+          return deadlineFilter === 'expired' ? isExpired : !isExpired;
+        });
       }
-    };
+      
+      setDisplayedContests(filteredContests);
+      // Note: For now we'll estimate total count since backend doesn't return it
+      setTotalCount(filteredContests.length === itemsPerPage ? (currentPage * itemsPerPage) + 1 : skip + filteredContests.length);
+    } catch (error) {
+      console.error('Error fetching contests:', error);
+      toast.error('Failed to load contests');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Fetch contests whenever filters or pagination change
   useEffect(() => {
     fetchContests();
-  }, [currentPage, searchQuery, statusFilter, dateFilter, dateType, selectedUser, isUserFilterActive]);
+  }, [currentPage, searchQuery, statusFilter, deadlineFilter, dateFilter, dateType, selectedUser, isUserFilterActive]);
 
   // Handle page change
   const handlePageChange = (page: number) => {
@@ -97,6 +114,11 @@ const AdminContestsPage: React.FC = () => {
 
   const handleDateFilterChange = (value: string) => {
     setDateFilter(value);
+    setCurrentPage(1);
+  };
+
+  const handleDeadlineFilterChange = (value: string) => {
+    setDeadlineFilter(value);
     setCurrentPage(1);
   };
 
@@ -218,6 +240,22 @@ const AdminContestsPage: React.FC = () => {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
+              Deadline Filter
+            </label>
+            <select
+                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              value={deadlineFilter}
+                onChange={(e) => {
+                  handleDeadlineFilterChange(e.target.value);
+                }}
+            >
+              <option value="all">All Deadlines</option>
+              <option value="not-expired">Not Expired</option>
+              <option value="expired">Expired</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
               Date Type
             </label>
             <select
@@ -292,6 +330,12 @@ const AdminContestsPage: React.FC = () => {
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Last Updated
                   </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Deadline
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
                   <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
@@ -340,6 +384,40 @@ const AdminContestsPage: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {new Date(contest.updated_at).toLocaleDateString()}
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {contest.end_date ? (
+                          (() => {
+                            const now = new Date();
+                            const deadline = new Date(contest.end_date);
+                            const isExpired = now > deadline;
+                            
+                            return (
+                              <div className="flex flex-col">
+                                <span>{deadline.toLocaleDateString()}</span>
+                                <span className={`text-xs font-medium ${
+                                  isExpired ? 'text-red-600' : 'text-green-600'
+                                }`}>
+                                  {isExpired ? '⏰ Expired' : '✓ Active'}
+                                </span>
+                              </div>
+                            );
+                          })()
+                        ) : (
+                          <div className="flex flex-col">
+                            <span>No deadline</span>
+                            <span className="text-xs text-gray-400">Always active</span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          contest.status === 'open' ? 'bg-green-100 text-green-800' :
+                          contest.status === 'evaluation' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-blue-100 text-blue-800'
+                        }`}>
+                          {contest.status.charAt(0).toUpperCase() + contest.status.slice(1)}
+                        </span>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
                         <div className="flex justify-center space-x-2">
                           <Link 
@@ -366,7 +444,7 @@ const AdminContestsPage: React.FC = () => {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={9} className="px-6 py-4 text-center text-gray-500">
+                    <td colSpan={11} className="px-6 py-4 text-center text-gray-500">
                       No contests found matching your criteria.
                     </td>
                   </tr>

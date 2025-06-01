@@ -56,6 +56,31 @@ const ParticipationTab: React.FC<ParticipationTabProps> = ({
                 <div className="text-sm text-gray-500">
                   {contest.created_at ? new Date(contest.created_at).toLocaleDateString() : ''}
                 </div>
+                {contest.end_date && (
+                  <div className="text-xs mt-1">
+                    {(() => {
+                      const now = new Date();
+                      const deadline = new Date(contest.end_date);
+                      const isExpired = now > deadline;
+                      
+                      return (
+                        <div className={`inline-flex items-center px-2 py-1 rounded-full ${
+                          isExpired 
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-orange-100 text-orange-800'
+                        }`}>
+                          <span className="mr-1">⏰</span>
+                          <span>
+                            {isExpired 
+                              ? `Expired ${deadline.toLocaleDateString()}` 
+                              : `Deadline: ${deadline.toLocaleDateString()}`
+                            }
+                          </span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
             </li>
           ))}

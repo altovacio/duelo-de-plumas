@@ -49,6 +49,31 @@ const ContestCard: React.FC<ContestCardProps> = ({ contest }) => {
         <span>{contest.participant_count || 0} participants</span>
         <span>Last updated: {new Date(contest.updated_at).toLocaleDateString()}</span>
       </div>
+      {contest.end_date && (
+        <div className="mt-2 text-xs">
+          {(() => {
+            const now = new Date();
+            const deadline = new Date(contest.end_date);
+            const isExpired = now > deadline;
+            
+            return (
+              <div className={`inline-flex items-center px-2 py-1 rounded-full ${
+                isExpired 
+                  ? 'bg-red-100 text-red-800'
+                  : 'bg-orange-100 text-orange-800'
+              }`}>
+                <span className="mr-1">⏰</span>
+                <span>
+                  {isExpired 
+                    ? `Expired ${deadline.toLocaleDateString()}` 
+                    : `Deadline: ${deadline.toLocaleDateString()}`
+                  }
+                </span>
+              </div>
+            );
+          })()}
+        </div>
+      )}
       <div className="mt-3">
         <Link 
           to={`/contests/${contest.id}`} 

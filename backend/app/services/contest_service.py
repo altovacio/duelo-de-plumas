@@ -325,6 +325,16 @@ class ContestService:
                 detail="Contest is not open for submissions"
             )
             
+        # Check if contest deadline has passed
+        if contest.end_date:
+            from datetime import datetime, timezone
+            current_time = datetime.now(timezone.utc)
+            if current_time > contest.end_date:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Contest deadline has passed"
+                )
+            
         # Check if text exists and belongs to the current user
         text_repo = TextRepository(db)
         text = await text_repo.get_text(submission.text_id)

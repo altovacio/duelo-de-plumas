@@ -20,6 +20,7 @@ const ContestListPage: React.FC = () => {
   // Filter states
   const [statusFilter, setStatusFilter] = useState<string>(searchParams.get('status') || 'all');
   const [typeFilter, setTypeFilter] = useState<string>(searchParams.get('type') || 'all');
+  const [deadlineFilter, setDeadlineFilter] = useState<string>(searchParams.get('deadline') || 'all');
   const [sortBy, setSortBy] = useState<string>(searchParams.get('sort') || 'newest');
   const [searchTerm, setSearchTerm] = useState<string>(searchParams.get('search') || '');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -57,10 +58,35 @@ const ContestListPage: React.FC = () => {
         }
       }
       
+      // Apply deadline filter
+      if (deadlineFilter !== 'all') {
+        const now = new Date();
+        filteredContests = filteredContests.filter(contest => {
+          if (!contest.end_date) {
+            // No deadline contests are considered "not expired"
+            return deadlineFilter === 'not-expired';
+          }
+          const deadline = new Date(contest.end_date);
+          const isExpired = now > deadline;
+          
+          return deadlineFilter === 'expired' ? isExpired : !isExpired;
+        });
+      }
+      
       // Apply sorting
       filteredContests.sort((a, b) => {
         switch (sortBy) {
           case 'newest':
+            // Put expired contests at the bottom, sort newest first within each group
+            const nowForNewest = new Date();
+            const aExpiredForNewest = a.end_date && nowForNewest > new Date(a.end_date);
+            const bExpiredForNewest = b.end_date && nowForNewest > new Date(b.end_date);
+            
+            // Non-expired before expired
+            if (!aExpiredForNewest && bExpiredForNewest) return -1;
+            if (aExpiredForNewest && !bExpiredForNewest) return 1;
+            
+            // Within same expiration status, sort by newest first
             return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
           case 'oldest':
             return new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
@@ -72,6 +98,52 @@ const ContestListPage: React.FC = () => {
             return a.title.localeCompare(b.title);
           case 'title-za':
             return b.title.localeCompare(a.title);
+          case 'expiration':
+            // Order: Non-expired with deadlines, no deadline, expired
+            const now = new Date();
+            const aHasDeadline = !!a.end_date;
+            const bHasDeadline = !!b.end_date;
+            
+            if (!aHasDeadline && !bHasDeadline) return 0; // Both no deadline
+            
+            // If only one has no deadline, handle separately
+            if (!aHasDeadline || !bHasDeadline) {
+              const aDeadline = aHasDeadline ? new Date(a.end_date!) : null;
+              const bDeadline = bHasDeadline ? new Date(b.end_date!) : null;
+              
+              const aExpired = aDeadline ? now > aDeadline : false;
+              const bExpired = bDeadline ? now > bDeadline : false;
+              
+              // Non-expired with deadline comes first
+              if (aDeadline && !aExpired && !bHasDeadline) return -1;
+              if (bDeadline && !bExpired && !aHasDeadline) return 1;
+              
+              // No deadline comes before expired
+              if (!aHasDeadline && bExpired) return -1;
+              if (!bHasDeadline && aExpired) return 1;
+              
+              // Both are no deadline or both are expired
+              return 0;
+            }
+            
+            // Both have deadlines
+            const aDeadline = new Date(a.end_date!);
+            const bDeadline = new Date(b.end_date!);
+            const aExpired = now > aDeadline;
+            const bExpired = now > bDeadline;
+            
+            // Non-expired before expired
+            if (!aExpired && bExpired) return -1;
+            if (aExpired && !bExpired) return 1;
+            
+            // Both expired or both not expired - sort by deadline
+            if (!aExpired && !bExpired) {
+              // Not expired: closest deadline first
+              return aDeadline.getTime() - bDeadline.getTime();
+            } else {
+              // Both expired: most recently expired first
+              return bDeadline.getTime() - aDeadline.getTime();
+            }
           default:
             return 0;
         }
@@ -115,10 +187,35 @@ const ContestListPage: React.FC = () => {
         }
       }
       
+      // Apply deadline filter
+      if (deadlineFilter !== 'all') {
+        const now = new Date();
+        result = result.filter(contest => {
+          if (!contest.end_date) {
+            // No deadline contests are considered "not expired"
+            return deadlineFilter === 'not-expired';
+          }
+          const deadline = new Date(contest.end_date);
+          const isExpired = now > deadline;
+          
+          return deadlineFilter === 'expired' ? isExpired : !isExpired;
+        });
+      }
+      
       // Apply sorting
       result.sort((a, b) => {
         switch (sortBy) {
           case 'newest':
+            // Put expired contests at the bottom, sort newest first within each group
+            const nowForNewest = new Date();
+            const aExpiredForNewest = a.end_date && nowForNewest > new Date(a.end_date);
+            const bExpiredForNewest = b.end_date && nowForNewest > new Date(b.end_date);
+            
+            // Non-expired before expired
+            if (!aExpiredForNewest && bExpiredForNewest) return -1;
+            if (aExpiredForNewest && !bExpiredForNewest) return 1;
+            
+            // Within same expiration status, sort by newest first
             return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
           case 'oldest':
             return new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
@@ -130,6 +227,52 @@ const ContestListPage: React.FC = () => {
             return a.title.localeCompare(b.title);
           case 'title-za':
             return b.title.localeCompare(a.title);
+          case 'expiration':
+            // Order: Non-expired with deadlines, no deadline, expired
+            const now = new Date();
+            const aHasDeadline = !!a.end_date;
+            const bHasDeadline = !!b.end_date;
+            
+            if (!aHasDeadline && !bHasDeadline) return 0; // Both no deadline
+            
+            // If only one has no deadline, handle separately
+            if (!aHasDeadline || !bHasDeadline) {
+              const aDeadline = aHasDeadline ? new Date(a.end_date!) : null;
+              const bDeadline = bHasDeadline ? new Date(b.end_date!) : null;
+              
+              const aExpired = aDeadline ? now > aDeadline : false;
+              const bExpired = bDeadline ? now > bDeadline : false;
+              
+              // Non-expired with deadline comes first
+              if (aDeadline && !aExpired && !bHasDeadline) return -1;
+              if (bDeadline && !bExpired && !aHasDeadline) return 1;
+              
+              // No deadline comes before expired
+              if (!aHasDeadline && bExpired) return -1;
+              if (!bHasDeadline && aExpired) return 1;
+              
+              // Both are no deadline or both are expired
+              return 0;
+            }
+            
+            // Both have deadlines
+            const aDeadline = new Date(a.end_date!);
+            const bDeadline = new Date(b.end_date!);
+            const aExpired = now > aDeadline;
+            const bExpired = now > bDeadline;
+            
+            // Non-expired before expired
+            if (!aExpired && bExpired) return -1;
+            if (aExpired && !bExpired) return 1;
+            
+            // Both expired or both not expired - sort by deadline
+            if (!aExpired && !bExpired) {
+              // Not expired: closest deadline first
+              return aDeadline.getTime() - bDeadline.getTime();
+            } else {
+              // Both expired: most recently expired first
+              return bDeadline.getTime() - aDeadline.getTime();
+            }
           default:
             return 0;
         }
@@ -140,19 +283,20 @@ const ContestListPage: React.FC = () => {
       setEvaluationContests(result.filter(contest => contest.status === 'evaluation'));
       setClosedContests(result.filter(contest => contest.status === 'closed'));
     }
-  }, [typeFilter, sortBy, displayedContests]);
+  }, [typeFilter, sortBy, displayedContests, deadlineFilter]);
 
   // Update URL search params
   useEffect(() => {
     const params: Record<string, string> = {};
     if (statusFilter !== 'all') params.status = statusFilter;
     if (typeFilter !== 'all') params.type = typeFilter;
+    if (deadlineFilter !== 'all') params.deadline = deadlineFilter;
     if (sortBy !== 'newest') params.sort = sortBy;
     if (searchTerm) params.search = searchTerm;
     if (currentPage > 1) params.page = currentPage.toString();
     
     setSearchParams(params, { replace: true });
-  }, [statusFilter, typeFilter, sortBy, searchTerm, currentPage, setSearchParams]);
+  }, [statusFilter, typeFilter, deadlineFilter, sortBy, searchTerm, currentPage, setSearchParams]);
 
   // Handle page change
   const handlePageChange = (page: number) => {
@@ -184,6 +328,11 @@ const ContestListPage: React.FC = () => {
 
   const handleSortChange = (value: string) => {
     setSortBy(value);
+    setCurrentPage(1);
+  };
+
+  const handleDeadlineFilterChange = (value: string) => {
+    setDeadlineFilter(value);
     setCurrentPage(1);
   };
 
@@ -272,11 +421,22 @@ const ContestListPage: React.FC = () => {
             
             <select 
               className="px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              value={deadlineFilter}
+              onChange={(e) => handleDeadlineFilterChange(e.target.value)}
+            >
+              <option value="all">All Deadlines</option>
+              <option value="not-expired">Not Expired</option>
+              <option value="expired">Expired</option>
+            </select>
+            
+            <select 
+              className="px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               value={sortBy}
               onChange={(e) => handleSortChange(e.target.value)}
             >
               <option value="newest">Newest First</option>
               <option value="oldest">Oldest First</option>
+              <option value="expiration">By Expiration</option>
               <option value="participants-high">Most Participants</option>
               <option value="participants-low">Fewest Participants</option>
               <option value="title-az">Title A-Z</option>

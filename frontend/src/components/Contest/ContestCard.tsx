@@ -8,10 +8,10 @@ interface ContestCardProps {
 
 const ContestCard: React.FC<ContestCardProps> = ({ contest }) => {
   return (
-    <div className="border rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow bg-white">
-      <div className="flex justify-between items-start mb-2">
-        <h3 className="text-lg font-semibold">{contest.title}</h3>
-        <div className="flex space-x-2">
+    <div className="border rounded-lg p-3 md:p-4 shadow-sm hover:shadow-md transition-shadow bg-white">
+      <div className="flex flex-col md:flex-row md:justify-between md:items-start mb-2 space-y-2 md:space-y-0">
+        <h3 className="text-base md:text-lg font-semibold pr-2">{contest.title}</h3>
+        <div className="flex flex-wrap gap-1 md:gap-2">
           {/* Visibility badge */}
           <div 
             className={`text-xs px-2 py-1 rounded-full ${
@@ -45,9 +45,9 @@ const ContestCard: React.FC<ContestCardProps> = ({ contest }) => {
         </div>
       </div>
       <p className="text-sm text-gray-600 mb-3 line-clamp-2">{contest.description}</p>
-      <div className="flex justify-between text-xs text-gray-500">
+      <div className="flex flex-col md:flex-row md:justify-between text-xs text-gray-500 space-y-1 md:space-y-0">
         <span>{contest.participant_count || 0} participants</span>
-        <span>Last updated: {new Date(contest.updated_at).toLocaleDateString()}</span>
+        <span>Created: {new Date(contest.created_at).toLocaleDateString()}</span>
       </div>
       {contest.end_date && (
         <div className="mt-2 text-xs">

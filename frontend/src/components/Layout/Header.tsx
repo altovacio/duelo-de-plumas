@@ -35,7 +35,6 @@ const Header: React.FC = () => {
     { name: 'Contests', path: '/contests', showAlways: true },
     { name: 'Dashboard', path: '/dashboard', requireAuth: true },
     { name: 'Admin', path: '/admin', requireAuth: true, requireAdmin: true },
-    { name: 'Onboarding', path: '/onboarding', requireAuth: true },
   ];
 
   const visibleNavItems = navItems.filter(item => {
@@ -71,14 +70,14 @@ const Header: React.FC = () => {
                 </Link>
               ))}
               
-              {/* Help button for desktop */}
+              {/* Onboarding button for desktop */}
               {isAuthenticated && (
                 <button
                   onClick={handleHelpClick}
                   className="px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-500 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:ring-offset-2 focus:ring-offset-indigo-600"
-                  title="Help & Tour"
+                  title="Onboarding & Tour"
                 >
-                  ?
+                  Onboarding
                 </button>
               )}
               
@@ -145,13 +144,13 @@ const Header: React.FC = () => {
                   </Link>
                 ))}
                 
-                {/* Help button for mobile */}
+                {/* Onboarding button for mobile */}
                 {isAuthenticated && (
                   <button
                     onClick={handleHelpClick}
                     className="block w-full text-left px-3 py-2 rounded-md text-base font-medium hover:bg-indigo-600 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:ring-offset-2 focus:ring-offset-indigo-700"
                   >
-                    Help & Tour
+                    Onboarding
                   </button>
                 )}
                 

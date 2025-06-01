@@ -17,4 +17,13 @@ body {
 #root {
   width: 100%;
   height: 100%;
+}
+
+/* Utility to hide scrollbars */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* Internet Explorer 10+ */
+  scrollbar-width: none;  /* Firefox */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Safari and Chrome */
 } 

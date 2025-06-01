@@ -792,412 +792,476 @@ const DashboardPage: React.FC = () => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md">
-      <div className="p-6">
-        <h1 className="text-2xl font-semibold text-gray-800 mb-2">
-          My Workspace
-        </h1>
-        <p className="text-gray-600 mb-6">
-          Welcome back, {user?.username}! Manage your contests, texts, and AI agents.
-        </p>
+    <div className="min-h-full">
+      <div className="bg-white rounded-lg shadow-md">
+        <div className="p-4 md:p-6">
+          <h1 className="text-xl md:text-2xl font-semibold text-gray-800 mb-2">
+            My Workspace
+          </h1>
+          <p className="text-gray-600 mb-4 md:mb-6">
+            Welcome back, {user?.username}! Manage your contests, texts, and AI agents.
+          </p>
 
-        {/* Tabs */}
-        <div className="border-b border-gray-200 mb-6">
-          <nav className="flex space-x-6">
-            <button 
-              className={tabClasses('overview')}
-              onClick={() => handleTabChange('overview')}
-            >
-              Overview
-            </button>
-            <button 
-              className={tabClasses('contests')}
-              onClick={() => handleTabChange('contests')}
-            >
-              My Contests
-            </button>
-            <button 
-              className={tabClasses('texts')}
-              onClick={() => handleTabChange('texts')}
-            >
-              My Texts
-            </button>
-            <button 
-              className={tabClasses('agents')}
-              onClick={() => handleTabChange('agents')}
-            >
-              AI Agents
-            </button>
-            <button 
-              className={tabClasses('participation')}
-              onClick={() => handleTabChange('participation')}
-            >
-              Participation
-            </button>
-            <button 
-              className={tabClasses('credits')}
-              onClick={() => handleTabChange('credits')}
-            >
-              Credits
-            </button>
-          </nav>
-        </div>
+          {/* Responsive Tabs */}
+          <div className="border-b border-gray-200 mb-4 md:mb-6">
+            <nav className="flex flex-wrap gap-1 md:gap-0 md:space-x-6 overflow-x-auto scrollbar-hide">
+              <button 
+                className={`${tabClasses('overview')} whitespace-nowrap flex-shrink-0`}
+                onClick={() => handleTabChange('overview')}
+              >
+                Overview
+              </button>
+              <button 
+                className={`${tabClasses('contests')} whitespace-nowrap flex-shrink-0`}
+                onClick={() => handleTabChange('contests')}
+              >
+                My Contests
+              </button>
+              <button 
+                className={`${tabClasses('texts')} whitespace-nowrap flex-shrink-0`}
+                onClick={() => handleTabChange('texts')}
+              >
+                My Texts
+              </button>
+              <button 
+                className={`${tabClasses('agents')} whitespace-nowrap flex-shrink-0`}
+                onClick={() => handleTabChange('agents')}
+              >
+                AI Agents
+              </button>
+              <button 
+                className={`${tabClasses('participation')} whitespace-nowrap flex-shrink-0`}
+                onClick={() => handleTabChange('participation')}
+              >
+                Participation
+              </button>
+              <button 
+                className={`${tabClasses('credits')} whitespace-nowrap flex-shrink-0`}
+                onClick={() => handleTabChange('credits')}
+              >
+                Credits
+              </button>
+            </nav>
+          </div>
 
-        {/* Tab Content */}
-        <div>
-          {activeTab === 'overview' && (
-            <OverviewTab 
-              dashboardData={dashboardData}
-              textsCount={textsData.length}
-              contestsCount={contestsData.length}
-              agentsCount={ownedAgentsData.length}
-            />
-          )}
+          {/* Tab Content */}
+          <div className="min-h-[400px]">
+            {activeTab === 'overview' && (
+              <OverviewTab 
+                dashboardData={dashboardData}
+                textsCount={textsData.length}
+                contestsCount={contestsData.length}
+                agentsCount={ownedAgentsData.length}
+              />
+            )}
 
-          {activeTab === 'contests' && (
-            <div>
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-medium">My Contests</h2>
-                <button 
-                  className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
-                  onClick={handleOpenCreateContestModal}
-                >
-                  Create New Contest
-                </button>
-              </div>
-              
-              {error && (
-                <ErrorDisplay error={error} />
-              )}
-              
-              {isLoading ? (
-                <LoadingSpinner />
-              ) : contestsData.length > 0 ? (
-                <div>
-                  <div className="space-y-4">
-                    {contestsData.map((contest) => (
-                      <div key={contest.id} className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
-                        <div className="p-6">
-                          {/* Header */}
-                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-4">
-                            <div className="flex-1 min-w-0">
-                              <Link 
-                                to={`/contests/${contest.id}`}
-                                className="text-lg font-medium text-indigo-600 hover:text-indigo-900 hover:underline block truncate"
-                              >
-                                {contest.title}
-                              </Link>
-                              <div className="flex flex-wrap gap-2 mt-2">
-                                {/* Status Badge */}
-                                <select
-                                  value={contest.status}
-                                  onChange={(e) => handleStatusChange(contest.id, e.target.value as 'open' | 'evaluation' | 'closed')}
-                                  className="px-3 py-1 rounded-full text-xs font-medium border border-gray-300 bg-white text-gray-800 cursor-pointer"
-                                  style={{
-                                    backgroundColor: contest.status === 'open' ? '#dcfce7' : 
-                                                   contest.status === 'evaluation' ? '#fef3c7' : '#dbeafe',
-                                    color: contest.status === 'open' ? '#166534' :
-                                           contest.status === 'evaluation' ? '#92400e' : '#1e40af'
-                                  }}
+            {activeTab === 'contests' && (
+              <div>
+                <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-4 md:mb-6 space-y-2 md:space-y-0">
+                  <h2 className="text-lg md:text-xl font-medium">My Contests</h2>
+                  <button 
+                    className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 text-sm md:text-base w-full md:w-auto"
+                    onClick={handleOpenCreateContestModal}
+                  >
+                    Create New Contest
+                  </button>
+                </div>
+                
+                {error && (
+                  <ErrorDisplay error={error} />
+                )}
+                
+                {isLoading ? (
+                  <LoadingSpinner />
+                ) : contestsData.length > 0 ? (
+                  <div>
+                    <div className="space-y-4">
+                      {contestsData.map((contest) => (
+                        <div key={contest.id} className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+                          <div className="p-4 md:p-6">
+                            {/* Header */}
+                            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between mb-4 space-y-3 lg:space-y-0">
+                              <div className="flex-1 min-w-0">
+                                <Link 
+                                  to={`/contests/${contest.id}`}
+                                  className="text-base md:text-lg font-medium text-indigo-600 hover:text-indigo-900 hover:underline block break-words"
                                 >
-                                  <option value="open">Open</option>
-                                  <option value="evaluation">Evaluation</option>
-                                  <option value="closed">Closed</option>
-                                </select>
-                                
-                                {/* Type Badge */}
-                                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                                  contest.publicly_listed ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
-                                }`}>
-                                  {contest.publicly_listed ? 'Public' : 'Private'}
-                                </span>
-                                
-                                {/* Password Protection Badge */}
-                                {contest.password_protected && (
-                                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                    🔒 Password Protected
+                                  {contest.title}
+                                </Link>
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                  {/* Status Badge */}
+                                  <select
+                                    value={contest.status}
+                                    onChange={(e) => handleStatusChange(contest.id, e.target.value as 'open' | 'evaluation' | 'closed')}
+                                    className="px-2 md:px-3 py-1 rounded-full text-xs font-medium border border-gray-300 bg-white text-gray-800 cursor-pointer"
+                                    style={{
+                                      backgroundColor: contest.status === 'open' ? '#dcfce7' : 
+                                                     contest.status === 'evaluation' ? '#fef3c7' : '#dbeafe',
+                                      color: contest.status === 'open' ? '#166534' :
+                                             contest.status === 'evaluation' ? '#92400e' : '#1e40af'
+                                    }}
+                                  >
+                                    <option value="open">Open</option>
+                                    <option value="evaluation">Evaluation</option>
+                                    <option value="closed">Closed</option>
+                                  </select>
+                                  
+                                  {/* Type Badge */}
+                                  <span className={`inline-flex items-center px-2 md:px-3 py-1 rounded-full text-xs font-medium ${
+                                    contest.publicly_listed ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
+                                  }`}>
+                                    {contest.publicly_listed ? 'Public' : 'Private'}
                                   </span>
+                                  
+                                  {/* Password Protection Badge */}
+                                  {contest.password_protected && (
+                                    <span className="inline-flex items-center px-2 md:px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                      🔒 Password Protected
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              {/* Quick Stats */}
+                              <div className="flex flex-col lg:items-end lg:ml-4">
+                                <div className="text-sm text-gray-500 mb-1">
+                                  <span className="font-medium">{contest.participant_count || 0}</span> participants
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                  Created {new Date(contest.created_at).toLocaleDateString()}
+                                </div>
+                                {contest.end_date && (
+                                  <div className="text-xs mt-1">
+                                    {(() => {
+                                      const now = new Date();
+                                      const deadline = new Date(contest.end_date);
+                                      const isExpired = now > deadline;
+                                      
+                                      return (
+                                        <div className={`inline-flex items-center px-2 py-1 rounded-full ${
+                                          isExpired 
+                                            ? 'bg-red-100 text-red-800'
+                                            : 'bg-orange-100 text-orange-800'
+                                        }`}>
+                                          <span className="mr-1">⏰</span>
+                                          <span className="text-xs">
+                                            {isExpired 
+                                              ? `Expired ${deadline.toLocaleDateString()}` 
+                                              : `Deadline: ${deadline.toLocaleDateString()}`
+                                            }
+                                          </span>
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
                                 )}
                               </div>
                             </div>
                             
-                            {/* Quick Stats */}
-                            <div className="flex flex-col sm:items-end mt-4 sm:mt-0 sm:ml-4">
-                              <div className="text-sm text-gray-500 mb-1">
-                                <span className="font-medium">{contest.participant_count || 0}</span> participants
-                              </div>
-                              <div className="text-sm text-gray-500">
-                                Created {new Date(contest.created_at).toLocaleDateString()}
-                              </div>
-                              {contest.end_date && (
-                                <div className="text-xs mt-1">
-                                  {(() => {
-                                    const now = new Date();
-                                    const deadline = new Date(contest.end_date);
-                                    const isExpired = now > deadline;
-                                    
-                                    return (
-                                      <div className={`inline-flex items-center px-2 py-1 rounded-full ${
-                                        isExpired 
-                                          ? 'bg-red-100 text-red-800'
-                                          : 'bg-orange-100 text-orange-800'
-                                      }`}>
-                                        <span className="mr-1">⏰</span>
-                                        <span>
-                                          {isExpired 
-                                            ? `Expired ${deadline.toLocaleDateString()}` 
-                                            : `Deadline: ${deadline.toLocaleDateString()}`
-                                          }
-                                        </span>
-                                      </div>
-                                    );
-                                  })()}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          
-                          {/* Actions */}
-                          <div className="border-t border-gray-200 pt-4">
-                            <div className="flex flex-wrap gap-2">
-                              <button 
-                                onClick={() => handleOpenEditContestModal(contest)}
-                                className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                              >
-                                <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                                Edit
-                              </button>
-                              
-                              <button 
-                                onClick={() => handleOpenSubmissionsModal(contest)}
-                                className="inline-flex items-center px-3 py-1.5 border border-green-300 text-sm font-medium rounded-md text-green-700 bg-green-50 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                              >
-                                <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
-                                View Submissions
-                              </button>
-                              
-                              <button 
-                                onClick={() => handleOpenJudgeManagementModal(contest)}
-                                className="inline-flex items-center px-3 py-1.5 border border-blue-300 text-sm font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                              >
-                                <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                                </svg>
-                                Manage Judges
-                              </button>
-                              
-                              {!contest.publicly_listed && (
+                            {/* Actions */}
+                            <div className="border-t border-gray-200 pt-3 md:pt-4">
+                              <div className="flex flex-wrap gap-2">
                                 <button 
-                                  onClick={() => handleOpenMemberManagementModal(contest)}
-                                  className="inline-flex items-center px-3 py-1.5 border border-purple-300 text-sm font-medium rounded-md text-purple-700 bg-purple-50 hover:bg-purple-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+                                  onClick={() => handleOpenEditContestModal(contest)}
+                                  className="inline-flex items-center px-2 md:px-3 py-1.5 border border-gray-300 text-xs md:text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                                 >
-                                  <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                  <svg className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                   </svg>
-                                  Manage Members
+                                  Edit
                                 </button>
-                              )}
-                              
-                              <button 
-                                onClick={() => handleDeleteContest(contest.id)}
-                                className="inline-flex items-center px-3 py-1.5 border border-red-300 text-sm font-medium rounded-md text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                              >
-                                <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                                Delete
-                              </button>
+                                
+                                <button 
+                                  onClick={() => handleOpenSubmissionsModal(contest)}
+                                  className="inline-flex items-center px-2 md:px-3 py-1.5 border border-green-300 text-xs md:text-sm font-medium rounded-md text-green-700 bg-green-50 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                                >
+                                  <svg className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                  </svg>
+                                  <span className="hidden sm:inline">View </span>Submissions
+                                </button>
+                                
+                                <button 
+                                  onClick={() => handleOpenJudgeManagementModal(contest)}
+                                  className="inline-flex items-center px-2 md:px-3 py-1.5 border border-blue-300 text-xs md:text-sm font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                >
+                                  <svg className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                                  </svg>
+                                  <span className="hidden sm:inline">Manage </span>Judges
+                                </button>
+                                
+                                {!contest.publicly_listed && (
+                                  <button 
+                                    onClick={() => handleOpenMemberManagementModal(contest)}
+                                    className="inline-flex items-center px-2 md:px-3 py-1.5 border border-purple-300 text-xs md:text-sm font-medium rounded-md text-purple-700 bg-purple-50 hover:bg-purple-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+                                  >
+                                    <svg className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                    </svg>
+                                    <span className="hidden sm:inline">Manage </span>Members
+                                  </button>
+                                )}
+                                
+                                <button 
+                                  onClick={() => handleDeleteContest(contest.id)}
+                                  className="inline-flex items-center px-2 md:px-3 py-1.5 border border-red-300 text-xs md:text-sm font-medium rounded-md text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                                >
+                                  <svg className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                  Delete
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                  
-                  {/* Pagination */}
-                  {totalItems > itemsPerPage && (
-                    <Pagination
-                      currentPage={currentPage}
-                      totalItems={totalItems}
-                      itemsPerPage={itemsPerPage}
-                      onPageChange={handlePageChange}
-                      className="mt-6"
-                    />
-                  )}
-                </div>
-              ) : (
-                <p className="text-gray-500 italic">No contests yet. Create your first contest!</p>
-              )}
-            </div>
-          )}
-
-          {activeTab === 'texts' && (
-            <div>
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-medium">My Texts</h2>
-                <div className="flex space-x-2">
-                  <div className="relative">
-                    <button
-                      className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 flex items-center"
-                      onClick={() => setIsCreateTextDropdownOpen(!isCreateTextDropdownOpen)}
-                    >
-                      <span>Create New Text</span>
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-1" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-                    {isCreateTextDropdownOpen && (
-                      <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg z-10">
-                        <div className="py-1">
-                          <Link 
-                            to="/editor"
-                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                            onClick={() => setIsCreateTextDropdownOpen(false)}
-                          >
-                            Full Page Editor
-                          </Link>
-                          <button
-                            onClick={() => {
-                              setIsCreateTextDropdownOpen(false);
-                              // Handle PDF upload option
-                              toast("PDF upload feature coming soon!");
-                            }}
-                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                          >
-                            Upload PDF
-                          </button>
-                          <Link
-                            to="/ai-writer"
-                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                            onClick={() => setIsCreateTextDropdownOpen(false)}
-                          >
-                            Use AI Writer
-                          </Link>
-                        </div>
-                      </div>
+                      ))}
+                    </div>
+                    
+                    {/* Pagination */}
+                    {totalItems > itemsPerPage && (
+                      <Pagination
+                        currentPage={currentPage}
+                        totalItems={totalItems}
+                        itemsPerPage={itemsPerPage}
+                        onPageChange={handlePageChange}
+                        className="mt-6"
+                      />
                     )}
                   </div>
-                </div>
+                ) : (
+                  <p className="text-gray-500 italic">No contests yet. Create your first contest!</p>
+                )}
               </div>
-              
-              <div className="mb-6">
-                <input
-                  type="text"
-                  placeholder="Search texts by title, content, or author..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  value={textSearchQuery}
-                  onChange={(e) => {
-                    setTextSearchQuery(e.target.value);
-                  }}
-                />
-              </div>
-              
-              {error && (
-                <ErrorDisplay error={error} />
-              )}
-              
-              {isLoading ? (
-                <LoadingSpinner />
-              ) : filteredTexts.length > 0 ? (
-                <div>
-                  <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
-                    <table className="min-w-full divide-y divide-gray-300">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th scope="col" className="py-3 pl-4 pr-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Title</th>
-                          <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Content Preview</th>
-                          <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Author</th>
-                          <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Created</th>
-                          <th scope="col" className="relative py-3 pl-3 pr-4">
-                            <span className="sr-only">Actions</span>
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200 bg-white">
-                        {filteredTexts.map((text) => (
-                          <tr key={text.id}>
-                            <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900">
-                              <button
-                                onClick={() => handleOpenTextFullModal(text)}
-                                className="text-indigo-600 hover:text-indigo-900 hover:underline text-left"
-                              >
-                                {text.title}
-                              </button>
-                            </td>
-                            <td className="px-3 py-4 text-sm text-gray-500">
-                              {text.content.length > 50 
-                                ? `${text.content.substring(0, 50)}...` 
-                                : text.content}
-                            </td>
-                            <td className="px-3 py-4 text-sm text-gray-500">
-                              {text.author}
-                            </td>
-                            <td className="px-3 py-4 text-sm text-gray-500">
-                              {new Date(text.created_at).toLocaleDateString()}
-                            </td>
-                            <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium">
-                              <button 
-                                className="text-indigo-600 hover:text-indigo-900 mr-4"
-                                onClick={() => handleOpenEditTextModal(text)}
-                              >
-                                Edit
-                              </button>
-                              <button 
-                                className="text-red-600 hover:text-red-900"
-                                onClick={() => handleDeleteText(text.id)}
-                              >
-                                Delete
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  
-                  {/* Pagination */}
-                  {totalItems > itemsPerPage && (
-                    <Pagination
-                      currentPage={currentPage}
-                      totalItems={totalItems}
-                      itemsPerPage={itemsPerPage}
-                      onPageChange={handlePageChange}
-                      className="mt-6"
-                    />
-                  )}
-                </div>
-              ) : (
-                <p className="text-gray-500 italic">No texts found matching your search. Create a new text to get started!</p>
-              )}
-            </div>
-          )}
+            )}
 
-          {activeTab === 'agents' && (
-            <div>
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-medium">My AI Agents</h2>
-                <button 
-                  className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
-                  onClick={handleOpenCreateAgentModal}
-                >
-                  Create New Agent
-                </button>
-              </div>
-              {error && (
-                <ErrorDisplay error={error} />
-              )}
-              <div className="mb-8">
-                <h3 className="text-lg font-medium text-gray-800 mb-4">My Agents</h3>
+            {activeTab === 'texts' && (
+              <div>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-medium">My Texts</h2>
+                  <div className="flex space-x-2">
+                    <div className="relative">
+                      <button
+                        className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 flex items-center"
+                        onClick={() => setIsCreateTextDropdownOpen(!isCreateTextDropdownOpen)}
+                      >
+                        <span>Create New Text</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-1" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                      {isCreateTextDropdownOpen && (
+                        <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg z-10">
+                          <div className="py-1">
+                            <Link 
+                              to="/editor"
+                              className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                              onClick={() => setIsCreateTextDropdownOpen(false)}
+                            >
+                              Full Page Editor
+                            </Link>
+                            <button
+                              onClick={() => {
+                                setIsCreateTextDropdownOpen(false);
+                                // Handle PDF upload option
+                                toast("PDF upload feature coming soon!");
+                              }}
+                              className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                            >
+                              Upload PDF
+                            </button>
+                            <Link
+                              to="/ai-writer"
+                              className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                              onClick={() => setIsCreateTextDropdownOpen(false)}
+                            >
+                              Use AI Writer
+                            </Link>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="mb-6">
+                  <input
+                    type="text"
+                    placeholder="Search texts by title, content, or author..."
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    value={textSearchQuery}
+                    onChange={(e) => {
+                      setTextSearchQuery(e.target.value);
+                    }}
+                  />
+                </div>
+                
+                {error && (
+                  <ErrorDisplay error={error} />
+                )}
+                
                 {isLoading ? (
                   <LoadingSpinner />
-                ) : ownedAgentsData.length > 0 ? (
+                ) : filteredTexts.length > 0 ? (
                   <div>
+                    <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
+                      <table className="min-w-full divide-y divide-gray-300">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th scope="col" className="py-3 pl-4 pr-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Title</th>
+                            <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Content Preview</th>
+                            <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Author</th>
+                            <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Created</th>
+                            <th scope="col" className="relative py-3 pl-3 pr-4">
+                              <span className="sr-only">Actions</span>
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 bg-white">
+                          {filteredTexts.map((text) => (
+                            <tr key={text.id}>
+                              <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900">
+                                <button
+                                  onClick={() => handleOpenTextFullModal(text)}
+                                  className="text-indigo-600 hover:text-indigo-900 hover:underline text-left"
+                                >
+                                  {text.title}
+                                </button>
+                              </td>
+                              <td className="px-3 py-4 text-sm text-gray-500">
+                                {text.content.length > 50 
+                                  ? `${text.content.substring(0, 50)}...` 
+                                  : text.content}
+                              </td>
+                              <td className="px-3 py-4 text-sm text-gray-500">
+                                {text.author}
+                              </td>
+                              <td className="px-3 py-4 text-sm text-gray-500">
+                                {new Date(text.created_at).toLocaleDateString()}
+                              </td>
+                              <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium">
+                                <button 
+                                  className="text-indigo-600 hover:text-indigo-900 mr-4"
+                                  onClick={() => handleOpenEditTextModal(text)}
+                                >
+                                  Edit
+                                </button>
+                                <button 
+                                  className="text-red-600 hover:text-red-900"
+                                  onClick={() => handleDeleteText(text.id)}
+                                >
+                                  Delete
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    
+                    {/* Pagination */}
+                    {totalItems > itemsPerPage && (
+                      <Pagination
+                        currentPage={currentPage}
+                        totalItems={totalItems}
+                        itemsPerPage={itemsPerPage}
+                        onPageChange={handlePageChange}
+                        className="mt-6"
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 italic">No texts found matching your search. Create a new text to get started!</p>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'agents' && (
+              <div>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-medium">My AI Agents</h2>
+                  <button 
+                    className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
+                    onClick={handleOpenCreateAgentModal}
+                  >
+                    Create New Agent
+                  </button>
+                </div>
+                {error && (
+                  <ErrorDisplay error={error} />
+                )}
+                <div className="mb-8">
+                  <h3 className="text-lg font-medium text-gray-800 mb-4">My Agents</h3>
+                  {isLoading ? (
+                    <LoadingSpinner />
+                  ) : ownedAgentsData.length > 0 ? (
+                    <div>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        {ownedAgentsData.map((agent) => (
+                          <div key={agent.id} className="bg-white overflow-hidden shadow rounded-lg divide-y divide-gray-200">
+                            <div className="px-4 py-5 sm:px-6">
+                              <div className="flex justify-between items-start">
+                                <h3 className="text-lg font-medium text-gray-900 truncate">{agent.name}</h3>
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                  agent.type === 'writer' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
+                                }`}>
+                                  {agent.type.charAt(0).toUpperCase() + agent.type.slice(1)}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-sm text-gray-500 line-clamp-2">{agent.description}</p>
+                            </div>
+                            <div className="px-4 py-4 sm:px-6 flex justify-between items-center">
+                              <div className="text-sm text-gray-500">
+                                Model: {agent.model}
+                              </div>
+                              <div>
+                                <button 
+                                  onClick={() => handleOpenEditAgentModal(agent)}
+                                  className="text-indigo-600 hover:text-indigo-900 mr-3 text-sm"
+                                >
+                                  Edit
+                                </button>
+                                <button 
+                                  onClick={() => handleDeleteAgent(agent.id)}
+                                  className="text-red-600 hover:text-red-900 text-sm"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      {/* Pagination for My Agents */}
+                      {totalItems > itemsPerPage && (
+                        <Pagination
+                          currentPage={currentPage}
+                          totalItems={totalItems}
+                          itemsPerPage={itemsPerPage}
+                          onPageChange={handlePageChange}
+                          className="mt-6"
+                        />
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-gray-500 italic">You haven't created any AI agents yet.</p>
+                  )}
+                </div>
+                {/* Temporary removal of public agents section until it's properly implemented
+                <div>
+                  <h3 className="text-lg font-medium text-gray-800 mb-4">Public Agents</h3>
+                  {isLoadingPublic ? (
+                    <div className="flex justify-center items-center h-32">
+                      <svg className="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 8 18-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 7 14 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    </div>
+                  ) : publicAgentsData.length > 0 ? (
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                      {ownedAgentsData.map((agent) => (
+                      {publicAgentsData.map((agent) => (
                         <div key={agent.id} className="bg-white overflow-hidden shadow rounded-lg divide-y divide-gray-200">
                           <div className="px-4 py-5 sm:px-6">
                             <div className="flex justify-between items-start">
@@ -1214,26 +1278,103 @@ const DashboardPage: React.FC = () => {
                             <div className="text-sm text-gray-500">
                               Model: {agent.model}
                             </div>
-                            <div>
-                              <button 
-                                onClick={() => handleOpenEditAgentModal(agent)}
-                                className="text-indigo-600 hover:text-indigo-900 mr-3 text-sm"
-                              >
-                                Edit
-                              </button>
-                              <button 
-                                onClick={() => handleDeleteAgent(agent.id)}
-                                className="text-red-600 hover:text-red-900 text-sm"
-                              >
-                                Delete
-                              </button>
-                            </div>
+                            <button 
+                              onClick={() => handleCloneAgent(agent.id)}
+                              className="text-indigo-600 hover:text-indigo-900 text-sm"
+                            >
+                              Clone to My Agents
+                            </button>
                           </div>
                         </div>
                       ))}
                     </div>
+                  ) : (
+                    <p className="text-gray-500 italic">No public agents available yet.</p>
+                  )}
+                </div>
+                */}
+              </div>
+            )}
+
+            {activeTab === 'participation' && (
+              <ParticipationTab 
+                contestsData={contestsData}
+                participationContests={participationContests}
+                isLoading={isLoadingParticipation}
+                error={error}
+              />
+            )}
+
+            {activeTab === 'credits' && (
+              <div>
+                <h2 className="text-xl font-medium mb-4">Credits Management</h2>
+                <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
+                  <h3 className="font-medium text-gray-700">Current Balance</h3>
+                  <p className="text-2xl font-bold text-indigo-600">
+                    {user?.credits !== undefined ? `${user.credits} credits` : 'Loading...'}
+                  </p>
+                </div>
+                
+                <h3 className="font-medium text-gray-700 mb-4">Transaction History</h3>
+                
+                {transactionError && (
+                  <ErrorDisplay error={transactionError} />
+                )}
+                
+                {isLoadingTransactions ? (
+                  <LoadingSpinner />
+                ) : transactions.length > 0 ? (
+                  <div>
+                    <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
+                      <table className="min-w-full divide-y divide-gray-300">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th scope="col" className="py-3 pl-4 pr-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Date</th>
+                            <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Type</th>
+                            <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Amount</th>
+                            <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Description</th>
+                            <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">AI Model</th>
+                            <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Tokens</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 bg-white">
+                          {transactions.map((transaction) => (
+                            <tr key={transaction.id}>
+                              <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-900">
+                                {new Date(transaction.created_at).toLocaleString()}
+                              </td>
+                              <td className="px-3 py-4 text-sm">
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                  transaction.transaction_type === 'purchase' ? 'bg-green-100 text-green-800' :
+                                  transaction.transaction_type === 'refund' ? 'bg-blue-100 text-blue-800' :
+                                  transaction.transaction_type === 'admin_adjustment' ? 'bg-purple-100 text-purple-800' :
+                                  'bg-red-100 text-red-800'
+                                }`}>
+                                  {transaction.transaction_type === 'purchase' ? 'Purchase' :
+                                   transaction.transaction_type === 'consumption' ? 'Consumption' :
+                                   transaction.transaction_type === 'refund' ? 'Refund' :
+                                   'Admin Adjustment'}
+                                </span>
+                              </td>
+                              <td className="px-3 py-4 text-sm font-medium">
+                                <span className={transaction.amount >= 0 ? 'text-green-600' : 'text-red-600'}>
+                                  {transaction.amount >= 0 ? '+' : ''}{transaction.amount}
+                                </span>
+                              </td>
+                              <td className="px-3 py-4 text-sm text-gray-900">{transaction.description}</td>
+                              <td className="px-3 py-4 text-sm text-gray-500">
+                                {transaction.ai_model || '-'}
+                              </td>
+                              <td className="px-3 py-4 text-sm text-gray-500">
+                                {transaction.tokens_used ? transaction.tokens_used.toLocaleString() : '-'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                     
-                    {/* Pagination for My Agents */}
+                    {/* Pagination */}
                     {totalItems > itemsPerPage && (
                       <Pagination
                         currentPage={currentPage}
@@ -1245,156 +1386,17 @@ const DashboardPage: React.FC = () => {
                     )}
                   </div>
                 ) : (
-                  <p className="text-gray-500 italic">You haven't created any AI agents yet.</p>
-                )}
-              </div>
-              {/* Temporary removal of public agents section until it's properly implemented
-              <div>
-                <h3 className="text-lg font-medium text-gray-800 mb-4">Public Agents</h3>
-                {isLoadingPublic ? (
-                  <div className="flex justify-center items-center h-32">
-                    <svg className="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 8 18-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 7 14 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  <div className="text-center py-12">
+                    <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">No transactions</h3>
+                    <p className="mt-1 text-sm text-gray-500">You haven't made any credit transactions yet.</p>
                   </div>
-                ) : publicAgentsData.length > 0 ? (
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {publicAgentsData.map((agent) => (
-                      <div key={agent.id} className="bg-white overflow-hidden shadow rounded-lg divide-y divide-gray-200">
-                        <div className="px-4 py-5 sm:px-6">
-                          <div className="flex justify-between items-start">
-                            <h3 className="text-lg font-medium text-gray-900 truncate">{agent.name}</h3>
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              agent.type === 'writer' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
-                            }`}>
-                              {agent.type.charAt(0).toUpperCase() + agent.type.slice(1)}
-                            </span>
-                          </div>
-                          <p className="mt-1 text-sm text-gray-500 line-clamp-2">{agent.description}</p>
-                        </div>
-                        <div className="px-4 py-4 sm:px-6 flex justify-between items-center">
-                          <div className="text-sm text-gray-500">
-                            Model: {agent.model}
-                          </div>
-                          <button 
-                            onClick={() => handleCloneAgent(agent.id)}
-                            className="text-indigo-600 hover:text-indigo-900 text-sm"
-                          >
-                            Clone to My Agents
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-gray-500 italic">No public agents available yet.</p>
                 )}
               </div>
-              */}
-            </div>
-          )}
-
-          {activeTab === 'participation' && (
-            <ParticipationTab 
-              contestsData={contestsData}
-              participationContests={participationContests}
-              isLoading={isLoadingParticipation}
-              error={error}
-            />
-          )}
-
-          {activeTab === 'credits' && (
-            <div>
-              <h2 className="text-xl font-medium mb-4">Credits Management</h2>
-              <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
-                <h3 className="font-medium text-gray-700">Current Balance</h3>
-                <p className="text-2xl font-bold text-indigo-600">
-                  {user?.credits !== undefined ? `${user.credits} credits` : 'Loading...'}
-                </p>
-              </div>
-              
-              <h3 className="font-medium text-gray-700 mb-4">Transaction History</h3>
-              
-              {transactionError && (
-                <ErrorDisplay error={transactionError} />
-              )}
-              
-              {isLoadingTransactions ? (
-                <LoadingSpinner />
-              ) : transactions.length > 0 ? (
-                <div>
-                  <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
-                    <table className="min-w-full divide-y divide-gray-300">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th scope="col" className="py-3 pl-4 pr-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Date</th>
-                          <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Type</th>
-                          <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Amount</th>
-                          <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Description</th>
-                          <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">AI Model</th>
-                          <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Tokens</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200 bg-white">
-                        {transactions.map((transaction) => (
-                          <tr key={transaction.id}>
-                            <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-900">
-                              {new Date(transaction.created_at).toLocaleString()}
-                            </td>
-                            <td className="px-3 py-4 text-sm">
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                transaction.transaction_type === 'purchase' ? 'bg-green-100 text-green-800' :
-                                transaction.transaction_type === 'refund' ? 'bg-blue-100 text-blue-800' :
-                                transaction.transaction_type === 'admin_adjustment' ? 'bg-purple-100 text-purple-800' :
-                                'bg-red-100 text-red-800'
-                              }`}>
-                                {transaction.transaction_type === 'purchase' ? 'Purchase' :
-                                 transaction.transaction_type === 'consumption' ? 'Consumption' :
-                                 transaction.transaction_type === 'refund' ? 'Refund' :
-                                 'Admin Adjustment'}
-                              </span>
-                            </td>
-                            <td className="px-3 py-4 text-sm font-medium">
-                              <span className={transaction.amount >= 0 ? 'text-green-600' : 'text-red-600'}>
-                                {transaction.amount >= 0 ? '+' : ''}{transaction.amount}
-                              </span>
-                            </td>
-                            <td className="px-3 py-4 text-sm text-gray-900">{transaction.description}</td>
-                            <td className="px-3 py-4 text-sm text-gray-500">
-                              {transaction.ai_model || '-'}
-                            </td>
-                            <td className="px-3 py-4 text-sm text-gray-500">
-                              {transaction.tokens_used ? transaction.tokens_used.toLocaleString() : '-'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  
-                  {/* Pagination */}
-                  {totalItems > itemsPerPage && (
-                    <Pagination
-                      currentPage={currentPage}
-                      totalItems={totalItems}
-                      itemsPerPage={itemsPerPage}
-                      onPageChange={handlePageChange}
-                      className="mt-6"
-                    />
-                  )}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">No transactions</h3>
-                  <p className="mt-1 text-sm text-gray-500">You haven't made any credit transactions yet.</p>
-                </div>
-              )}
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 

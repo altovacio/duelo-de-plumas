@@ -4,9 +4,12 @@ This document lists known technical debt, areas for refactoring, and potential f
 
 ## ONGOING
 
+-Header & pages definition
+  -Mobile responsiveness pt1
+
 ## TODO
 
--Header & pages definition
+-Proper onboarding
 
 -style
   -Mobile responsiveness
